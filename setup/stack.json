@@ -1,19 +1,24 @@
 {
-  "project_name": "linkedin-personalization",
+  "project_name": "amd1-1_alpha",
   "owner": "InterceptArcher",
-  "stack_type": "fullstack",
+  "stack_type": "personalization_pipeline",
   "frontend": {
     "provider": "vercel",
-    "framework": "nextjs",
+    "framework": "next.js",
     "language": "typescript"
   },
   "backend": {
-    "provider": "vercel",
-    "language": "typescript",
-    "framework": "nextjs-api"
+    "provider": "railway",
+    "language": "python",
+    "framework": "fastapi"
   },
   "database": {
     "provider": "supabase",
-    "type": "postgres"
+    "type": "postgresql"
+  },
+  "deployment": {
+    "frontend": "vercel",
+    "backend": "railway",
+    "database": "supabase"
   }
 }
