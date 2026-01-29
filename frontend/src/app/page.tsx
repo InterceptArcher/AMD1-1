@@ -45,7 +45,8 @@ function HomeContent() {
   };
 
   const getApiUrl = () => {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    // Use relative URL to leverage Next.js proxy (avoids CORS/port issues in Codespaces)
+    return '/api';
   };
 
   // Poll for job completion
