@@ -7,14 +7,20 @@ Abstracts database operations for:
 """
 
 import json
+import os
+import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 import logging
 
-from supabase import create_client, Client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Check if we're in mock mode (for local testing without real Supabase)
+MOCK_MODE = os.environ.get("MOCK_SUPABASE", "false").lower() == "true" or \
+            settings.SUPABASE_URL == "http://localhost:54321" or \
+            "mock" in settings.SUPABASE_KEY.lower()
 
 
 class SupabaseClient:
@@ -24,15 +30,31 @@ class SupabaseClient:
       - raw_data (email, source, payload, fetched_at)
       - staging_normalized (email, normalized_fields, status, created_at)
       - finalize_data (email, normalized_data, intro, cta, resolved_at)
+
+    Supports mock mode for local testing without real Supabase credentials.
     """
 
     def __init__(self):
-        """Initialize Supabase client."""
-        self.client: Client = create_client(
-            supabase_url=settings.SUPABASE_URL,
-            supabase_key=settings.SUPABASE_KEY
-        )
-        logger.info("Supabase client initialized")
+        """Initialize Supabase client (or mock storage for local testing)."""
+        self.mock_mode = MOCK_MODE
+
+        if self.mock_mode:
+            logger.info("Supabase client initialized in MOCK MODE (local testing)")
+            # In-memory storage for mock mode
+            self._mock_raw_data: List[Dict[str, Any]] = []
+            self._mock_staging: List[Dict[str, Any]] = []
+            self._mock_finalize: List[Dict[str, Any]] = []
+            self._mock_jobs: List[Dict[str, Any]] = []
+            self._mock_outputs: List[Dict[str, Any]] = []
+            self._mock_pdfs: List[Dict[str, Any]] = []
+            self.client = None
+        else:
+            from supabase import create_client, Client
+            self.client: Client = create_client(
+                supabase_url=settings.SUPABASE_URL,
+                supabase_key=settings.SUPABASE_KEY
+            )
+            logger.info("Supabase client initialized")
 
     # ========================================================================
     # RAW_DATA TABLE (External API responses)
@@ -46,22 +68,28 @@ class SupabaseClient:
     ) -> Dict[str, Any]:
         """
         Store raw API response for an email/source.
-        
+
         Args:
             email: User email
             source: API source (apollo, pdl, hunter, gnews)
             payload: Raw response data
-            
+
         Returns:
             Inserted record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "email": email,
             "source": source,
             "payload": payload,
             "fetched_at": datetime.utcnow().isoformat()
         }
-        
+
+        if self.mock_mode:
+            self._mock_raw_data.append(data)
+            logger.info(f"[MOCK] Stored raw_data for {email} from {source}")
+            return data
+
         try:
             result = self.client.table("raw_data").insert(data).execute()
             logger.info(f"Stored raw_data for {email} from {source}")
@@ -73,13 +101,16 @@ class SupabaseClient:
     def get_raw_data_for_email(self, email: str) -> List[Dict[str, Any]]:
         """
         Retrieve all raw data records for a given email.
-        
+
         Args:
             email: User email
-            
+
         Returns:
             List of raw_data records
         """
+        if self.mock_mode:
+            return [r for r in self._mock_raw_data if r["email"] == email]
+
         try:
             result = self.client.table("raw_data").select("*").eq("email", email).execute()
             return result.data if result.data else []
@@ -100,22 +131,28 @@ class SupabaseClient:
         """
         Create a staging_normalized record for an email.
         Used during the enrichment process to track progress.
-        
+
         Args:
             email: User email
             normalized_fields: Partial normalized profile
             status: 'resolving' or 'ready'
-            
+
         Returns:
             Inserted record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "email": email,
             "normalized_fields": normalized_fields,
             "status": status,
             "created_at": datetime.utcnow().isoformat()
         }
-        
+
+        if self.mock_mode:
+            self._mock_staging.append(data)
+            logger.info(f"[MOCK] Created staging record for {email}")
+            return data
+
         try:
             result = self.client.table("staging_normalized").insert(data).execute()
             logger.info(f"Created staging record for {email} with status={status}")
@@ -132,12 +169,12 @@ class SupabaseClient:
     ) -> Dict[str, Any]:
         """
         Update existing staging_normalized record.
-        
+
         Args:
             email: User email
             normalized_fields: Updated normalized profile
             status: New status
-            
+
         Returns:
             Updated record
         """
@@ -146,7 +183,15 @@ class SupabaseClient:
             "status": status,
             "updated_at": datetime.utcnow().isoformat()
         }
-        
+
+        if self.mock_mode:
+            for record in self._mock_staging:
+                if record["email"] == email:
+                    record.update(data)
+                    logger.info(f"[MOCK] Updated staging record for {email}")
+                    return record
+            return data
+
         try:
             result = self.client.table("staging_normalized").update(data).eq("email", email).execute()
             logger.info(f"Updated staging record for {email}")
@@ -170,18 +215,19 @@ class SupabaseClient:
         """
         Write finalized profile + personalization content.
         This is the table consumed by the frontend for ebook rendering.
-        
+
         Args:
             email: User email
             normalized_data: Complete normalized profile
             intro: LLM-generated intro hook (optional in alpha)
             cta: LLM-generated CTA (optional in alpha)
             data_sources: List of APIs that contributed to this record
-            
+
         Returns:
             Inserted record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "email": email,
             "normalized_data": normalized_data,
             "personalization_intro": intro,
@@ -189,7 +235,14 @@ class SupabaseClient:
             "data_sources": data_sources or [],
             "resolved_at": datetime.utcnow().isoformat()
         }
-        
+
+        if self.mock_mode:
+            # Remove any existing record for this email
+            self._mock_finalize = [r for r in self._mock_finalize if r["email"] != email]
+            self._mock_finalize.append(data)
+            logger.info(f"[MOCK] Wrote finalize_data for {email}")
+            return data
+
         try:
             result = self.client.table("finalize_data").insert(data).execute()
             logger.info(f"Wrote finalize_data for {email}")
@@ -201,13 +254,17 @@ class SupabaseClient:
     def get_finalize_data(self, email: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve finalized profile for a given email.
-        
+
         Args:
             email: User email
-            
+
         Returns:
             finalize_data record, or None if not found
         """
+        if self.mock_mode:
+            records = [r for r in self._mock_finalize if r["email"] == email]
+            return records[-1] if records else None
+
         try:
             result = self.client.table("finalize_data").select("*").eq("email", email).order("resolved_at", desc=True).limit(1).execute()
             return result.data[0] if result.data else None
@@ -237,6 +294,7 @@ class SupabaseClient:
             Upserted record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "email": email,
             "normalized_data": normalized_data,
             "personalization_intro": intro,
@@ -244,6 +302,13 @@ class SupabaseClient:
             "data_sources": data_sources or [],
             "resolved_at": datetime.utcnow().isoformat()
         }
+
+        if self.mock_mode:
+            # Remove existing and add new
+            self._mock_finalize = [r for r in self._mock_finalize if r["email"] != email]
+            self._mock_finalize.append(data)
+            logger.info(f"[MOCK] Upserted finalize_data for {email}")
+            return data
 
         try:
             result = self.client.table("finalize_data").upsert(
@@ -287,7 +352,9 @@ class SupabaseClient:
         Returns:
             Created job record with id
         """
+        job_id = str(uuid.uuid4())
         data = {
+            "id": job_id,
             "email": email,
             "domain": domain,
             "cta": cta,
@@ -300,6 +367,11 @@ class SupabaseClient:
             "created_at": datetime.utcnow().isoformat()
         }
 
+        if self.mock_mode:
+            self._mock_jobs.append(data)
+            logger.info(f"[MOCK] Created job {job_id} for {email}")
+            return data
+
         try:
             result = self.client.table("personalization_jobs").insert(data).execute()
             logger.info(f"Created job for {email}")
@@ -310,7 +382,7 @@ class SupabaseClient:
 
     def update_job_status(
         self,
-        job_id: int,
+        job_id: str,
         status: str,
         error_message: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -335,6 +407,14 @@ class SupabaseClient:
         if error_message:
             data["error_message"] = error_message
 
+        if self.mock_mode:
+            for job in self._mock_jobs:
+                if job["id"] == job_id:
+                    job.update(data)
+                    logger.info(f"[MOCK] Updated job {job_id} status to {status}")
+                    return job
+            return data
+
         try:
             result = self.client.table("personalization_jobs").update(data).eq("id", job_id).execute()
             logger.info(f"Updated job {job_id} status to {status}")
@@ -343,7 +423,7 @@ class SupabaseClient:
             logger.error(f"Error updating job {job_id}: {e}")
             raise
 
-    def get_job(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """
         Get job by ID.
 
@@ -353,6 +433,12 @@ class SupabaseClient:
         Returns:
             Job record or None
         """
+        if self.mock_mode:
+            for job in self._mock_jobs:
+                if job["id"] == job_id:
+                    return job
+            return None
+
         try:
             result = self.client.table("personalization_jobs").select("*").eq("id", job_id).execute()
             return result.data[0] if result.data else None
@@ -370,6 +456,10 @@ class SupabaseClient:
         Returns:
             List of pending job records
         """
+        if self.mock_mode:
+            pending = [j for j in self._mock_jobs if j["status"] == "pending"]
+            return pending[:limit]
+
         try:
             result = self.client.table("personalization_jobs").select("*").eq(
                 "status", "pending"
@@ -413,6 +503,7 @@ class SupabaseClient:
             Stored output record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "job_id": job_id,
             "output_json": output_json,
             "intro_hook": intro_hook,
@@ -425,6 +516,11 @@ class SupabaseClient:
             "created_at": datetime.utcnow().isoformat()
         }
 
+        if self.mock_mode:
+            self._mock_outputs.append(data)
+            logger.info(f"[MOCK] Stored personalization output for job {job_id}")
+            return data
+
         try:
             result = self.client.table("personalization_outputs").insert(data).execute()
             logger.info(f"Stored personalization output for job {job_id}")
@@ -433,7 +529,7 @@ class SupabaseClient:
             logger.error(f"Error storing output for job {job_id}: {e}")
             raise
 
-    def get_output_for_job(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def get_output_for_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """
         Get personalization output for a job.
 
@@ -443,6 +539,10 @@ class SupabaseClient:
         Returns:
             Output record or None
         """
+        if self.mock_mode:
+            outputs = [o for o in self._mock_outputs if o["job_id"] == job_id]
+            return outputs[-1] if outputs else None
+
         try:
             result = self.client.table("personalization_outputs").select("*").eq(
                 "job_id", job_id
@@ -458,7 +558,7 @@ class SupabaseClient:
 
     def create_pdf_delivery(
         self,
-        job_id: int,
+        job_id: str,
         pdf_url: Optional[str] = None,
         storage_path: Optional[str] = None,
         file_size_bytes: Optional[int] = None
@@ -476,6 +576,7 @@ class SupabaseClient:
             Created delivery record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "job_id": job_id,
             "pdf_url": pdf_url,
             "storage_path": storage_path,
@@ -483,6 +584,11 @@ class SupabaseClient:
             "delivery_status": "pending",
             "created_at": datetime.utcnow().isoformat()
         }
+
+        if self.mock_mode:
+            self._mock_pdfs.append(data)
+            logger.info(f"[MOCK] Created PDF delivery for job {job_id}")
+            return data
 
         try:
             result = self.client.table("pdf_deliveries").insert(data).execute()
@@ -494,7 +600,7 @@ class SupabaseClient:
 
     def update_pdf_delivery(
         self,
-        delivery_id: int,
+        delivery_id: str,
         status: str,
         delivery_channel: Optional[str] = None,
         error_message: Optional[str] = None
@@ -522,6 +628,14 @@ class SupabaseClient:
         if error_message:
             data["error_message"] = error_message
 
+        if self.mock_mode:
+            for pdf in self._mock_pdfs:
+                if pdf["id"] == delivery_id:
+                    pdf.update(data)
+                    logger.info(f"[MOCK] Updated PDF delivery {delivery_id} to {status}")
+                    return pdf
+            return data
+
         try:
             result = self.client.table("pdf_deliveries").update(data).eq("id", delivery_id).execute()
             logger.info(f"Updated PDF delivery {delivery_id} to {status}")
@@ -541,6 +655,10 @@ class SupabaseClient:
         Returns:
             True if connection is healthy
         """
+        if self.mock_mode:
+            logger.info("[MOCK] Supabase health check passed (mock mode)")
+            return True
+
         try:
             # Try a simple query to verify connection
             self.client.table("finalize_data").select("*").limit(1).execute()
