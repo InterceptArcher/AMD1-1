@@ -22,3 +22,4 @@ python-json-logger==2.0.7
 # PDF Generation
 reportlab==4.0.7
 weasyprint>=60.0
+# Deploy trigger Fri Jan 30 17:16:40 UTC 2026
