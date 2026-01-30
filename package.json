@@ -15,15 +15,22 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed"
   },
-  "keywords": ["next.js", "typescript", "linkedin", "personalization"],
+  "keywords": [
+    "next.js",
+    "typescript",
+    "linkedin",
+    "personalization"
+  ],
   "author": "InterceptArcher",
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@supabase/supabase-js": "^2.45.0",
+    "client-only": "^0.0.1",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "server-only": "^0.0.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {

@@ -1,3 +1,5 @@
+import type { Persona, BuyerStage } from '../schemas';
+
 /**
  * Extract domain from email address
  * @param email - Email address
@@ -16,14 +18,14 @@ export function extractDomain(email: string): string {
  * @param email - Email address
  * @returns Inferred persona
  */
-export function inferPersona(email: string): string {
+export function inferPersona(email: string): Persona {
   const prefix = email.split('@')[0].toLowerCase();
 
-  const personaMap: Record<string, string> = {
+  const personaMap: Record<string, Persona> = {
     ops: 'Operations',
     operations: 'Operations',
-    rev: 'Revenue',
-    revenue: 'Revenue',
+    rev: 'Business Leader',
+    revenue: 'Business Leader',
     security: 'Security',
     sec: 'Security',
     it: 'IT',
@@ -51,20 +53,20 @@ export function inferPersona(email: string): string {
  * @param cta - Call-to-action string
  * @returns Buyer stage
  */
-export function inferBuyerStage(cta: string): string {
+export function inferBuyerStage(cta: string): BuyerStage {
   const ctaLower = cta.toLowerCase();
 
-  const stageMap: Record<string, string> = {
-    compare: 'Evaluation',
-    evaluate: 'Evaluation',
-    learn: 'Awareness',
-    discover: 'Awareness',
-    explore: 'Awareness',
-    demo: 'Decision',
-    buy: 'Decision',
-    purchase: 'Decision',
-    trial: 'Decision',
+  const stageMap: Record<string, BuyerStage> = {
+    compare: 'evaluation',
+    evaluate: 'evaluation',
+    learn: 'awareness',
+    discover: 'awareness',
+    explore: 'awareness',
+    demo: 'decision',
+    buy: 'decision',
+    purchase: 'decision',
+    trial: 'decision',
   };
 
-  return stageMap[ctaLower] || 'Evaluation';
+  return stageMap[ctaLower] || 'evaluation';
 }

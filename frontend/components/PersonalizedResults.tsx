@@ -1,14 +1,11 @@
 'use client';
 
-interface ValueProposition {
-  title: string;
-  description: string;
-}
-
 interface PersonalizedContent {
   headline: string;
   subheadline: string;
-  value_propositions: ValueProposition[];
+  value_prop_1: string;
+  value_prop_2: string;
+  value_prop_3: string;
   cta_text: string;
   personalization_rationale?: string;
 }
@@ -19,6 +16,7 @@ interface PersonalizedResultsProps {
     persona?: string;
     buyer_stage?: string;
     company?: string;
+    ai_priority?: string;
     industry?: string;
   };
 }
@@ -51,8 +49,8 @@ export default function PersonalizedResults({
               data-testid="metadata-persona"
               style={{
                 padding: '0.25rem 0.75rem',
-                backgroundColor: '#EBF5FF',
-                color: '#0A66C2',
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
                 borderRadius: '9999px',
                 fontSize: '0.875rem',
                 fontWeight: '500',
@@ -66,8 +64,8 @@ export default function PersonalizedResults({
               data-testid="metadata-stage"
               style={{
                 padding: '0.25rem 0.75rem',
-                backgroundColor: '#F0FDF4',
-                color: '#16A34A',
+                backgroundColor: '#FECACA',
+                color: '#B91C1C',
                 borderRadius: '9999px',
                 fontSize: '0.875rem',
                 fontWeight: '500',
@@ -76,19 +74,34 @@ export default function PersonalizedResults({
               {metadata.buyer_stage}
             </span>
           )}
-          {metadata.industry && (
+          {metadata.company && (
             <span
-              data-testid="metadata-industry"
+              data-testid="metadata-company"
               style={{
                 padding: '0.25rem 0.75rem',
-                backgroundColor: '#FEF3C7',
-                color: '#D97706',
+                backgroundColor: '#FEF2F2',
+                color: '#991B1B',
                 borderRadius: '9999px',
                 fontSize: '0.875rem',
                 fontWeight: '500',
               }}
             >
-              {metadata.industry}
+              {metadata.company}
+            </span>
+          )}
+          {metadata.ai_priority && (
+            <span
+              data-testid="metadata-ai-priority"
+              style={{
+                padding: '0.25rem 0.75rem',
+                backgroundColor: '#FEE2E2',
+                color: '#7C2D12',
+                borderRadius: '9999px',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+              }}
+            >
+              {metadata.ai_priority}
             </span>
           )}
         </div>
@@ -149,7 +162,7 @@ export default function PersonalizedResults({
               gap: '1.5rem',
             }}
           >
-            {content.value_propositions.map((vp, index) => (
+            {[content.value_prop_1, content.value_prop_2, content.value_prop_3].map((vp, index) => (
               <div
                 key={index}
                 data-testid={`value-prop-${index}`}
@@ -164,8 +177,8 @@ export default function PersonalizedResults({
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: '#EBF5FF',
-                    color: '#0A66C2',
+                    backgroundColor: '#FEE2E2',
+                    color: '#DC2626',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -176,24 +189,14 @@ export default function PersonalizedResults({
                   {index + 1}
                 </div>
                 <div>
-                  <h4
-                    style={{
-                      fontSize: '1rem',
-                      fontWeight: '600',
-                      color: '#111827',
-                      marginBottom: '0.25rem',
-                    }}
-                  >
-                    {vp.title}
-                  </h4>
                   <p
                     style={{
                       fontSize: '0.875rem',
-                      color: '#6b7280',
+                      color: '#111827',
                       lineHeight: '1.5',
                     }}
                   >
-                    {vp.description}
+                    {vp}
                   </p>
                 </div>
               </div>
@@ -207,7 +210,7 @@ export default function PersonalizedResults({
           style={{
             width: '100%',
             padding: '1rem 2rem',
-            backgroundColor: '#0A66C2',
+            backgroundColor: '#DC2626',
             color: 'white',
             border: 'none',
             borderRadius: '8px',
@@ -217,10 +220,10 @@ export default function PersonalizedResults({
             transition: 'background-color 0.2s',
           }}
           onMouseOver={(e) =>
-            (e.currentTarget.style.backgroundColor = '#004182')
+            (e.currentTarget.style.backgroundColor = '#B91C1C')
           }
           onMouseOut={(e) =>
-            (e.currentTarget.style.backgroundColor = '#0A66C2')
+            (e.currentTarget.style.backgroundColor = '#DC2626')
           }
         >
           {content.cta_text}

@@ -1,284 +1,408 @@
 # Testing With Real Companies
 
-## 🏢 What Works for ANY Company vs What's Limited
+## 🏢 AMD Guided Experience Testing Guide
 
 ### ✅ WORKS FOR ALL COMPANIES (Real Logic)
 
-These features work for **ANY email domain**:
+The application now uses a **guided form experience** where users explicitly provide key information through dropdown menus. This works for **ANY company**!
 
-#### 1. Email Validation
+---
+
+## 📝 New Guided Form Structure
+
+### Required Fields (All via Dropdowns/Input):
+
+#### 1. Company (Text Input)
+```
+User enters company name directly
+→ "AMD", "Microsoft", "Google", "Any Company Name"
+✅ No lookup needed - uses user input
+```
+
+#### 2. Role (Dropdown Selection)
+```
+User selects from:
+- Business Leader / Executive
+- IT / Technical
+- Finance
+- Operations
+- Security
+
+→ Directly sets persona (no inference needed)
+✅ Works for ANY company
+```
+
+#### 3. Modernization Stage (Dropdown Selection)
+```
+User selects from:
+- Exploring & Learning (Early Stage) → awareness
+- Evaluating & Comparing (Mid Stage) → evaluation
+- Ready to Implement (Late Stage) → decision
+
+→ Directly sets buyer stage (no CTA inference needed)
+✅ Works for ANY company
+```
+
+#### 4. AI Priority (Dropdown Selection)
+```
+User selects from:
+- Infrastructure Modernization
+- AI/ML Workloads
+- Cloud Migration
+- Data Center Optimization
+- Performance & Scalability
+- Cost Optimization
+
+→ Captured for content personalization
+✅ Works for ANY company
+```
+
+#### 5. Work Email (Required)
 ```
 ✅ john@anyrandomcompany.com      → Valid
 ✅ security@startup123.io          → Valid
 ✅ ops@mycompany.co.uk             → Valid
 ❌ notanemail                      → Invalid
 ❌ missing@domain                  → Invalid
+
+→ Used for domain extraction and enrichment
 ```
 
-#### 2. Domain Extraction
+#### 6. Name (Optional)
 ```
-Input:  security@randomstartup.com
-Output: "randomstartup.com"
-
-Input:  john.doe@big-enterprise.co.uk
-Output: "big-enterprise.co.uk"
-```
-**Works for ANY domain!**
-
-#### 3. Persona Detection
-```
-ops@anything.com         → "Operations"
-security@anything.com    → "Security"
-finance@anything.com     → "Finance"
-it@anything.com          → "IT"
-cto@anything.com         → "IT"
-cfo@anything.com         → "Finance"
-ciso@anything.com        → "Security"
-john@anything.com        → "Business Leader" (default)
-```
-**Works for ANY email prefix!**
-
-#### 4. Buyer Stage Inference
-```
-?cta=compare   → "Evaluation"
-?cta=learn     → "Awareness"
-?cta=demo      → "Decision"
-?cta=anything  → "Evaluation" (default)
-```
-**Works for ANY CTA parameter!**
-
----
-
-### ⚠️ LIMITED: Company Enrichment (Only 6 Companies)
-
-This is **hardcoded** for alpha - only recognizes these domains:
-
-```javascript
-✅ google.com      → "Google, Technology, Enterprise"
-✅ microsoft.com   → "Microsoft, Technology, Enterprise"
-✅ amazon.com      → "Amazon, E-commerce, Enterprise"
-✅ apple.com       → "Apple, Technology, Enterprise"
-✅ salesforce.com  → "Salesforce, Software, Enterprise"
-✅ example.com     → "Example Corp, General, Mid-market"
-
-❓ ANY OTHER      → "Unknown, General, Mid-market"
-```
-
-#### Example:
-```
-Input:  security@stripe.com
-Result:
-  ✅ Domain: "stripe.com" (works)
-  ✅ Persona: "Security" (works)
-  ✅ Stage: "Evaluation" (works)
-  ❌ Company: "Unknown" (not in database)
-  ❌ Industry: "General" (default)
-  ❌ Size: "Mid-market" (default)
+User can optionally provide name for light personalization
 ```
 
 ---
 
-## 🧪 Test With Real Companies
+## 🎯 How It Works Now
 
-### Test These Known Companies (Full Data):
+### Old Way (Inference):
+```
+Email: security@stripe.com + CTA: compare
+→ System infers: "Security persona", "Evaluation stage"
+→ System looks up: Company from database
+```
+
+### New Way (User-Driven):
+```
+User fills guided form:
+  Company: "Stripe"
+  Role: "Security"
+  Modernization Stage: "Evaluating & Comparing"
+  AI Priority: "AI/ML Workloads"
+  Email: security@stripe.com
+  Name: (optional)
+
+→ No inference needed - user tells us directly!
+→ Company name comes from user input
+→ Still enriches from email domain for additional context
+```
+
+---
+
+## 🧪 Test Scenarios
+
+### Test Case 1: Large Enterprise (Microsoft)
 ```bash
-# Google
-security@google.com + ?cta=compare
-→ Security, Evaluation, Google, Technology, Enterprise ✅
+Form Input:
+  Company: "Microsoft"
+  Role: "IT / Technical"
+  Modernization Stage: "Evaluating & Comparing (Mid Stage)"
+  AI Priority: "AI/ML Workloads"
+  Email: john@microsoft.com
+  Name: "John Smith" (optional)
 
-# Microsoft
-ops@microsoft.com + ?cta=demo
-→ Operations, Decision, Microsoft, Technology, Enterprise ✅
-
-# Amazon
-finance@amazon.com + ?cta=learn
-→ Finance, Awareness, Amazon, E-commerce, Enterprise ✅
-
-# Salesforce
-john@salesforce.com + ?cta=compare
-→ Business Leader, Evaluation, Salesforce, Software, Enterprise ✅
+Expected Output:
+  ✅ Persona: "IT"
+  ✅ Buyer Stage: "evaluation"
+  ✅ Company: "Microsoft" (from form)
+  ✅ AI Priority: "AI/ML Workloads"
+  ✅ Domain: "microsoft.com"
+  ✅ Enrichment: Additional data from RAD API
 ```
 
-### Test Unknown Companies (Default Data):
+### Test Case 2: Startup (Any Company)
 ```bash
-# Stripe (not in database)
-security@stripe.com + ?cta=compare
-→ Security, Evaluation, Unknown, General, Mid-market ⚠️
+Form Input:
+  Company: "RandomStartup Inc"
+  Role: "Business Leader / Executive"
+  Modernization Stage: "Exploring & Learning (Early Stage)"
+  AI Priority: "Cloud Migration"
+  Email: founder@randomstartup.io
+  Name: "Jane Doe" (optional)
 
-# Shopify (not in database)
-ops@shopify.com + ?cta=demo
-→ Operations, Decision, Unknown, General, Mid-market ⚠️
+Expected Output:
+  ✅ Persona: "Business Leader"
+  ✅ Buyer Stage: "awareness"
+  ✅ Company: "RandomStartup Inc" (from form)
+  ✅ AI Priority: "Cloud Migration"
+  ✅ Domain: "randomstartup.io"
+  ✅ Enrichment: RAD API attempts lookup
+```
 
-# Your Company (not in database)
-it@mycompany.io + ?cta=learn
-→ IT, Awareness, Unknown, General, Mid-market ⚠️
+### Test Case 3: Mid-Market (AMD Focus)
+```bash
+Form Input:
+  Company: "TechCorp Solutions"
+  Role: "Operations"
+  Modernization Stage: "Ready to Implement (Late Stage)"
+  AI Priority: "Infrastructure Modernization"
+  Email: ops@techcorp.com
+  Name: (leave blank)
+
+Expected Output:
+  ✅ Persona: "Operations"
+  ✅ Buyer Stage: "decision"
+  ✅ Company: "TechCorp Solutions" (from form)
+  ✅ AI Priority: "Infrastructure Modernization"
+  ✅ Domain: "techcorp.com"
+  ✅ Name: Not provided (optional field)
+```
+
+### Test Case 4: Finance Focus
+```bash
+Form Input:
+  Company: "Global Bank"
+  Role: "Finance"
+  Modernization Stage: "Evaluating & Comparing (Mid Stage)"
+  AI Priority: "Cost Optimization"
+  Email: cfo@globalbank.com
+  Name: "Michael Chen" (optional)
+
+Expected Output:
+  ✅ Persona: "Finance"
+  ✅ Buyer Stage: "evaluation"
+  ✅ Company: "Global Bank" (from form)
+  ✅ AI Priority: "Cost Optimization"
+  ✅ Domain: "globalbank.com"
+```
+
+### Test Case 5: Security Focus
+```bash
+Form Input:
+  Company: "HealthTech Inc"
+  Role: "Security"
+  Modernization Stage: "Exploring & Learning (Early Stage)"
+  AI Priority: "Data Center Optimization"
+  Email: ciso@healthtech.com
+  Name: (leave blank)
+
+Expected Output:
+  ✅ Persona: "Security"
+  ✅ Buyer Stage: "awareness"
+  ✅ Company: "HealthTech Inc" (from form)
+  ✅ AI Priority: "Data Center Optimization"
+  ✅ Domain: "healthtech.com"
 ```
 
 ---
 
-## 🔧 How to Add More Companies
+## 📊 What Gets Enriched
 
-Right now, you need to manually edit the code. Open:
-```
-lib/utils/enrichment.ts
-```
+Even though users provide company name directly, the system still enriches data from the email domain:
 
-Add entries to `companyDatabase`:
-```typescript
-const companyDatabase: Record<string, CompanyData> = {
-  // ... existing entries ...
+### From User Input (Dropdown/Text):
+- Company name
+- Role/Persona
+- Modernization stage
+- AI priority
 
-  'stripe.com': {
-    company_name: 'Stripe',
-    industry: 'Fintech',
-    company_size: 'Enterprise',
-  },
-  'shopify.com': {
-    company_name: 'Shopify',
-    industry: 'E-commerce',
-    company_size: 'Enterprise',
-  },
-  'acme-corp.com': {
-    company_name: 'Acme Corporation',
-    industry: 'Manufacturing',
-    company_size: 'Mid-market',
-  },
-};
-```
+### From Email Domain (RAD Enrichment):
+- Industry classification
+- Company size
+- Employee count
+- Headquarters location
+- Technology stack
+- Recent news
+- Buying intent signals
+- Confidence score
 
-Then restart the server.
-
----
-
-## 🚀 Production Solution: Real Company Enrichment APIs
-
-In production, you'd replace the hardcoded lookup with a **real enrichment API**:
-
-### Option 1: Clearbit (Recommended)
-- **API**: https://clearbit.com/enrichment
-- **Cost**: $99/month for 2,500 lookups
-- **Data**: Company name, industry, size, logo, social, revenue
-- **Coverage**: 20+ million companies
-
-Example integration:
-```typescript
-async function enrichCompanyData(domain: string) {
-  const response = await fetch(
-    `https://company.clearbit.com/v2/companies/find?domain=${domain}`,
-    { headers: { Authorization: `Bearer ${process.env.CLEARBIT_API_KEY}` } }
-  );
-
-  const data = await response.json();
-  return {
-    company_name: data.name,
-    industry: data.category.industry,
-    company_size: data.metrics.employees > 1000 ? 'Enterprise' : 'Mid-market',
-  };
+### Combined Result:
+```json
+{
+  "company_name": "Microsoft" (from user input),
+  "persona": "IT" (from user selection),
+  "buyer_stage": "evaluation" (from user selection),
+  "ai_priority": "AI/ML Workloads" (from user selection),
+  "industry": "Technology" (from RAD enrichment),
+  "company_size": "enterprise" (from RAD enrichment),
+  "employee_count": "221,000" (from RAD enrichment),
+  "technology": ["Azure", "Office 365", ...] (from RAD enrichment)
 }
 ```
 
-### Option 2: ZoomInfo
-- **API**: https://www.zoominfo.com/
-- **Cost**: Custom pricing (expensive)
-- **Data**: Very detailed B2B data
-- **Coverage**: 100+ million companies
+---
 
-### Option 3: Hunter.io
-- **API**: https://hunter.io/domain-search
-- **Cost**: $49/month for 1,000 lookups
-- **Data**: Basic company info
-- **Coverage**: Smaller database but affordable
+## 🚀 Testing the Application
+
+### Via Web UI:
+```
+1. Navigate to: http://localhost:3000
+2. Fill out the guided form:
+   - Company: Your test company
+   - Role: Select from dropdown
+   - Modernization Stage: Select from dropdown
+   - AI Priority: Select from dropdown
+   - Email: Enter valid work email
+   - Name: (optional)
+3. Check consent checkbox
+4. Click "Get Personalized Content"
+5. Wait for loading (20-40s)
+6. Review personalized results
+```
+
+### Via API:
+```bash
+curl -X POST http://localhost:3000/api/personalize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "company": "AMD",
+    "role": "IT",
+    "modernization_stage": "evaluation",
+    "ai_priority": "AI/ML Workloads",
+    "email": "john@amd.com",
+    "name": "John Smith",
+    "cta": "compare"
+  }'
+```
+
+Expected response:
+```json
+{
+  "success": true,
+  "jobId": 12345,
+  "data": {
+    "headline": "AI/ML Infrastructure for AMD Technical Teams",
+    "subheadline": "...",
+    "value_prop_1": "...",
+    "value_prop_2": "...",
+    "value_prop_3": "...",
+    "cta_text": "Compare AI/ML Solutions"
+  },
+  "enrichment": {
+    "company_name": "AMD",
+    "industry": "Technology",
+    "company_size": "enterprise",
+    "confidence_score": 0.92
+  },
+  "metadata": {
+    "persona": "IT",
+    "buyer_stage": "evaluation",
+    "company": "AMD",
+    "ai_priority": "AI/ML Workloads",
+    "total_latency_ms": 24000
+  }
+}
+```
 
 ---
 
-## 📊 What Real Claude AI Will Do
+## 🎯 Advantages of Guided Experience
 
-Even with "Unknown" company data, Claude AI will still generate good content because:
+### ✅ No Inference Errors:
+- Users explicitly select their role (no guessing from email)
+- Users explicitly select their stage (no guessing from CTA)
+- Users provide company name directly
 
-1. **Persona is detected** correctly (Security, Operations, etc.)
-2. **Buyer stage is inferred** correctly (Evaluation, Decision, etc.)
-3. **Claude is smart** - it can work with partial data
+### ✅ Works for ANY Company:
+- No database of known companies needed
+- No enrichment API failures blocking submission
+- User provides the critical information upfront
 
-Example with unknown company:
-```
-Input:
-  Email: security@randomstartup.io
-  CTA: compare
-  Company: "Unknown"
-  Industry: "General"
+### ✅ Better Data Quality:
+- AI Priority is captured (valuable signal)
+- Modernization stage is explicit
+- Company name is accurate (from source)
 
-Claude Output (with real AI):
-  Headline: "Enterprise-Grade Security for Growing Companies"
-  Subheadline: "Protect your business with security solutions
-                designed for teams evaluating their options"
-  Value Props:
-    1. "Zero-Trust Architecture" (tailored to Security persona)
-    2. "Compliance Automation" (Security role focus)
-    3. "Rapid Deployment" (good for any company)
-```
-
-Claude is **creative and adaptive** - it doesn't need perfect data.
-
----
-
-## 🎯 Bottom Line
-
-### What Works for ALL Companies:
-✅ Email validation
-✅ Domain extraction
-✅ Persona detection (ops@, security@, etc.)
-✅ Buyer stage inference (from CTA)
-✅ Full UI/UX workflow
-✅ Claude AI content generation (when enabled)
-
-### What's Limited in Alpha:
-⚠️ Company name recognition (only 6 companies)
-⚠️ Industry detection (defaults to "General")
-⚠️ Company size detection (defaults to "Mid-market")
-
-### For Production:
-🚀 Add Clearbit or similar API ($99/mo)
-🚀 Get real company data for 20M+ companies
-🚀 Zero code changes needed (just swap the function)
-
-### For Your Demo:
-✅ Use one of the 6 known companies (Google, Microsoft, etc.)
-✅ Or explain: "For unknown companies, we default to General industry"
-✅ With real AI, it still works great even with Unknown company
+### ✅ Improved UX:
+- Clear, guided experience (4-6 questions)
+- Progressive disclosure
+- User feels in control
 
 ---
 
 ## 🧪 Quick Test Script
 
-Test all scenarios at once:
+Test multiple scenarios:
 ```bash
-# Test known companies
+# Test Case 1: IT Role, Evaluation Stage
 curl -X POST http://localhost:3000/api/personalize \
   -H "Content-Type: application/json" \
-  -d '{"email":"security@google.com","cta":"compare"}'
+  -d '{
+    "company": "Microsoft",
+    "role": "IT",
+    "modernization_stage": "evaluation",
+    "ai_priority": "AI/ML Workloads",
+    "email": "tech@microsoft.com",
+    "cta": "compare"
+  }'
 
+# Test Case 2: Business Leader, Decision Stage
 curl -X POST http://localhost:3000/api/personalize \
   -H "Content-Type: application/json" \
-  -d '{"email":"ops@microsoft.com","cta":"demo"}'
+  -d '{
+    "company": "Startup Inc",
+    "role": "Business Leader",
+    "modernization_stage": "decision",
+    "ai_priority": "Cloud Migration",
+    "email": "ceo@startup.com",
+    "cta": "demo"
+  }'
 
-# Test unknown company
+# Test Case 3: Security, Awareness Stage
 curl -X POST http://localhost:3000/api/personalize \
   -H "Content-Type: application/json" \
-  -d '{"email":"security@unknownstartup.io","cta":"compare"}'
+  -d '{
+    "company": "FinTech Corp",
+    "role": "Security",
+    "modernization_stage": "awareness",
+    "ai_priority": "Infrastructure Modernization",
+    "email": "ciso@fintech.com",
+    "cta": "learn"
+  }'
 ```
-
-Look for:
-- `"company": "Google"` vs `"company": "Unknown"`
-- Persona is always correct
-- Buyer stage is always correct
 
 ---
 
-## 💡 Recommendation
+## 💡 Recommendation for Demos
 
-For your presentation:
-1. **Demo with known companies** (Google, Microsoft) - shows full capability
-2. **Mention**: "Company enrichment uses Clearbit in production ($99/mo)"
-3. **Explain**: "Even unknown companies get personalized content based on role and intent"
+### Best Demo Flow:
+1. **Show the guided form** - highlight the dropdown selections
+2. **Explain the value** - "Users tell us exactly what they need"
+3. **Fill out for a known company** - e.g., "AMD", "Microsoft"
+4. **Show the personalized results** - point out company, role, AI priority badges
+5. **Explain enrichment** - "We still enrich from email domain for additional context"
 
-The persona detection and buyer stage inference work for **ANY company** - that's the real value!
+### Key Talking Points:
+- ✅ **User-driven personalization** - no guessing or inference
+- ✅ **Works for any company** - no database limitations
+- ✅ **Captures AI priorities** - valuable signal for AMD campaigns
+- ✅ **Rich enrichment** - combines user input with API data
+- ✅ **Fast and reliable** - no blocking on enrichment failures
+
+---
+
+## 🎯 Bottom Line
+
+### What Changed:
+- ❌ **Removed**: Email-based persona inference
+- ❌ **Removed**: CTA-based buyer stage inference
+- ✅ **Added**: Explicit role selection (dropdown)
+- ✅ **Added**: Explicit modernization stage selection (dropdown)
+- ✅ **Added**: Explicit company name input (text)
+- ✅ **Added**: AI priority capture (dropdown)
+
+### What Still Works:
+- ✅ Email validation
+- ✅ Domain extraction
+- ✅ RAD enrichment (from email domain)
+- ✅ Template selection
+- ✅ Claude AI adaptation
+- ✅ Full personalization flow
+
+### For Production:
+- 🚀 All user input is captured and validated
+- 🚀 RAD enrichment adds additional context
+- 🚀 AI Priority enables campaign analytics
+- 🚀 Works for ANY company (no database limitations)

@@ -2,9 +2,9 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import EmailForm from './components/EmailForm';
-import LoadingState from './components/LoadingState';
-import PersonalizedResults from './components/PersonalizedResults';
+import EmailForm from '@/frontend/components/EmailForm';
+import LoadingState from '@/frontend/components/LoadingState';
+import PersonalizedResults from '@/frontend/components/PersonalizedResults';
 
 function LandingPageContent() {
   const searchParams = useSearchParams();
@@ -14,26 +14,33 @@ function LandingPageContent() {
   const [personalizedContent, setPersonalizedContent] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFormSubmit = async (email: string) => {
+  const handleFormSubmit = async (data: {
+    email: string;
+    name?: string;
+    company: string;
+    role: string;
+    modernization_stage: string;
+    ai_priority: string;
+  }) => {
     setStage('loading');
     setError(null);
 
     try {
-      const response = await fetch('/api/personalize', {
+      const response: Response = await fetch('/api/personalize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, cta }),
+        body: JSON.stringify({ ...data, cta }),
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate personalized content');
+        throw new Error(responseData.error || 'Failed to generate personalized content');
       }
 
-      setPersonalizedContent(data);
+      setPersonalizedContent(responseData);
       setStage('results');
     } catch (err) {
       console.error('Personalization error:', err);
@@ -62,10 +69,20 @@ function LandingPageContent() {
         <h1 style={{
           fontSize: '2.5rem',
           marginBottom: '1rem',
-          color: '#0A66C2'
+          color: '#DC2626'
         }}>
-          {stage === 'results' ? 'Your Personalized Experience' : 'Welcome to LinkedIn Personalization'}
+          {stage === 'results' ? 'Your Personalized Experience' : 'AMD Campaign Experience'}
         </h1>
+
+        {stage === 'form' && (
+          <p style={{
+            fontSize: '1rem',
+            marginBottom: '2rem',
+            color: '#6b7280'
+          }}>
+            Tell us about your modernization journey to receive personalized insights
+          </p>
+        )}
 
         {stage === 'form' && (
           <p style={{

@@ -21,6 +21,15 @@ interface PersonalizationContext {
   cta: string;
 }
 
+interface PersonalizationPromptContext {
+  prompt: string;
+  persona: string;
+  buyer_stage: string;
+  industry: string;
+  company_size: string;
+  cta: string;
+}
+
 /**
  * Call Claude API to generate personalized content
  */
@@ -113,6 +122,82 @@ Return ONLY valid JSON with this exact structure:
       console.error('JSON parse error:', error);
       // Retry with "fix JSON" prompt
       return await retryWithFixPrompt(anthropic, context, error.message);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Call Claude API with a custom prompt for template adaptation
+ */
+export async function generatePersonalization(
+  context: PersonalizationPromptContext
+): Promise<ClaudeOutput> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+  }
+
+  const anthropic = new Anthropic({
+    apiKey: apiKey,
+  });
+
+  const adaptationSystemPrompt = `You are a B2B marketing content adapter. Generate personalized content following strict requirements.
+
+Output must be valid JSON with this EXACT structure:
+{
+  "headline": "string",
+  "subheadline": "string",
+  "cta_text": "string",
+  "value_prop_1": "string",
+  "value_prop_2": "string",
+  "value_prop_3": "string"
+}`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2048,
+      temperature: 0.3,
+      system: adaptationSystemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: context.prompt,
+        },
+      ],
+    });
+
+    const textContent = message.content.find((block) => block.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text content in Claude response');
+    }
+
+    let jsonText = textContent.text.trim();
+
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\n/, '').replace(/\n```$/, '');
+    }
+
+    // Parse JSON
+    const parsed = JSON.parse(jsonText);
+
+    // Validate with Zod schema
+    const validated = ClaudeOutputSchema.parse(parsed);
+
+    return validated;
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error('Claude API Error:', error.status, error.message);
+      throw new Error(`Claude API error: ${error.message}`);
+    }
+
+    if (error instanceof SyntaxError) {
+      console.error('JSON parse error:', error);
+      throw new Error('Failed to parse Claude response as JSON');
     }
 
     throw error;
