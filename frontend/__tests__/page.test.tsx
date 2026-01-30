@@ -42,6 +42,6 @@ describe('Home Page', () => {
 
   it('renders submit button', () => {
     render(<Home />);
-    expect(screen.getByRole('button', { name: /get personalized content/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /get my free ebook/i })).toBeInTheDocument();
   });
 });

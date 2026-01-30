@@ -34,9 +34,12 @@ class Settings:
     # App Configuration
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    MOCK_MODE: bool = os.getenv("MOCK_SUPABASE", "false").lower() == "true"
 
     def validate(self) -> None:
-        """Validate that required settings are present."""
+        """Validate that required settings are present (skip in mock mode)."""
+        if self.MOCK_MODE:
+            return  # Mock mode doesn't require real credentials
         required = ["SUPABASE_URL", "SUPABASE_KEY"]
         missing = [k for k in required if not getattr(self, k, None)]
         if missing:

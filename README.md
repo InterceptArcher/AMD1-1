@@ -82,7 +82,7 @@ This system transforms visitor emails into personalized ebook experiences throug
 │   │       ├── EmailConsentForm.tsx
 │   │       ├── LoadingSpinner.tsx
 │   │       └── PersonalizedContent.tsx
-│   └── __tests__/              # Jest tests (22 tests)
+│   └── __tests__/              # Jest tests (33 tests)
 │
 ├── backend/                     # FastAPI application
 │   └── app/
@@ -149,9 +149,10 @@ supabase db push
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/rad/enrich` | POST | Start enrichment + personalization |
+| `/rad/enrich` | POST | Start enrichment + personalization (accepts name, goal, persona, industry) |
 | `/rad/profile/{email}` | GET | Retrieve finalized profile |
 | `/rad/pdf/{email}` | POST | Generate personalized PDF |
+| `/rad/deliver/{email}` | POST | Generate PDF and send via email (with download fallback) |
 | `/rad/health` | GET | Service health check |
 
 **Example: Enrich an email**
@@ -192,12 +193,24 @@ curl -X POST http://localhost:8000/rad/enrich \
 
 **Auto-correction:** Removes terms or falls back to safe copy.
 
-### PDF Generation
+### User Input Collection
 
-- HTML template with personalization slots
-- Uses WeasyPrint or ReportLab
-- Stored in Supabase Storage
-- Signed URLs with 7-day expiry
+The landing page collects key context for better personalization:
+- **Name**: First and last name for personalized greetings
+- **Goal**: What brings them here (exploring, evaluating, learning, building case)
+- **Persona**: Role type (executive, IT, security, data/AI, sales, HR)
+- **Industry**: Vertical market (healthcare, financial services, tech, gaming, manufacturing, retail, government, energy, telecom)
+
+These inputs directly influence the LLM-generated content.
+
+### PDF Generation & Delivery
+
+- **Dynamic Ebook Generation**: HTML template with personalization slots (name, company, title, industry, intro hook, CTA)
+- **PDF Engine**: ReportLab with WeasyPrint as optional upgrade for production quality
+- **Storage**: PDFs stored in Supabase Storage with signed URLs (7-day expiry)
+- **Email Delivery**: Sends personalized PDF to user's email (supports SendGrid, Resend, SMTP)
+- **Download Fallback**: Direct download button always available if email delivery fails
+- **Fallback**: Minimal valid PDF generated even without PDF libraries installed
 
 ---
 
@@ -218,12 +231,26 @@ SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_KEY=eyJ...                   # service_role key
 ANTHROPIC_API_KEY=sk-ant-...
 
+# Email Delivery (pick one - uses mock if none configured)
+SENDGRID_API_KEY=SG...               # SendGrid
+RESEND_API_KEY=re_...                # Resend
+# Or SMTP:
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+EMAIL_FROM=noreply@yourdomain.com
+EMAIL_FROM_NAME=Your Ebook
+
 # Enrichment APIs (optional - uses mocks if missing)
 APOLLO_API_KEY=...
 PDL_API_KEY=...
 HUNTER_API_KEY=...
 TAVILY_API_KEY=...
 ZOOMINFO_API_KEY=...
+
+# Development
+MOCK_SUPABASE=true                   # Enable mock mode for local testing
 ```
 
 ### Supabase (Edge Functions)
@@ -297,7 +324,7 @@ railway up
 ### Frontend (Jest)
 ```bash
 cd frontend
-npm test              # 22 tests
+npm test              # 37 tests
 npm run test:coverage
 ```
 

@@ -14,16 +14,29 @@ from pydantic import BaseModel, EmailStr, Field
 class EnrichmentRequest(BaseModel):
     """
     POST /rad/enrich request body.
-    Minimal: email and optional domain. Alpha doesn't require external provider IDs.
+    Includes email, optional domain, and user-provided context for personalization.
     """
     email: EmailStr = Field(..., description="Email address to enrich")
     domain: Optional[str] = Field(None, description="Company domain (optional; derived from email if absent)")
+    # User-provided name (more reliable than API enrichment)
+    firstName: Optional[str] = Field(None, description="User's first name")
+    lastName: Optional[str] = Field(None, description="User's last name")
+    # User-provided context for better personalization
+    goal: Optional[str] = Field(None, description="User's primary goal (exploring, evaluating, learning, building_case)")
+    persona: Optional[str] = Field(None, description="User's role (executive, it_infrastructure, security, data_ai, etc.)")
+    industry: Optional[str] = Field(None, description="User's industry (healthcare, financial_services, technology, etc.)")
+    cta: Optional[str] = Field(None, description="Campaign CTA context")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "email": "john@acme.com",
-                "domain": "acme.com"
+                "firstName": "John",
+                "lastName": "Smith",
+                "domain": "acme.com",
+                "goal": "evaluating",
+                "persona": "executive",
+                "industry": "healthcare"
             }
         }
 

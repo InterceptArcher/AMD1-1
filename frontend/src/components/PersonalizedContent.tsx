@@ -1,9 +1,20 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+
 interface PersonalizationData {
   intro_hook: string;
   cta: string;
   first_name?: string;
   company?: string;
   title?: string;
+  email?: string;
+}
+
+interface DeliveryStatus {
+  email_sent: boolean;
+  pdf_url?: string;
+  error?: string;
 }
 
 interface PersonalizedContentProps {
@@ -13,6 +24,82 @@ interface PersonalizedContentProps {
 }
 
 export default function PersonalizedContent({ data, error, onReset }: PersonalizedContentProps) {
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus | null>(null);
+  const [isDelivering, setIsDelivering] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Automatically trigger email delivery when data is available
+  useEffect(() => {
+    if (data?.email && !deliveryStatus && !isDelivering) {
+      deliverEbook();
+    }
+  }, [data?.email]);
+
+  const deliverEbook = async () => {
+    if (!data?.email) return;
+
+    setIsDelivering(true);
+
+    try {
+      const response = await fetch(`/api/rad/deliver/${encodeURIComponent(data.email)}`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to deliver ebook');
+      }
+
+      const result = await response.json();
+
+      setDeliveryStatus({
+        email_sent: result.email_sent,
+        pdf_url: result.pdf_url,
+        error: result.email_error,
+      });
+    } catch (err) {
+      console.error('Delivery error:', err);
+      setDeliveryStatus({
+        email_sent: false,
+        error: 'Failed to deliver your ebook. Please try downloading instead.',
+      });
+    } finally {
+      setIsDelivering(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!data?.email) return;
+
+    setIsDownloading(true);
+
+    try {
+      // Use direct download endpoint - returns actual PDF file
+      const response = await fetch(`/api/rad/download/${encodeURIComponent(data.email)}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      // Get the PDF blob
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `personalized-ebook-${data.first_name || 'user'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error('Download error:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6">
@@ -44,6 +131,46 @@ export default function PersonalizedContent({ data, error, onReset }: Personaliz
 
       {/* Content */}
       <div className="p-6 space-y-6">
+        {/* Delivery Status Banner */}
+        {isDelivering && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 flex items-center gap-3">
+            <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+            <p className="text-blue-700 font-medium">Sending your personalized ebook...</p>
+          </div>
+        )}
+
+        {deliveryStatus?.email_sent && (
+          <div className="rounded-lg bg-green-50 border border-green-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+                <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-green-800">Check your inbox!</p>
+                <p className="text-sm text-green-600">We've sent your personalized ebook to {data.email}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {deliveryStatus && !deliveryStatus.email_sent && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+                <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-amber-800">Email delivery unavailable</p>
+                <p className="text-sm text-amber-600">No worries! Download your ebook directly below.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Intro Hook */}
         <div className="prose prose-gray">
           <p className="text-lg leading-relaxed text-gray-700">{data.intro_hook}</p>
@@ -77,16 +204,30 @@ export default function PersonalizedContent({ data, error, onReset }: Personaliz
           <p className="font-semibold text-gray-900">{data.cta}</p>
         </div>
 
-        {/* Download Button */}
-        <button
-          className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          onClick={() => alert('PDF download coming soon!')}
-        >
-          Download Your Free Ebook
-        </button>
+        {/* Download Button - always available */}
+        {!isDelivering && (
+          <button
+            className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleDownload}
+            disabled={isDownloading || !data.email}
+          >
+            {isDownloading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                Generating Your Ebook...
+              </span>
+            ) : deliveryStatus?.email_sent ? (
+              'Download a Copy Now'
+            ) : (
+              'Download Your Free Ebook'
+            )}
+          </button>
+        )}
 
         <p className="text-center text-xs text-gray-400">
-          Your personalized ebook will be delivered instantly
+          {deliveryStatus?.email_sent
+            ? "We've also emailed you a copy. Didn't get it? Check your spam folder."
+            : 'Your personalized ebook will open in a new tab'}
         </p>
 
         {onReset && (

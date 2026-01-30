@@ -188,7 +188,7 @@ class TestPersonalizationQuality:
     @patch('app.services.llm_service.settings')
     async def test_personalization_not_generic(self, mock_settings):
         """
-        Personalization: Should vary based on profile (not completely generic).
+        Personalization: Should vary based on profile and user context.
         """
         mock_settings.ANTHROPIC_API_KEY = None
         llm_service = LLMService(api_key=None)
@@ -206,12 +206,18 @@ class TestPersonalizationQuality:
             "title": "CTO"
         }
 
-        result1 = await llm_service.generate_personalization(profile1)
-        result2 = await llm_service.generate_personalization(profile2)
+        # Different user contexts
+        user_context1 = {"goal": "exploring", "persona": "executive", "industry_input": "healthcare"}
+        user_context2 = {"goal": "evaluating", "persona": "security", "industry_input": "financial_services"}
 
-        # Each mock response should reference their respective company
-        assert "Acme" in result1["intro_hook"]
-        assert "TechCorp" in result2["intro_hook"]
+        result1 = await llm_service.generate_personalization(profile1, user_context=user_context1)
+        result2 = await llm_service.generate_personalization(profile2, user_context=user_context2)
+
+        # Each should produce different content based on user context
+        assert result1["intro_hook"] != result2["intro_hook"]
+        # Verify industry-specific content
+        assert "healthcare" in result1["intro_hook"].lower() or "patient" in result1["intro_hook"].lower()
+        assert "financial" in result2["intro_hook"].lower() or "risk" in result2["intro_hook"].lower()
 
 
 class TestIndustryHooks:
@@ -233,31 +239,33 @@ class TestIndustryHooks:
         profile = {
             "first_name": "John",
             "company_name": "TechCo",
-            "industry": "Technology"
         }
+        user_context = {"industry_input": "technology"}
 
-        result = await llm_service.generate_personalization(profile)
+        result = await llm_service.generate_personalization(profile, user_context=user_context)
 
         # Mock response should contain technology-related language
-        assert "Technology" in result["intro_hook"] or "innovation" in result["intro_hook"].lower()
+        intro_lower = result["intro_hook"].lower()
+        assert "tech" in intro_lower or "innovation" in intro_lower or "infrastructure" in intro_lower
 
     @pytest.mark.asyncio
     @patch('app.services.llm_service.settings')
     async def test_finance_industry_hook(self, mock_settings):
-        """Finance industry should get finance-specific hook."""
+        """Financial services industry should get finance-specific hook."""
         mock_settings.ANTHROPIC_API_KEY = None
         llm_service = LLMService(api_key=None)
 
         profile = {
             "first_name": "Jane",
             "company_name": "FinCorp",
-            "industry": "Finance"
         }
+        user_context = {"industry_input": "financial_services"}
 
-        result = await llm_service.generate_personalization(profile)
+        result = await llm_service.generate_personalization(profile, user_context=user_context)
 
         # Mock response should contain finance-related language
-        assert "finance" in result["intro_hook"].lower() or "FinCorp" in result["intro_hook"]
+        intro_lower = result["intro_hook"].lower()
+        assert "financial" in intro_lower or "regulatory" in intro_lower or "risk" in intro_lower
 
 
 class TestShouldUseOpus:

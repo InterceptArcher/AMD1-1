@@ -1,74 +1,102 @@
 #!/usr/bin/env bash
-# Deploy frontend to Vercel
-# Non-interactive, CI-safe deployment script
-# Reads credentials from environment variables only
-
 set -euo pipefail
 
-echo "=== Vercel Frontend Deployment ==="
-echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+# Deploy frontend to Vercel
+# This script must be run with VERCEL_TOKEN set in environment
 
-# Verify required environment variables
+echo "=== Deploying Frontend to Vercel ==="
+
+# Validate required environment variables
 if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-    echo "ERROR: VERCEL_TOKEN environment variable is required"
-    exit 1
+  echo "ERROR: VERCEL_TOKEN environment variable is not set"
+  exit 1
 fi
 
-# Optional: Use existing project IDs if available
-VERCEL_ORG_ID="${VERCEL_ORG_ID:-}"
-VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID:-}"
+FRONTEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../frontend" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-cd "$(dirname "$0")/../frontend"
+echo "Frontend directory: $FRONTEND_DIR"
 
-echo "Working directory: $(pwd)"
+# Change to frontend directory
+cd "$FRONTEND_DIR"
 
 # Install dependencies
-echo "Installing dependencies..."
+echo "=== Installing dependencies ==="
 npm ci --silent
 
 # Run tests before deployment
-echo "Running tests..."
-npm test -- --passWithNoTests --silent
-
-# Build the application
-echo "Building application..."
-npm run build
-
-# Deploy to Vercel
-echo "Deploying to Vercel..."
-
-DEPLOY_ARGS="--token=$VERCEL_TOKEN --yes --prod"
-
-if [[ -n "$VERCEL_ORG_ID" ]]; then
-    DEPLOY_ARGS="$DEPLOY_ARGS --scope=$VERCEL_ORG_ID"
-fi
-
-# Run deployment and capture output
-DEPLOY_OUTPUT=$(npx vercel deploy $DEPLOY_ARGS 2>&1) || {
-    echo "ERROR: Vercel deployment failed"
-    echo "$DEPLOY_OUTPUT"
-    exit 1
+echo "=== Running tests ==="
+npm test -- --passWithNoTests || {
+  echo "ERROR: Tests failed. Aborting deployment."
+  exit 1
 }
 
-# Extract deployed URL
-DEPLOYED_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+echo "=== Tests passed ==="
 
-if [[ -z "$DEPLOYED_URL" ]]; then
-    echo "WARNING: Could not extract deployed URL from output"
-    echo "$DEPLOY_OUTPUT"
-else
-    echo ""
-    echo "=== Deployment Successful ==="
-    echo "Frontend URL: $DEPLOYED_URL"
+# Build the project
+echo "=== Building project ==="
+npm run build || {
+  echo "ERROR: Build failed. Aborting deployment."
+  exit 1
+}
+
+echo "=== Build successful ==="
+
+# Check for existing Vercel project configuration
+if [[ -z "${VERCEL_PROJECT_ID:-}" ]] || [[ -z "${VERCEL_ORG_ID:-}" ]]; then
+  echo "Checking for existing Vercel configuration..."
+
+  if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    source "$PROJECT_ROOT/.env" 2>/dev/null || true
+  fi
 fi
 
-# If this is a new project, output the project info for .env
-if [[ -z "$VERCEL_PROJECT_ID" ]]; then
-    echo ""
-    echo "NOTE: To avoid creating duplicate projects, add these to your .env:"
-    echo "  VERCEL_PROJECT_ID=<check vercel dashboard>"
-    echo "  VERCEL_ORG_ID=<check vercel dashboard>"
+# Set up Vercel CLI arguments
+VERCEL_ARGS="--token ${VERCEL_TOKEN} --yes"
+
+if [[ -n "${VERCEL_TEAM_ID:-}" ]]; then
+  VERCEL_ARGS="$VERCEL_ARGS --scope ${VERCEL_TEAM_ID}"
+fi
+
+# Link project if not already linked
+if [[ ! -f ".vercel/project.json" ]]; then
+  echo "=== Linking Vercel project ==="
+  npx vercel link $VERCEL_ARGS || {
+    echo "Creating new Vercel project..."
+    npx vercel $VERCEL_ARGS
+  }
+fi
+
+# Deploy to production
+echo "=== Deploying to Vercel ==="
+DEPLOY_URL=$(npx vercel --prod $VERCEL_ARGS 2>&1 | tail -1)
+
+if [[ -z "$DEPLOY_URL" ]] || [[ "$DEPLOY_URL" == *"Error"* ]]; then
+  echo "ERROR: Deployment failed"
+  echo "$DEPLOY_URL"
+  exit 1
+fi
+
+# Save project IDs to .env if they exist
+if [[ -f ".vercel/project.json" ]]; then
+  PROJECT_ID=$(grep -o '"projectId":"[^"]*"' .vercel/project.json | cut -d'"' -f4)
+  ORG_ID=$(grep -o '"orgId":"[^"]*"' .vercel/project.json | cut -d'"' -f4)
+
+  if [[ -n "$PROJECT_ID" ]] && [[ -n "$ORG_ID" ]]; then
+    echo "Saving Vercel configuration to .env..."
+
+    # Update or create .env entries
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+      grep -v "VERCEL_PROJECT_ID\|VERCEL_ORG_ID" "$PROJECT_ROOT/.env" > "$PROJECT_ROOT/.env.tmp" || true
+      mv "$PROJECT_ROOT/.env.tmp" "$PROJECT_ROOT/.env"
+    fi
+
+    echo "VERCEL_PROJECT_ID=$PROJECT_ID" >> "$PROJECT_ROOT/.env"
+    echo "VERCEL_ORG_ID=$ORG_ID" >> "$PROJECT_ROOT/.env"
+  fi
 fi
 
 echo ""
-echo "Deployment complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo "=== Deployment Complete ==="
+echo "Frontend URL: $DEPLOY_URL"
+echo ""

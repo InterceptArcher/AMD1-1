@@ -68,7 +68,8 @@ class LLMService:
     async def generate_personalization(
         self,
         normalized_profile: Dict[str, Any],
-        use_opus: bool = False
+        use_opus: bool = False,
+        user_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, str]:
         """
         Generate intro hook and CTA from normalized profile.
@@ -76,18 +77,19 @@ class LLMService:
         Args:
             normalized_profile: Normalized enrichment data
             use_opus: Whether to use Opus model for richer output
+            user_context: User-provided context (goal, persona, industry)
 
         Returns:
             Dict with 'intro_hook', 'cta', and metadata
         """
         if not self.client:
-            return self._mock_response(normalized_profile)
+            return self._mock_response(normalized_profile, user_context)
 
         start_time = time.time()
         model = OPUS_MODEL if use_opus else DEFAULT_MODEL
 
-        # Build the prompt
-        prompt = self._build_prompt(normalized_profile)
+        # Build the prompt with user context
+        prompt = self._build_prompt(normalized_profile, user_context)
 
         # Try with retries
         for attempt in range(MAX_RETRIES):
@@ -168,11 +170,12 @@ Output ONLY valid JSON in this exact format:
 
 No other text before or after the JSON."""
 
-    def _build_prompt(self, profile: Dict[str, Any]) -> str:
-        """Build the user prompt from profile data."""
+    def _build_prompt(self, profile: Dict[str, Any], user_context: Optional[Dict[str, Any]] = None) -> str:
+        """Build the user prompt from profile data and user-provided context."""
         parts = []
+        user_context = user_context or {}
 
-        # Extract key fields
+        # Extract key fields from enrichment
         first_name = profile.get("first_name", "there")
         company = profile.get("company_name", "your company")
         title = profile.get("title", "professional")
@@ -181,11 +184,51 @@ No other text before or after the JSON."""
         company_context = profile.get("company_context", "")
         seniority = profile.get("seniority", "")
 
+        # Extract user-provided context (more reliable than API data)
+        user_goal = user_context.get("goal", "")
+        user_persona = user_context.get("persona", "")
+        user_industry = user_context.get("industry_input", "")
+
+        # Goal mapping for more natural language
+        goal_descriptions = {
+            "exploring": "exploring modernization options and doing early research",
+            "evaluating": "comparing different approaches for their organization",
+            "learning": "learning about best practices and industry trends",
+            "building_case": "building a business case to present internally"
+        }
+
+        # Persona mapping for richer context
+        persona_descriptions = {
+            "executive": "an executive leader (C-suite or VP level) focused on strategic decisions",
+            "it_infrastructure": "an IT/Infrastructure professional managing technical operations",
+            "security": "a security professional focused on protecting systems and data",
+            "data_ai": "a data/AI engineer working on analytics and machine learning",
+            "sales_gtm": "a sales or GTM leader driving revenue growth",
+            "hr_people": "an HR/People Ops professional managing talent and culture",
+            "other": "a professional seeking industry insights"
+        }
+
+        # Industry-specific angles
+        industry_angles = {
+            "healthcare": "compliance, patient outcomes, and operational efficiency",
+            "financial_services": "risk management, regulatory compliance, and digital transformation",
+            "technology": "innovation velocity, scalability, and technical excellence",
+            "gaming_media": "user engagement, content delivery, and real-time performance",
+            "manufacturing": "operational efficiency, supply chain optimization, and IoT",
+            "retail": "customer experience, omnichannel strategy, and inventory management",
+            "government": "security, compliance, and citizen services modernization",
+            "energy": "grid modernization, sustainability, and operational resilience",
+            "telecommunications": "network performance, 5G adoption, and customer experience"
+        }
+
         parts.append(f"Create personalized content for this prospect:\n")
         parts.append(f"- First Name: {first_name}")
         parts.append(f"- Company: {company}")
         parts.append(f"- Title: {title}")
-        parts.append(f"- Industry: {industry}")
+
+        # Prefer user-provided industry if available
+        effective_industry = user_industry or industry
+        parts.append(f"- Industry: {effective_industry}")
 
         if company_size:
             parts.append(f"- Company Size: {company_size}")
@@ -193,9 +236,23 @@ No other text before or after the JSON."""
         if seniority:
             parts.append(f"- Seniority: {seniority}")
 
+        # Add user-provided context for better personalization
+        if user_goal:
+            goal_desc = goal_descriptions.get(user_goal, user_goal)
+            parts.append(f"\nThis person is currently {goal_desc}.")
+
+        if user_persona:
+            persona_desc = persona_descriptions.get(user_persona, user_persona)
+            parts.append(f"They are {persona_desc}.")
+
+        if effective_industry in industry_angles:
+            parts.append(f"In their industry, key concerns include {industry_angles[effective_industry]}.")
+
         if company_context:
             parts.append(f"\nRecent company context: {company_context[:500]}")
 
+        parts.append("\nGenerate content that speaks directly to their role, goals, and industry context.")
+        parts.append("Make it specific and actionable, not generic.")
         parts.append("\nGenerate the JSON response now.")
 
         return "\n".join(parts)
@@ -247,9 +304,10 @@ No other text."""
 
         return None
 
-    def _mock_response(self, profile: Dict[str, Any]) -> Dict[str, str]:
+    def _mock_response(self, profile: Dict[str, Any], user_context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Generate mock response when API key not configured."""
         logger.info("LLM: Using mock response (no API key)")
+        user_context = user_context or {}
 
         first_name = profile.get("first_name", "")
         company = profile.get("company", profile.get("company_name", ""))
@@ -257,52 +315,73 @@ No other text."""
         industry = profile.get("industry", "Technology")
         company_size = profile.get("company_size", "")
 
-        # Industry-specific hooks
+        # Use user-provided context if available
+        user_goal = user_context.get("goal", "")
+        user_persona = user_context.get("persona", "")
+        user_industry = user_context.get("industry_input", "")
+
+        # Prefer user-provided industry
+        effective_industry = user_industry or industry
+
+        # Industry-specific hooks (tailored for AMD use case)
         industry_hooks = {
-            "Technology": "Technology professionals like you are constantly seeking strategic insights to drive innovation.",
-            "Finance": "In the fast-paced world of finance, staying ahead means having the right insights at the right time.",
-            "Healthcare": "Healthcare leaders face unique challenges that require innovative solutions and fresh perspectives.",
-            "Marketing": "In today's competitive landscape, marketing leaders need data-driven strategies that deliver results.",
-            "Sales": "Top-performing sales teams share common strategies that set them apart from the competition.",
-            "Consulting": "As a consulting professional, you know that delivering value means staying ahead of industry trends.",
-            "Manufacturing": "Manufacturing leaders are transforming their operations with cutting-edge strategies.",
-            "Retail": "Retail is evolving rapidly, and the most successful leaders are those who adapt quickly.",
-            "Education": "Education professionals are reshaping how we learn and grow in the modern world.",
+            "healthcare": "Healthcare organizations are modernizing their infrastructure to improve patient outcomes while maintaining strict compliance.",
+            "financial_services": "Financial services leaders are balancing regulatory requirements with the need for digital transformation and innovation.",
+            "technology": "Tech companies like yours are pushing the boundaries of what's possible with modern infrastructure and AI workloads.",
+            "gaming_media": "Gaming and media companies need infrastructure that delivers real-time performance at massive scale.",
+            "manufacturing": "Manufacturing leaders are leveraging smart infrastructure to optimize operations and drive efficiency.",
+            "retail": "Retail organizations are transforming customer experiences through modern, scalable technology.",
+            "government": "Government agencies are modernizing citizen services while maintaining the highest security standards.",
+            "energy": "Energy companies are building resilient, sustainable infrastructure for the future.",
+            "telecommunications": "Telecom providers are building next-generation networks to meet growing connectivity demands.",
         }
 
-        # Size-specific context
-        size_context = {
-            "1-10": "growing startups",
-            "11-50": "scaling companies",
-            "50-200": "mid-size organizations",
-            "201-500": "established enterprises",
-            "500+": "large organizations",
+        # Goal-specific intros
+        goal_intros = {
+            "exploring": "You're taking the right first step by exploring your options.",
+            "evaluating": "Making the right infrastructure decision requires careful evaluation.",
+            "learning": "Staying informed on best practices gives you a strategic advantage.",
+            "building_case": "Building a compelling business case starts with the right insights.",
+        }
+
+        # Persona-specific CTAs
+        persona_ctas = {
+            "executive": "Get the executive summary with ROI insights for your board",
+            "it_infrastructure": "Download the technical deep-dive with architecture patterns",
+            "security": "Access the security-focused guide with compliance frameworks",
+            "data_ai": "Get the data infrastructure guide optimized for AI workloads",
+            "sales_gtm": "Download strategies to accelerate your digital sales motion",
+            "hr_people": "Learn how tech modernization impacts talent and culture",
         }
 
         # Build personalized intro
-        base_hook = industry_hooks.get(industry, "Professionals in your field are discovering new ways to drive results.")
+        base_hook = industry_hooks.get(effective_industry, "Organizations like yours are discovering new ways to modernize and scale.")
+        goal_hook = goal_intros.get(user_goal, "")
 
         if first_name and company:
-            intro = f"{base_hook} At {company}, you're positioned to leverage these insights for real impact."
+            intro = f"{goal_hook} {base_hook}".strip()
+            if len(intro) < 50:
+                intro = f"{intro} At {company}, these insights can drive real impact."
         elif first_name:
-            intro = f"{base_hook} Discover how leading professionals are tackling today's challenges."
+            intro = f"{goal_hook} {base_hook}".strip()
         else:
             intro = base_hook
 
-        # Build personalized CTA
-        size_phrase = size_context.get(company_size, "successful teams")
-        if title:
-            cta = f"Download your free ebook and see how other {title}s at {size_phrase} are driving results"
+        # Build personalized CTA based on persona
+        if user_persona and user_persona in persona_ctas:
+            cta = persona_ctas[user_persona]
+        elif title:
+            cta = f"Get your free ebook with actionable insights for {title}s like you"
         else:
-            cta = f"Get your free insights and unlock actionable strategies for your team"
+            cta = "Download your personalized guide and unlock strategies for your team"
 
         return {
-            "intro_hook": intro[:MAX_INTRO_LENGTH],  # Truncate to max length
+            "intro_hook": intro[:MAX_INTRO_LENGTH],
             "cta": cta[:MAX_CTA_LENGTH],
             "model_used": "mock",
             "tokens_used": 0,
             "latency_ms": 0,
-            "raw_response": {"_mock": True}
+            "raw_response": {"_mock": True, "user_context": user_context}
         }
 
     def _fallback_response(self, profile: Dict[str, Any]) -> Dict[str, str]:

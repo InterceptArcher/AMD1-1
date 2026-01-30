@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useCallback } from 'react';
-import EmailConsentForm from '@/components/EmailConsentForm';
+import EmailConsentForm, { UserInputs } from '@/components/EmailConsentForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import PersonalizedContent from '@/components/PersonalizedContent';
 
@@ -12,6 +12,7 @@ interface PersonalizationData {
   first_name?: string;
   company?: string;
   title?: string;
+  email?: string;
 }
 
 interface JobStatus {
@@ -86,6 +87,7 @@ function HomeContent() {
                 first_name: normalizedData?.first_name,
                 company: normalizedData?.company_name || normalizedData?.company,
                 title: normalizedData?.title,
+                email: email,
               };
             }
 
@@ -114,6 +116,7 @@ function HomeContent() {
               first_name: profileData.normalized_profile?.first_name,
               company: profileData.normalized_profile?.company,
               title: profileData.normalized_profile?.title,
+              email: email,
             };
           }
         }
@@ -129,7 +132,7 @@ function HomeContent() {
     throw new Error('Personalization timed out. Please try again.');
   }, []);
 
-  const handleSubmit = async (email: string) => {
+  const handleSubmit = async (inputs: UserInputs) => {
     setIsLoading(true);
     setError(null);
     setLoadingMessage('Submitting your request...');
@@ -138,14 +141,22 @@ function HomeContent() {
       const apiUrl = getApiUrl();
       console.log('Using API URL:', apiUrl);
 
-      // Call backend directly
+      // Call backend with all user inputs
       setLoadingMessage('Enriching your profile...');
       const response = await fetch(`${apiUrl}/rad/enrich`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, cta: cta || 'default' }),
+        body: JSON.stringify({
+          email: inputs.email,
+          firstName: inputs.firstName,
+          lastName: inputs.lastName,
+          goal: inputs.goal,
+          persona: inputs.persona,
+          industry: inputs.industry,
+          cta: cta || 'default',
+        }),
       });
 
       if (!response.ok) {
@@ -155,9 +166,9 @@ function HomeContent() {
       }
 
       // Profile should be ready immediately
-      setLoadingMessage('Fetching your personalized content...');
+      setLoadingMessage('Generating your personalized ebook...');
 
-      const profileResponse = await fetch(`${apiUrl}/rad/profile/${encodeURIComponent(email)}`);
+      const profileResponse = await fetch(`${apiUrl}/rad/profile/${encodeURIComponent(inputs.email)}`);
 
       if (!profileResponse.ok) {
         const errorText = await profileResponse.text();
@@ -174,6 +185,7 @@ function HomeContent() {
         first_name: profileData.normalized_profile?.first_name,
         company: profileData.normalized_profile?.company,
         title: profileData.normalized_profile?.title,
+        email: inputs.email,
       });
     } catch (err) {
       console.error('Submit error:', err);
@@ -197,10 +209,10 @@ function HomeContent() {
               Get Your Free Ebook
             </h1>
             <p className="mt-3 text-gray-600">
-              {cta ? cta : 'Personalized insights tailored just for you'}
+              {cta ? cta : 'Personalized insights tailored to your role and industry'}
             </p>
             <p className="mt-1 text-sm text-gray-400">
-              Enter your email to receive your customized content
+              Answer a few questions to customize your content
             </p>
           </div>
         )}

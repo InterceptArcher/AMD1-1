@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.responses import Response
 from app.models.schemas import (
     EnrichmentRequest,
     EnrichmentResponse,
@@ -22,6 +23,7 @@ from app.services.rad_orchestrator import RADOrchestrator
 from app.services.llm_service import LLMService
 from app.services.compliance import ComplianceService, validate_personalization
 from app.services.pdf_service import PDFService
+from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +76,28 @@ async def enrich_profile(
         # Run enrichment (sync in alpha, could be async/queued later)
         finalized = await orchestrator.enrich(email, domain)
 
-        # Generate personalization
+        # Override enriched data with user-provided name (more reliable)
+        if request.firstName:
+            finalized["first_name"] = request.firstName
+        if request.lastName:
+            finalized["last_name"] = request.lastName
+
+        # Add user-provided context to the profile for LLM
+        user_context = {
+            "goal": request.goal,
+            "persona": request.persona,
+            "industry_input": request.industry,  # User-selected industry
+            "first_name": request.firstName,
+            "last_name": request.lastName,
+        }
+
+        # Generate personalization with user context
         use_opus = llm_service.should_use_opus(finalized)
-        personalization = await llm_service.generate_personalization(finalized, use_opus=use_opus)
+        personalization = await llm_service.generate_personalization(
+            finalized,
+            use_opus=use_opus,
+            user_context=user_context
+        )
 
         intro_hook = personalization.get("intro_hook", "")
         cta = personalization.get("cta", "")
@@ -319,4 +340,193 @@ async def generate_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PDF generation failed"
+        )
+
+
+@router.post(
+    "/deliver/{email}",
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+)
+async def deliver_ebook(
+    email: str,
+    supabase: SupabaseClient = Depends(get_supabase_client)
+) -> dict:
+    """
+    POST /rad/deliver/{email}
+
+    Generate personalized PDF and send it via email.
+    Returns email delivery status with download URL as fallback.
+
+    Args:
+        email: Email address to deliver ebook to
+        supabase: Supabase client (injected)
+
+    Returns:
+        Dict with email_sent status, pdf_url fallback, delivery details
+
+    Raises:
+        HTTPException: 404 if profile not found, 500 on generation/delivery failure
+    """
+    try:
+        email = email.lower().strip()
+        logger.info(f"Ebook delivery requested for {email}")
+
+        # Fetch profile
+        finalized_record = supabase.get_finalize_data(email)
+
+        if not finalized_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No profile found for {email}. Run POST /rad/enrich first."
+            )
+
+        profile = finalized_record.get("normalized_data", {})
+        intro_hook = finalized_record.get("personalization_intro", "")
+        cta = finalized_record.get("personalization_cta", "")
+        job_id = finalized_record.get("id", 0)
+
+        # Initialize services
+        pdf_service = PDFService(supabase)
+        email_service = EmailService()
+
+        # Generate PDF (get raw bytes for email attachment)
+        html_content = pdf_service._render_template(profile, intro_hook, cta)
+        pdf_bytes = await pdf_service._html_to_pdf(html_content)
+
+        if not pdf_bytes:
+            raise ValueError("PDF generation returned empty content")
+
+        # Try to send email
+        email_result = await email_service.send_ebook(
+            to_email=email,
+            pdf_bytes=pdf_bytes,
+            profile=profile,
+            intro_hook=intro_hook,
+            cta=cta
+        )
+
+        # Also store PDF for fallback download
+        pdf_result = await pdf_service.generate_pdf(
+            job_id=job_id,
+            profile=profile,
+            intro_hook=intro_hook,
+            cta=cta
+        )
+
+        # Store delivery record
+        try:
+            supabase.create_pdf_delivery(
+                job_id=job_id,
+                pdf_url=pdf_result.get("pdf_url"),
+                storage_path=pdf_result.get("storage_path"),
+                file_size_bytes=pdf_result.get("file_size_bytes")
+            )
+        except Exception as e:
+            logger.warning(f"Failed to store PDF delivery record: {e}")
+
+        response = {
+            "email": email,
+            "email_sent": email_result.get("success", False),
+            "email_provider": email_result.get("provider"),
+            "message_id": email_result.get("message_id"),
+            "pdf_url": pdf_result.get("pdf_url"),  # Fallback download URL
+            "file_size_bytes": pdf_result.get("file_size_bytes"),
+            "delivered_at": datetime.utcnow().isoformat()
+        }
+
+        if not email_result.get("success"):
+            response["email_error"] = email_result.get("error", "Unknown error")
+            logger.warning(f"Email delivery failed for {email}, fallback URL provided")
+        else:
+            logger.info(f"Ebook delivered to {email} via {email_result.get('provider')}")
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ebook delivery failed for {email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ebook delivery failed"
+        )
+
+
+@router.get(
+    "/download/{email}",
+    responses={
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+)
+async def download_pdf(
+    email: str,
+    supabase: SupabaseClient = Depends(get_supabase_client)
+) -> Response:
+    """
+    GET /rad/download/{email}
+
+    Download personalized PDF directly as a file.
+    No storage required - generates and streams the PDF.
+
+    Args:
+        email: Email address to generate PDF for
+        supabase: Supabase client (injected)
+
+    Returns:
+        PDF file as direct download
+    """
+    try:
+        email = email.lower().strip()
+        logger.info(f"PDF download requested for {email}")
+
+        # Fetch profile
+        finalized_record = supabase.get_finalize_data(email)
+
+        if not finalized_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No profile found for {email}. Run POST /rad/enrich first."
+            )
+
+        profile = finalized_record.get("normalized_data", {})
+        intro_hook = finalized_record.get("personalization_intro", "")
+        cta = finalized_record.get("personalization_cta", "")
+
+        # Initialize PDF service
+        pdf_service = PDFService(supabase)
+
+        # Generate PDF bytes directly
+        html_content = pdf_service._render_template(profile, intro_hook, cta)
+        pdf_bytes = await pdf_service._html_to_pdf(html_content)
+
+        if not pdf_bytes:
+            raise ValueError("PDF generation returned empty content")
+
+        # Generate filename
+        first_name = profile.get("first_name", "user")
+        safe_name = "".join(c for c in first_name if c.isalnum()).lower()
+        filename = f"personalized-ebook-{safe_name}.pdf"
+
+        logger.info(f"Serving PDF download for {email}: {len(pdf_bytes)} bytes")
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(pdf_bytes))
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"PDF download failed for {email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="PDF download failed"
         )
