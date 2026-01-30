@@ -1,0 +1,17 @@
+{
+  "project": "AMD1-1_Alpha",
+  "frontend": {
+    "platform": "vercel",
+    "framework": "nextjs",
+    "directory": "frontend"
+  },
+  "backend": {
+    "platform": "render",
+    "runtime": "python",
+    "framework": "fastapi",
+    "directory": "backend"
+  },
+  "database": {
+    "platform": "supabase"
+  }
+}

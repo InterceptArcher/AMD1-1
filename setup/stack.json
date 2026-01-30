@@ -1,156 +1,26 @@
 {
-  "project_name": "linkedin-personalization",
+  "project_name": "amd1-1_alpha",
   "owner": "InterceptArcher",
-  "stack_type": "fullstack",
-  "description": "LinkedIn post-click personalization with RAD enrichment and AI-powered template adaptation",
-  "version": "1.0.0-alpha",
-  "sla_target_ms": 60000,
-
+  "stack_type": "personalization_pipeline",
   "frontend": {
     "provider": "vercel",
-    "framework": "nextjs",
-    "language": "typescript",
-    "version": "14.2+",
-    "features": [
-      "app-router",
-      "server-components",
-      "client-components",
-      "form-validation",
-      "loading-states"
-    ]
+    "framework": "next.js",
+    "language": "typescript"
   },
 
   "backend": {
-    "provider": "vercel",
-    "language": "typescript",
-    "framework": "nextjs-api",
-    "architecture": "monolithic",
-    "api_routes": [
-      "/api/personalize"
-    ],
-    "services": [
-      "rad-enrichment",
-      "template-selection",
-      "llm-adaptation"
-    ]
+    "provider": "railway",
+    "language": "python",
+    "framework": "fastapi"
   },
 
   "database": {
     "provider": "supabase",
-    "type": "postgres",
-    "tables": [
-      "personalization_jobs",
-      "personalization_outputs",
-      "enrichment_cache"
-    ],
-    "features": [
-      "row-level-security",
-      "jsonb-support",
-      "indexing",
-      "caching"
-    ]
+    "type": "postgresql"
   },
-
-  "external_services": {
-    "enrichment": {
-      "rad_api": {
-        "optional": true,
-        "description": "RAD enrichment service (RADTest integration)",
-        "env_vars": ["RAD_API_URL", "RAD_API_KEY"]
-      },
-      "apollo": {
-        "optional": true,
-        "description": "Apollo.io company enrichment",
-        "env_vars": ["APOLLO_API_KEY"]
-      },
-      "peopledatalabs": {
-        "optional": true,
-        "description": "PeopleDataLabs company enrichment",
-        "env_vars": ["PDL_API_KEY"]
-      }
-    },
-    "llm": {
-      "anthropic": {
-        "required": true,
-        "description": "Claude 3.5 Sonnet for template adaptation",
-        "model": "claude-3-5-sonnet-20241022",
-        "env_vars": ["ANTHROPIC_API_KEY"]
-      }
-    }
-  },
-
-  "features": {
-    "enrichment": {
-      "enabled": true,
-      "cache_ttl_hours": 24,
-      "fallback_to_mock": true,
-      "confidence_scoring": true
-    },
-    "personalization": {
-      "template_library_size": 20,
-      "template_selection": "rule-based",
-      "llm_adaptation": true,
-      "personas": ["Business Leader", "IT", "Finance", "Operations", "Security"],
-      "buyer_stages": ["awareness", "evaluation", "decision"]
-    },
-    "performance": {
-      "parallel_api_calls": true,
-      "enrichment_caching": true,
-      "async_db_writes": false,
-      "edge_functions": true
-    }
-  },
-
-  "environment_variables": {
-    "required": [
-      "ANTHROPIC_API_KEY",
-      "SUPABASE_URL",
-      "SUPABASE_ANON_KEY",
-      "SUPABASE_SERVICE_KEY"
-    ],
-    "optional": [
-      "RAD_API_URL",
-      "RAD_API_KEY",
-      "APOLLO_API_KEY",
-      "PDL_API_KEY",
-      "MOCK_MODE",
-      "USE_MOCK_ENRICHMENT",
-      "ENRICHMENT_CACHE_TTL",
-      "VERCEL_TOKEN",
-      "VERCEL_PROJECT_ID",
-      "VERCEL_ORG_ID",
-      "SUPABASE_PROJECT_REF"
-    ]
-  },
-
   "deployment": {
-    "frontend": {
-      "platform": "vercel",
-      "script": "./scripts/deploy-frontend-vercel.sh",
-      "build_command": "npm run build",
-      "output_directory": ".next"
-    },
-    "database": {
-      "platform": "supabase",
-      "script": "./scripts/deploy-backend-supabase.sh",
-      "migrations_directory": "./supabase/migrations"
-    }
-  },
-
-  "testing": {
-    "framework": "playwright",
-    "test_files": [
-      "tests/landing-page.spec.ts",
-      "tests/email-form.spec.ts",
-      "tests/api-personalize.spec.ts"
-    ],
-    "test_command": "npm test"
-  },
-
-  "documentation": {
-    "readme": "README.md",
-    "integration_plan": "INTEGRATION_PLAN.md",
-    "full_explanation": "FULL_EXPLANATION.md",
-    "engineering_rules": "CLAUDE.md"
+    "frontend": "vercel",
+    "backend": "railway",
+    "database": "supabase"
   }
 }

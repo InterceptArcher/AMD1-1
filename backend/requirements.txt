@@ -1,0 +1,21 @@
+# Core Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# Database
+supabase>=2.0.0
+
+# HTTP Client
+httpx>=0.25.0,<0.28
+
+# LLM Integration
+anthropic==0.25.0
+
+# Logging & Monitoring
+python-json-logger==2.0.7
+
+# PDF Generation
+reportlab==4.0.7
