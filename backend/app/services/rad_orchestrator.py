@@ -1,6 +1,6 @@
 """
 RAD Orchestrator: Coordinates enrichment workflow.
-- Fetches data from external APIs (Apollo, PDL, Hunter, Tavily, ZoomInfo)
+- Fetches data from external APIs (Apollo, PDL, Hunter, GNews, ZoomInfo)
 - Applies resolution logic (source priority + merge rules)
 - Writes normalized output to Supabase
 """
@@ -18,7 +18,7 @@ from app.services.enrichment_apis import (
     ApolloAPI,
     PDLAPI,
     HunterAPI,
-    TavilyAPI,
+    GNewsAPI,
     ZoomInfoAPI
 )
 
@@ -30,7 +30,7 @@ SOURCE_PRIORITY = {
     "zoominfo": 4,
     "pdl": 3,
     "hunter": 2,
-    "tavily": 1
+    "gnews": 1
 }
 
 
@@ -127,14 +127,14 @@ class RADOrchestrator:
             self._fetch_with_fallback("apollo", email, domain),
             self._fetch_with_fallback("pdl", email, domain),
             self._fetch_with_fallback("hunter", email, domain),
-            self._fetch_with_fallback("tavily", email, domain),
+            self._fetch_with_fallback("gnews", email, domain),
             self._fetch_with_fallback("zoominfo", email, domain),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         raw_data = {}
-        source_names = ["apollo", "pdl", "hunter", "tavily", "zoominfo"]
+        source_names = ["apollo", "pdl", "hunter", "gnews", "zoominfo"]
 
         for source_name, result in zip(source_names, results):
             if isinstance(result, Exception):
@@ -216,11 +216,11 @@ class RADOrchestrator:
             normalized["email_score"] = hunter_data.get("score")
             normalized["email_deliverable"] = hunter_data.get("result") == "deliverable"
 
-        # Company context from Tavily
-        tavily_data = raw_data.get("tavily", {})
-        if tavily_data and not tavily_data.get("_error"):
-            normalized["company_context"] = tavily_data.get("answer")
-            normalized["recent_news"] = tavily_data.get("results", [])
+        # Company context from GNews
+        gnews_data = raw_data.get("gnews", {})
+        if gnews_data and not gnews_data.get("_error"):
+            normalized["company_context"] = gnews_data.get("answer")
+            normalized["recent_news"] = gnews_data.get("results", [])
 
         return normalized
 

@@ -319,80 +319,89 @@ class HunterAPI(BaseEnrichmentAPI):
         }
 
 
-class TavilyAPI(BaseEnrichmentAPI):
+class GNewsAPI(BaseEnrichmentAPI):
     """
-    Tavily Search API for company news and context.
-    Docs: https://docs.tavily.com/
+    GNews API for company news and context.
+    Docs: https://gnews.io/docs/v4
     """
 
-    source_name = "tavily"
-    base_url = "https://api.tavily.com"
+    source_name = "gnews"
+    base_url = "https://gnews.io/api/v4"
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or settings.TAVILY_API_KEY
+        self.api_key = api_key or settings.GNEWS_API_KEY
         if not self.api_key:
-            logger.warning("Tavily API key not configured")
+            logger.warning("GNews API key not configured")
 
     async def enrich(self, email: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """
-        Search for company news and context using Tavily.
+        Search for company news using GNews.
 
         Args:
             email: Email address (used to extract domain if not provided)
             domain: Company domain
 
         Returns:
-            Search results and company context
+            News articles and company context
         """
         if not self.api_key:
             return self._mock_response(email, domain)
 
         domain = domain or email.split("@")[1]
+        # Extract company name from domain (e.g., microsoft.com -> microsoft)
+        company_name = domain.split(".")[0]
 
         try:
             async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-                response = await client.post(
+                response = await client.get(
                     f"{self.base_url}/search",
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "api_key": self.api_key,
-                        "query": f"{domain} company news funding",
-                        "search_depth": "basic",
-                        "include_answer": True,
-                        "max_results": 5
+                    params={
+                        "token": self.api_key,
+                        "q": f"{company_name} company",
+                        "lang": "en",
+                        "max": 5
                     }
                 )
 
                 self._handle_error(response)
                 data = response.json()
 
+                articles = data.get("articles", [])
+
+                # Build a summary from article titles
+                answer = None
+                if articles:
+                    headlines = [a.get("title", "") for a in articles[:3]]
+                    answer = f"Recent news about {company_name}: " + "; ".join(headlines)
+
                 return {
                     "domain": domain,
-                    "answer": data.get("answer"),
+                    "answer": answer,
                     "results": [
                         {
-                            "title": r.get("title"),
-                            "url": r.get("url"),
-                            "content": r.get("content", "")[:500],
-                            "score": r.get("score")
+                            "title": a.get("title"),
+                            "url": a.get("url"),
+                            "content": a.get("description", "")[:500],
+                            "published_at": a.get("publishedAt"),
+                            "source": a.get("source", {}).get("name")
                         }
-                        for r in data.get("results", [])[:5]
+                        for a in articles[:5]
                     ],
-                    "result_count": len(data.get("results", [])),
+                    "result_count": data.get("totalArticles", 0),
                     "fetched_at": datetime.utcnow().isoformat()
                 }
 
         except httpx.TimeoutException:
-            logger.error(f"Tavily API timeout for {domain}")
+            logger.error(f"GNews API timeout for {domain}")
             raise EnrichmentAPIError(self.source_name, "Request timeout")
         except httpx.RequestError as e:
-            logger.error(f"Tavily API request error for {domain}: {e}")
+            logger.error(f"GNews API request error for {domain}: {e}")
             raise EnrichmentAPIError(self.source_name, str(e))
 
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
         domain = domain or email.split("@")[1]
-        logger.info(f"Tavily: Using mock data for {domain} (no API key)")
+        logger.info(f"GNews: Using mock data for {domain} (no API key)")
         return {
             "domain": domain,
             "answer": f"Company at {domain} is a technology company.",
@@ -507,6 +516,6 @@ def get_enrichment_apis() -> Dict[str, BaseEnrichmentAPI]:
         "apollo": ApolloAPI(),
         "pdl": PDLAPI(),
         "hunter": HunterAPI(),
-        "tavily": TavilyAPI(),
+        "gnews": GNewsAPI(),
         "zoominfo": ZoomInfoAPI()
     }
