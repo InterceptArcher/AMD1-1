@@ -889,26 +889,67 @@ Output ONLY valid JSON:
 
         # === CASE STUDY SELECTION ===
         parts.append("\n=== CASE STUDY TO HIGHLIGHT ===")
-        industry = (user_context.get('industry_input') or profile.get('industry', '')).lower()
-        company_tags_lower = ' '.join([str(t).lower() for t in profile.get('company_tags', [])])
+        # IMPORTANT: Prioritize user-selected industry from form over API-derived data
+        user_industry = user_context.get('industry_input', '').lower()
+        api_industry = profile.get('industry', '').lower()
 
-        # Use company tags to refine case study selection
-        if any(k in industry or k in company_tags_lower for k in ['telecom', 'tech', 'software', 'gaming', 'media', 'saas', 'cloud']):
-            parts.append("Selected: KT CLOUD - AI/GPU cloud services, massive scale, innovation focus")
-            parts.append("Key angles: cloud-native AI, GPU acceleration, developer platform")
-            parts.append("Metrics to highlight: Scale, performance, time-to-market")
-        elif any(k in industry or k in company_tags_lower for k in ['manufact', 'retail', 'energy', 'consumer', 'industrial', 'supply chain']):
-            parts.append("Selected: SMURFIT WESTROCK - manufacturing, cost optimization, sustainability")
-            parts.append("Key angles: 25% cost reduction, carbon footprint, operational efficiency")
-            parts.append("Metrics to highlight: Cost savings, sustainability, operational uptime")
-        elif any(k in industry or k in company_tags_lower for k in ['health', 'pharma', 'life', 'medical', 'biotech']):
+        # Map frontend industry values to case study categories
+        industry_to_case_study = {
+            # Healthcare -> PQR Healthcare
+            'healthcare': 'healthcare',
+            'life_sciences': 'healthcare',
+            # Financial -> PQR Financial
+            'financial_services': 'financial',
+            'banking': 'financial',
+            # Manufacturing/Retail/Energy -> Smurfit Westrock
+            'manufacturing': 'manufacturing',
+            'retail_ecommerce': 'manufacturing',
+            'energy_utilities': 'manufacturing',
+            # Telecom/Tech -> KT Cloud (only for explicitly tech companies)
+            'technology': 'telecom_tech',
+            'telecommunications': 'telecom_tech',
+            # Others -> PQR General
+            'government': 'general',
+            'education': 'general',
+            'professional_services': 'general',
+        }
+
+        # Determine case study based on USER-SELECTED industry first
+        case_study = industry_to_case_study.get(user_industry, None)
+
+        # If no user industry match, check API industry (but be more selective)
+        if not case_study:
+            if any(k in api_industry for k in ['health', 'pharma', 'medical', 'biotech', 'life science']):
+                case_study = 'healthcare'
+            elif any(k in api_industry for k in ['financ', 'bank', 'insurance']):
+                case_study = 'financial'
+            elif any(k in api_industry for k in ['manufact', 'industrial', 'energy', 'utilities', 'retail', 'consumer goods']):
+                case_study = 'manufacturing'
+            elif any(k in api_industry for k in ['telecom', 'media', 'entertainment', 'gaming']):
+                case_study = 'telecom_tech'
+            # Only use 'technology' as a last resort if it's very explicit
+            elif 'software' in api_industry or api_industry == 'technology':
+                case_study = 'telecom_tech'
+            else:
+                case_study = 'general'
+
+        # Output the selected case study
+        if case_study == 'healthcare':
             parts.append("Selected: PQR + Healthcare angle - compliance, patient data, security")
             parts.append("Key angles: HIPAA compliance, secure AI, data governance")
             parts.append("Metrics to highlight: Compliance, security, patient outcome improvements")
-        elif any(k in industry or k in company_tags_lower for k in ['financ', 'bank', 'insurance', 'fintech', 'trading']):
+        elif case_study == 'financial':
             parts.append("Selected: PQR + Financial angle - security, compliance, automation")
             parts.append("Key angles: regulatory compliance, fraud detection, risk management")
             parts.append("Metrics to highlight: Compliance, processing speed, risk reduction")
+        elif case_study == 'manufacturing':
+            parts.append("Selected: SMURFIT WESTROCK - manufacturing, cost optimization, sustainability")
+            parts.append("Key angles: 25% cost reduction, carbon footprint, operational efficiency")
+            parts.append("Metrics to highlight: Cost savings, sustainability, operational uptime")
+        elif case_study == 'telecom_tech':
+            parts.append("Selected: KT CLOUD - AI/GPU cloud services, massive scale, innovation focus")
+            parts.append("Key angles: cloud-native AI, GPU acceleration, developer platform")
+            parts.append("Metrics to highlight: Scale, performance, time-to-market")
         else:
             parts.append("Selected: PQR - IT services, security, automation")
             parts.append("Key angles: automation, security, operational excellence")
@@ -1063,18 +1104,58 @@ Output ONLY valid JSON:
             ("procurement", "consideration"): f"Access the vendor comparison framework with key evaluation criteria for {industry}.",
         }
 
-        # Case study framing based on industry and company tags - with specific parallels
-        industry_lower = (industry or "").lower()
-        tags_lower = ' '.join([str(t).lower() for t in company_tags]) if company_tags else ''
+        # Case study framing based on USER-SELECTED industry (not API tags which are often wrong)
+        # Map frontend industry values to case study categories
+        user_industry = user_context.get('industry_input', '').lower()
 
-        if any(k in industry_lower or k in tags_lower for k in ['telecom', 'tech', 'software', 'saas', 'cloud']):
-            case_framing = f"KT Cloud faced the same challenge {company} likely faces: scaling AI compute to meet demand while controlling costs. As {seniority or 'a leader'} at a {company_size or 'growing'} {industry} organization{funding_context}, you'll see how their AMD Instinct deployment achieved massive scale.{growth_context}The blueprint translates directly to {company}'s situation."
-        elif any(k in industry_lower or k in tags_lower for k in ['manufact', 'retail', 'consumer', 'industrial']):
-            case_framing = f"Smurfit Westrock's transformation mirrors the challenges facing {company}: balancing cost optimization with sustainability goals in {industry}. Their 25% cost reduction while cutting emissions by 30% shows what's achievable.{size_context}Similar scale organizations have followed this playbook."
-        elif any(k in industry_lower or k in tags_lower for k in ['health', 'pharma', 'life', 'medical']):
+        industry_to_case_study = {
+            # Healthcare -> PQR Healthcare
+            'healthcare': 'healthcare',
+            'life_sciences': 'healthcare',
+            # Financial -> PQR Financial
+            'financial_services': 'financial',
+            'banking': 'financial',
+            # Manufacturing/Retail/Energy -> Smurfit Westrock
+            'manufacturing': 'manufacturing',
+            'retail_ecommerce': 'manufacturing',
+            'energy_utilities': 'manufacturing',
+            # Telecom/Tech -> KT Cloud (only for explicitly tech companies)
+            'technology': 'telecom_tech',
+            'telecommunications': 'telecom_tech',
+            # Others -> PQR General
+            'government': 'general',
+            'education': 'general',
+            'professional_services': 'general',
+        }
+
+        # Determine case study based on USER-SELECTED industry first
+        case_study = industry_to_case_study.get(user_industry, None)
+
+        # If no user industry match, check API industry (but be more selective)
+        if not case_study:
+            industry_lower = (industry or "").lower()
+            if any(k in industry_lower for k in ['health', 'pharma', 'medical', 'biotech', 'life science']):
+                case_study = 'healthcare'
+            elif any(k in industry_lower for k in ['financ', 'bank', 'insurance']):
+                case_study = 'financial'
+            elif any(k in industry_lower for k in ['manufact', 'industrial', 'energy', 'utilities', 'retail', 'consumer goods']):
+                case_study = 'manufacturing'
+            elif any(k in industry_lower for k in ['telecom', 'media', 'entertainment', 'gaming']):
+                case_study = 'telecom_tech'
+            elif 'software' in industry_lower or industry_lower == 'technology':
+                case_study = 'telecom_tech'
+            else:
+                case_study = 'general'
+
+        # Generate case framing based on selected case study
+        if case_study == 'healthcare':
             case_framing = f"For {company} operating in healthcare, compliance and security are non-negotiable. PQR's approach to secure AI infrastructure while maintaining HIPAA-grade data protection provides a proven model.{tech_context}Their automation-first approach addresses the same challenges {title}s in healthcare face daily."
-        elif any(k in industry_lower or k in tags_lower for k in ['financ', 'bank', 'insurance', 'fintech']):
+        elif case_study == 'financial':
             case_framing = f"Financial services organizations like {company} need AI infrastructure that meets strict regulatory requirements. PQR's security-first modernization approach, achieving 40% faster threat detection, demonstrates how {industry} can innovate without compromising compliance.{funding_context}"
+        elif case_study == 'manufacturing':
+            case_framing = f"Smurfit Westrock's transformation mirrors the challenges facing {company}: balancing cost optimization with sustainability goals in {industry}. Their 25% cost reduction while cutting emissions by 30% shows what's achievable.{size_context}Similar scale organizations have followed this playbook."
+        elif case_study == 'telecom_tech':
+            case_framing = f"KT Cloud faced the same challenge {company} likely faces: scaling AI compute to meet demand while controlling costs. As {seniority or 'a leader'} at a {company_size or 'growing'} {industry} organization{funding_context}, you'll see how their AMD Instinct deployment achieved massive scale.{growth_context}The blueprint translates directly to {company}'s situation."
         else:
             case_framing = f"PQR's transformation shows how organizations in {industry} can modernize infrastructure while maintaining enterprise-grade security. As a {title} at {company},{size_context}you'll recognize the challenges they solved—and the 40% efficiency gains that followed."
 
