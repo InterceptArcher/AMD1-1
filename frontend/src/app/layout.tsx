@@ -14,7 +14,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased amd-gradient-bg amd-grid-pattern">
+      <body
+        className="min-h-screen antialiased amd-gradient-bg amd-grid-pattern"
+        style={{
+          backgroundColor: '#0a0a12',
+          color: '#f0f0f5',
+        }}
+      >
         {children}
       </body>
     </html>
