@@ -154,77 +154,134 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
     <div
       role="status"
       aria-label="Loading"
-      className="flex flex-col items-center justify-center space-y-6 py-8"
+      className="flex flex-col items-center justify-center space-y-8 py-12 animate-fade-in-up"
     >
-      {/* Personalized Header */}
-      {userContext?.firstName && (
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Almost there, {userContext.firstName}!
-          </h2>
-          {userContext.company && (
-            <p className="text-sm text-gray-500 mt-1">
-              Customizing insights for {userContext.company}
-            </p>
-          )}
-        </div>
-      )}
+      {/* AMD Branded Header */}
+      <div className="text-center">
+        {userContext?.firstName ? (
+          <>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              Almost there, <span className="text-[#00c8aa]">{userContext.firstName}</span>!
+            </h2>
+            {userContext.company && (
+              <p className="text-white/50">
+                Customizing insights for <span className="text-white/70">{userContext.company}</span>
+              </p>
+            )}
+          </>
+        ) : (
+          <h2 className="text-2xl font-bold text-white">Generating Your Ebook</h2>
+        )}
+      </div>
 
-      {/* Animated dots */}
-      <div className="flex space-x-2">
-        <div className="h-3 w-3 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.3s]" />
-        <div className="h-3 w-3 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.15s]" />
-        <div className="h-3 w-3 animate-bounce rounded-full bg-blue-600" />
+      {/* Animated AMD Logo/Icon */}
+      <div className="relative">
+        {/* Outer glow ring */}
+        <div className="absolute inset-0 rounded-full bg-[#00c8aa]/20 blur-xl animate-pulse" />
+
+        {/* Main spinner container */}
+        <div className="relative w-24 h-24 rounded-full border-2 border-white/10 flex items-center justify-center">
+          {/* Rotating arc */}
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00c8aa] animate-spin" />
+          <div className="absolute inset-2 rounded-full border-2 border-transparent border-r-[#00c8aa]/50 animate-spin [animation-duration:1.5s]" />
+
+          {/* Center icon */}
+          <div className="relative z-10 w-12 h-12 rounded-full bg-[#00c8aa]/10 flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* Progress card */}
-      <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 animate-pulse rounded-full bg-blue-100 flex items-center justify-center">
-              <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
+      <div className="w-full max-w-md amd-card p-6">
+        <div className="space-y-5">
+          {/* Current step indicator */}
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#00c8aa]/10 flex items-center justify-center">
+              <span className="text-[#00c8aa] font-bold text-sm">{currentStep + 1}</span>
             </div>
-            <div className="flex-1">
-              <p className="font-medium text-gray-900 transition-all duration-300">{displayMessage}</p>
-              <p className="text-sm text-gray-500">This usually takes 10-15 seconds</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-white transition-all duration-500 truncate">
+                {displayMessage}
+              </p>
+              <p className="text-sm text-white/40 mt-0.5">Processing your personalization...</p>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+          <div className="relative h-2 rounded-full bg-white/5 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#00c8aa] to-[#00e0be] transition-all duration-700 ease-out progress-shine"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          {/* What we're doing */}
+          {/* Step counter */}
+          <div className="flex items-center justify-between text-xs text-white/30">
+            <span>Step {currentStep + 1} of {steps.length}</span>
+            <span>{Math.round(progress)}% complete</span>
+          </div>
+
+          {/* Context tags */}
           {userContext && (
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-400 text-center">
-                Personalizing for {userContext.industry?.replace('_', ' ')} • {userContext.persona?.replace('_', ' ')} • {userContext.goal?.replace('_', ' ')} stage
-              </p>
+            <div className="pt-4 border-t border-white/5">
+              <p className="text-xs text-white/30 mb-3">Personalizing for:</p>
+              <div className="flex flex-wrap gap-2">
+                {userContext.industry && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#00c8aa]/10 text-[#00c8aa] text-xs font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00c8aa]" />
+                    {userContext.industry.replace('_', ' ')}
+                  </span>
+                )}
+                {userContext.persona && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 text-white/60 text-xs font-medium">
+                    {userContext.persona.replace('_', ' ')}
+                  </span>
+                )}
+                {userContext.goal && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 text-white/60 text-xs font-medium">
+                    {userContext.goal.replace('_', ' ')} stage
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Preview of what's coming */}
+      {/* Preview section */}
       {userContext && (
-        <div className="w-full max-w-md space-y-2">
-          <p className="text-xs font-medium text-gray-500 text-center">Your ebook will include:</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-              {userContext.industry?.replace('_', ' ')} insights
-            </span>
-            <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-              {userContext.persona?.replace('_', ' ')} focus
-            </span>
-            <span className="inline-flex items-center rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
-              Relevant case studies
-            </span>
+        <div className="w-full max-w-md space-y-3 animate-fade-in-up stagger-2">
+          <p className="text-xs font-medium text-white/40 text-center uppercase tracking-wider">
+            Your ebook will include
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="amd-card p-3 text-center amd-card-hover">
+              <div className="w-8 h-8 rounded-lg bg-[#00c8aa]/10 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <p className="text-xs text-white/50">Industry Insights</p>
+            </div>
+            <div className="amd-card p-3 text-center amd-card-hover">
+              <div className="w-8 h-8 rounded-lg bg-[#00c8aa]/10 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <p className="text-xs text-white/50">Best Practices</p>
+            </div>
+            <div className="amd-card p-3 text-center amd-card-hover">
+              <div className="w-8 h-8 rounded-lg bg-[#00c8aa]/10 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <p className="text-xs text-white/50">Case Studies</p>
+            </div>
           </div>
         </div>
       )}

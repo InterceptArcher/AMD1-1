@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LinkedIn Personalization',
-  description: 'Personalized content for your LinkedIn experience',
+  title: 'Enterprise AI Readiness Framework | AMD',
+  description: 'Get your personalized guide to data center modernization and AI readiness. From Observers to Leaders.',
+  keywords: ['AMD', 'AI', 'Enterprise', 'Data Center', 'Modernization', 'Infrastructure'],
 };
 
 export default function RootLayout({
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-50 antialiased">{children}</body>
+      <body className="min-h-screen antialiased amd-gradient-bg amd-grid-pattern">
+        {children}
+      </body>
     </html>
   );
 }

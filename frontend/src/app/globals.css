@@ -2,7 +2,228 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --amd-dark: #0a0a12;
+  --amd-darker: #050508;
+  --amd-gray: #1a1a2e;
+  --amd-cyan: #00c8aa;
+  --amd-cyan-dim: rgba(0, 200, 170, 0.15);
+  --amd-light: #d0d0d8;
+  --amd-muted: #8a8a9a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background: var(--amd-dark);
+  color: white;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Animated gradient background */
+.amd-gradient-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(0, 200, 170, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 100, 200, 0.06) 0%, transparent 50%),
+    linear-gradient(180deg, #0a0a12 0%, #0d1420 50%, #0a0a12 100%);
+}
+
+/* Subtle grid pattern overlay */
+.amd-grid-pattern {
+  background-image:
+    linear-gradient(rgba(0, 200, 170, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 200, 170, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Noise texture overlay */
+.amd-noise {
+  position: relative;
+}
+.amd-noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.02;
+  pointer-events: none;
+}
+
+/* Cyan glow effects */
+.amd-glow {
+  box-shadow: 0 0 60px rgba(0, 200, 170, 0.15);
+}
+
+.amd-glow-sm {
+  box-shadow: 0 0 30px rgba(0, 200, 170, 0.1);
+}
+
+/* Text gradient */
+.amd-text-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, var(--amd-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Form styling */
+.amd-input {
+  @apply w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/30;
+  @apply focus:outline-none focus:border-[#00c8aa] focus:ring-1 focus:ring-[#00c8aa]/50;
+  @apply transition-all duration-200;
+}
+
+.amd-input:hover {
+  @apply border-white/20 bg-white/[0.07];
+}
+
+.amd-select {
+  @apply w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white;
+  @apply focus:outline-none focus:border-[#00c8aa] focus:ring-1 focus:ring-[#00c8aa]/50;
+  @apply transition-all duration-200 appearance-none cursor-pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238a8a9a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+}
+
+.amd-select option {
+  background: #1a1a2e;
+  color: white;
+}
+
+.amd-label {
+  @apply block text-sm font-medium text-white/60 mb-2 tracking-wide;
+}
+
+/* Button styling */
+.amd-button-primary {
+  @apply relative w-full py-4 px-6 bg-[#00c8aa] text-[#0a0a12] font-bold text-sm uppercase tracking-widest;
+  @apply rounded-lg transition-all duration-300 overflow-hidden;
+}
+
+.amd-button-primary:hover:not(:disabled) {
+  @apply bg-[#00e0be] shadow-lg;
+  box-shadow: 0 10px 40px rgba(0, 200, 170, 0.3);
+  transform: translateY(-2px);
+}
+
+.amd-button-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.amd-button-primary:disabled {
+  @apply bg-white/10 text-white/30 cursor-not-allowed;
+}
+
+/* Card styling */
+.amd-card {
+  @apply bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-sm;
+}
+
+.amd-card-hover {
+  @apply transition-all duration-300;
+}
+
+.amd-card-hover:hover {
+  @apply border-[#00c8aa]/30 bg-white/[0.05];
+  box-shadow: 0 0 40px rgba(0, 200, 170, 0.08);
+}
+
+/* Checkbox styling */
+.amd-checkbox {
+  @apply h-5 w-5 rounded border-2 border-white/20 bg-transparent cursor-pointer;
+  @apply checked:bg-[#00c8aa] checked:border-[#00c8aa];
+  @apply focus:ring-2 focus:ring-[#00c8aa]/50 focus:ring-offset-0 focus:ring-offset-transparent;
+  @apply transition-all duration-200;
+}
+
+/* Loading animations */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Progress bar animation */
+@keyframes progress-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: progress-shine 1.5s ease-in-out infinite;
+}
+
+/* Stagger animation */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+/* Fade in animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--amd-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--amd-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--amd-muted);
 }

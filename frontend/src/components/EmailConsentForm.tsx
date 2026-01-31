@@ -17,7 +17,6 @@ interface EmailConsentFormProps {
   isLoading?: boolean;
 }
 
-// Buying stage - helps LLM tailor urgency and depth of content
 const GOAL_OPTIONS = [
   { value: '', label: 'Select your current stage...' },
   { value: 'awareness', label: 'Just starting to research' },
@@ -26,10 +25,9 @@ const GOAL_OPTIONS = [
   { value: 'implementation', label: 'Already implementing, need guidance' },
 ];
 
-// Role/Persona - helps LLM customize technical depth and focus areas
 const PERSONA_OPTIONS = [
   { value: '', label: 'Select your role...' },
-  { value: 'c_suite', label: 'C-Suite / Executive (CEO, CTO, CIO, CFO)' },
+  { value: 'c_suite', label: 'C-Suite / Executive' },
   { value: 'vp_director', label: 'VP / Director' },
   { value: 'it_infrastructure', label: 'IT / Infrastructure Manager' },
   { value: 'engineering', label: 'Engineering / DevOps' },
@@ -39,19 +37,18 @@ const PERSONA_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
-// Industry - maps to case studies and specific pain points
 const INDUSTRY_OPTIONS = [
   { value: '', label: 'Select your industry...' },
-  { value: 'technology', label: 'Technology / Software / SaaS' },
-  { value: 'financial_services', label: 'Financial Services / Banking / Insurance' },
-  { value: 'healthcare', label: 'Healthcare / Life Sciences / Pharma' },
+  { value: 'technology', label: 'Technology / Software' },
+  { value: 'financial_services', label: 'Financial Services / Banking' },
+  { value: 'healthcare', label: 'Healthcare / Life Sciences' },
   { value: 'retail_ecommerce', label: 'Retail / E-commerce' },
   { value: 'manufacturing', label: 'Manufacturing / Industrial' },
   { value: 'telecommunications', label: 'Telecommunications / Media' },
   { value: 'energy_utilities', label: 'Energy / Utilities' },
   { value: 'government', label: 'Government / Public Sector' },
   { value: 'education', label: 'Education / Research' },
-  { value: 'professional_services', label: 'Professional Services / Consulting' },
+  { value: 'professional_services', label: 'Professional Services' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -89,10 +86,6 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
     }
   };
 
-  const handleConsentChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setConsent(e.target.checked);
-  };
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (isFormValid) {
@@ -108,12 +101,9 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Name Inputs */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <label
-            htmlFor="firstName"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="firstName" className="amd-label">
             First Name
           </label>
           <input
@@ -124,14 +114,11 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="amd-input"
           />
         </div>
         <div>
-          <label
-            htmlFor="lastName"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="lastName" className="amd-label">
             Last Name
           </label>
           <input
@@ -142,17 +129,14 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             disabled={isLoading}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="amd-input"
           />
         </div>
       </div>
 
       {/* Company Input */}
       <div>
-        <label
-          htmlFor="company"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="company" className="amd-label">
           Company
         </label>
         <input
@@ -163,16 +147,13 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
           value={company}
           onChange={(e) => setCompany(e.target.value)}
           disabled={isLoading}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="amd-input"
         />
       </div>
 
       {/* Email Input */}
       <div>
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="email" className="amd-label">
           Work Email
         </label>
         <input
@@ -184,22 +165,16 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
           onChange={handleEmailChange}
           onBlur={handleEmailBlur}
           disabled={isLoading}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-          aria-describedby={emailError ? 'email-error' : undefined}
+          className={`amd-input ${emailError ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/50' : ''}`}
         />
         {emailError && (
-          <p id="email-error" className="mt-1 text-sm text-red-600">
-            {emailError}
-          </p>
+          <p className="mt-2 text-sm text-red-400">{emailError}</p>
         )}
       </div>
 
       {/* Industry Dropdown */}
       <div>
-        <label
-          htmlFor="industry"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="industry" className="amd-label">
           Industry
         </label>
         <select
@@ -208,7 +183,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
           value={industry}
           onChange={(e) => setIndustry(e.target.value)}
           disabled={isLoading}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="amd-select"
         >
           {INDUSTRY_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -220,10 +195,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
 
       {/* Persona/Role Dropdown */}
       <div>
-        <label
-          htmlFor="persona"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="persona" className="amd-label">
           Your Role
         </label>
         <select
@@ -232,7 +204,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
           value={persona}
           onChange={(e) => setPersona(e.target.value)}
           disabled={isLoading}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="amd-select"
         >
           {PERSONA_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -244,10 +216,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
 
       {/* Buying Stage Dropdown */}
       <div>
-        <label
-          htmlFor="goal"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="goal" className="amd-label">
           Where are you in your journey?
         </label>
         <select
@@ -256,7 +225,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
           disabled={isLoading}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="amd-select"
         >
           {GOAL_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -267,21 +236,18 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
       </div>
 
       {/* Consent Checkbox */}
-      <div className="flex items-start">
+      <div className="flex items-start gap-3 pt-2">
         <input
           type="checkbox"
           id="consent"
           name="consent"
           checked={consent}
-          onChange={handleConsentChange}
+          onChange={(e) => setConsent(e.target.checked)}
           disabled={isLoading}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed mt-0.5"
+          className="amd-checkbox mt-0.5"
         />
-        <label
-          htmlFor="consent"
-          className="ml-2 block text-sm text-gray-600"
-        >
-          I agree to receive my personalized ebook and relevant updates
+        <label htmlFor="consent" className="text-sm text-white/50 leading-relaxed cursor-pointer">
+          I agree to receive my personalized ebook and relevant updates from AMD
         </label>
       </div>
 
@@ -289,20 +255,21 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
       <button
         type="submit"
         disabled={!isFormValid || isLoading}
-        className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        className="amd-button-primary mt-6"
       >
         {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-            Creating Your Personalized Ebook...
+          <span className="flex items-center justify-center gap-3">
+            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Creating Your Ebook...
           </span>
         ) : (
-          'Get My Free Ebook'
+          'Get My Free Ebook →'
         )}
       </button>
 
-      <p className="text-center text-xs text-gray-400">
-        Your ebook will be personalized for {company || 'your company'} in {
+      {/* Preview text */}
+      <p className="text-center text-xs text-white/30 pt-2">
+        Personalized for {company || 'your company'} in {
           INDUSTRY_OPTIONS.find(i => i.value === industry)?.label.split(' /')[0] || 'your industry'
         }
       </p>

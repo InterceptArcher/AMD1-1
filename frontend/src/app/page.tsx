@@ -39,7 +39,6 @@ function HomeContent() {
   };
 
   const getApiUrl = () => {
-    // Use relative URL to leverage Next.js proxy (avoids CORS/port issues)
     return '/api';
   };
 
@@ -47,7 +46,6 @@ function HomeContent() {
     setIsLoading(true);
     setError(null);
 
-    // Set user context immediately for personalized loading
     setUserContext({
       firstName: inputs.firstName,
       company: inputs.company,
@@ -58,9 +56,7 @@ function HomeContent() {
 
     try {
       const apiUrl = getApiUrl();
-      console.log('Submitting to API:', apiUrl);
 
-      // Call backend with all user inputs
       const response = await fetch(`${apiUrl}/rad/enrich`, {
         method: 'POST',
         headers: {
@@ -79,22 +75,16 @@ function HomeContent() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Enrich failed:', response.status, errorText);
         throw new Error(`Failed to start personalization: ${response.status}`);
       }
 
-      // Profile should be ready - fetch it
       const profileResponse = await fetch(`${apiUrl}/rad/profile/${encodeURIComponent(inputs.email)}`);
 
       if (!profileResponse.ok) {
-        const errorText = await profileResponse.text();
-        console.error('Profile fetch failed:', profileResponse.status, errorText);
         throw new Error(`Failed to fetch profile: ${profileResponse.status}`);
       }
 
       const profileData = await profileResponse.json();
-      console.log('Profile data:', profileData);
 
       setPersonalizationData({
         intro_hook: profileData.personalization?.intro_hook || 'Welcome!',
@@ -105,7 +95,6 @@ function HomeContent() {
         email: inputs.email,
       });
     } catch (err) {
-      console.error('Submit error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -113,50 +102,121 @@ function HomeContent() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-white p-8">
-      <div className="w-full max-w-md space-y-8">
-        {!personalizationData && !isLoading && (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-              <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
+    <main className="min-h-screen relative">
+      {/* Decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#00c8aa]/5 rounded-full blur-[120px] translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#00c8aa]/3 rounded-full blur-[100px] -translate-x-1/2 translate-y-1/2" />
+      </div>
+
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* Header */}
+        <header className="px-6 py-6 lg:px-12">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="text-2xl font-bold tracking-wider">AMD</div>
+            <div className="hidden sm:flex items-center gap-6 text-sm text-white/50">
+              <span>Enterprise Solutions</span>
+              <span className="w-1 h-1 rounded-full bg-[#00c8aa]" />
+              <span>AI Readiness</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Get Your Free Ebook
-            </h1>
-            <p className="mt-3 text-gray-600">
-              {cta ? cta : 'Personalized insights tailored to your role and industry'}
-            </p>
-            <p className="mt-1 text-sm text-gray-400">
-              Answer a few questions to customize your content
-            </p>
           </div>
-        )}
+        </header>
 
-        {!personalizationData && !isLoading && (
-          <EmailConsentForm onSubmit={handleSubmit} isLoading={isLoading} />
-        )}
+        {/* Main Content */}
+        <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-12">
+          <div className="w-full max-w-6xl">
+            {!personalizationData && !isLoading && (
+              <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+                {/* Left Side - Hero */}
+                <div className="animate-fade-in-up">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#00c8aa]/30 bg-[#00c8aa]/10 mb-8">
+                    <span className="w-2 h-2 rounded-full bg-[#00c8aa] animate-pulse" />
+                    <span className="text-sm text-[#00c8aa] font-medium">Free Personalized Ebook</span>
+                  </div>
 
-        {isLoading && (
-          <LoadingSpinner userContext={userContext || undefined} />
-        )}
+                  <p className="text-[#00c8aa] font-semibold uppercase tracking-widest text-sm mb-4">
+                    From Observers to Leaders
+                  </p>
 
-        {personalizationData && (
-          <PersonalizedContent data={personalizationData} error={error} onReset={handleReset} />
-        )}
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] mb-6">
+                    An Enterprise<br />
+                    <span className="amd-text-gradient">AI Readiness</span><br />
+                    Framework
+                  </h1>
 
-        {error && !personalizationData && !isLoading && (
-          <div className="rounded-md bg-red-50 p-4">
-            <p className="text-sm text-red-700">{error}</p>
-            <button
-              onClick={handleReset}
-              className="mt-2 text-sm text-red-600 underline hover:text-red-800"
-            >
-              Try again
-            </button>
+                  <p className="text-lg text-white/60 leading-relaxed mb-8 max-w-lg">
+                    Discover where your organization stands on the modernization curve and get a personalized roadmap to AI leadership.
+                  </p>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="animate-fade-in-up stagger-1">
+                      <div className="text-3xl font-bold text-[#00c8aa]">33%</div>
+                      <div className="text-xs text-white/40 mt-1">Leaders</div>
+                    </div>
+                    <div className="animate-fade-in-up stagger-2">
+                      <div className="text-3xl font-bold text-white/80">58%</div>
+                      <div className="text-xs text-white/40 mt-1">Challengers</div>
+                    </div>
+                    <div className="animate-fade-in-up stagger-3">
+                      <div className="text-3xl font-bold text-white/50">9%</div>
+                      <div className="text-xs text-white/40 mt-1">Observers</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side - Form */}
+                <div className="animate-fade-in-up stagger-2">
+                  <div className="amd-card p-8 lg:p-10 amd-glow">
+                    <div className="mb-8">
+                      <h2 className="text-2xl font-bold mb-2">Get Your Personalized Guide</h2>
+                      <p className="text-white/50">
+                        Tailored insights for your industry and role
+                      </p>
+                    </div>
+                    <EmailConsentForm onSubmit={handleSubmit} isLoading={isLoading} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="max-w-xl mx-auto">
+                <LoadingSpinner userContext={userContext || undefined} />
+              </div>
+            )}
+
+            {personalizationData && (
+              <div className="max-w-2xl mx-auto animate-fade-in-up">
+                <PersonalizedContent data={personalizationData} error={error} onReset={handleReset} />
+              </div>
+            )}
+
+            {error && !personalizationData && !isLoading && (
+              <div className="max-w-md mx-auto amd-card p-6 border-red-500/30 bg-red-500/5">
+                <p className="text-red-400">{error}</p>
+                <button
+                  onClick={handleReset}
+                  className="mt-4 text-sm text-[#00c8aa] hover:underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Footer */}
+        <footer className="px-6 py-8 lg:px-12 border-t border-white/5">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/30">
+            <div>© 2025 Advanced Micro Devices, Inc.</div>
+            <div className="flex items-center gap-6">
+              <span>Privacy</span>
+              <span>Terms</span>
+              <span>Contact</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </main>
   );
@@ -164,7 +224,11 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<LoadingSpinner message="Loading..." />}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#00c8aa] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
       <HomeContent />
     </Suspense>
   );
