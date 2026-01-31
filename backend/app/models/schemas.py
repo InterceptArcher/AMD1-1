@@ -27,6 +27,8 @@ class EnrichmentRequest(BaseModel):
     persona: Optional[str] = Field(None, description="User's role (c_suite, vp_director, it_infrastructure, engineering, data_ai, security, procurement)")
     industry: Optional[str] = Field(None, description="User's industry (technology, financial_services, healthcare, retail_ecommerce, manufacturing, etc.)")
     cta: Optional[str] = Field(None, description="Campaign CTA context")
+    # Cache control
+    force_refresh: Optional[bool] = Field(False, description="Force re-enrichment even if data exists")
 
     class Config:
         json_schema_extra = {

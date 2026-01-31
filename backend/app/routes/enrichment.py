@@ -63,11 +63,26 @@ async def enrich_profile(
     try:
         job_id = str(uuid.uuid4())
         logger.info(f"[{job_id}] Enrichment request for {request.email}")
-        
+
         # Validate email format (Pydantic EmailStr already validates)
         email = request.email.lower().strip()
         domain = request.domain or email.split("@")[1]
-        
+
+        # Check for existing enrichment data (cache)
+        existing_record = supabase.get_finalize_data(email)
+        if existing_record and not request.force_refresh:
+            logger.info(f"[{job_id}] Using cached data for {email} (use force_refresh=true to re-enrich)")
+            # Return cached data with cache indicator
+            return {
+                "job_id": job_id,
+                "email": email,
+                "status": "completed",
+                "created_at": existing_record.get("resolved_at", datetime.utcnow().isoformat()),
+                "cached": True,
+                "data_quality_score": existing_record.get("normalized_data", {}).get("data_quality_score", 0),
+                "message": "Using cached enrichment data. Set force_refresh=true to re-enrich."
+            }
+
         # Create services
         orchestrator = RADOrchestrator(supabase)
         llm_service = LLMService()
@@ -363,6 +378,17 @@ async def api_status() -> dict:
         if val:
             raw_env[key] = f"set ({val[:4]}...)" if len(val) > 4 else "set (short)"
 
+    # Check email provider
+    def check_email_provider() -> str:
+        if os.getenv("SENDGRID_API_KEY"):
+            return "sendgrid (configured)"
+        elif os.getenv("RESEND_API_KEY"):
+            return "resend (configured)"
+        elif os.getenv("SMTP_HOST"):
+            return "smtp (configured)"
+        else:
+            return "mock (no provider configured)"
+
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "enrichment_apis": {
@@ -376,6 +402,10 @@ async def api_status() -> dict:
             "anthropic": check_key("ANTHROPIC_API_KEY"),
             "openai": check_key("OPENAI_API_KEY"),
             "gemini": check_key("GEMINI_API_KEY"),
+        },
+        "email": {
+            "provider": check_email_provider(),
+            "from_address": os.getenv("EMAIL_FROM", "not set"),
         },
         "database": {
             "supabase_url": "configured" if settings.SUPABASE_URL else "not set",
