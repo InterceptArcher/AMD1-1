@@ -5,6 +5,7 @@ All API keys loaded from environment variables.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import httpx
@@ -15,7 +16,10 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Default timeout for all API calls (seconds)
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 45.0
+
+# Extended timeout for deep enrichment queries
+DEEP_ENRICHMENT_TIMEOUT = 60.0
 
 
 class EnrichmentAPIError(Exception):
@@ -238,6 +242,92 @@ class PDLAPI(BaseEnrichmentAPI):
         """Extract recent work experience (last 3 positions)."""
         return experience[:3] if experience else []
 
+    async def enrich_company(self, domain: str) -> Dict[str, Any]:
+        """
+        Enrich company data from People Data Labs Company API.
+        Provides much deeper company insights than person enrichment.
+
+        Args:
+            domain: Company domain to look up
+
+        Returns:
+            Enriched company data
+        """
+        if not self.api_key:
+            return self._mock_company_response(domain)
+
+        try:
+            async with httpx.AsyncClient(timeout=DEEP_ENRICHMENT_TIMEOUT) as client:
+                response = await client.get(
+                    f"{self.base_url}/company/enrich",
+                    headers={"X-Api-Key": self.api_key},
+                    params={"website": domain}
+                )
+
+                self._handle_error(response)
+                data = response.json()
+
+                return {
+                    "domain": domain,
+                    "name": data.get("name"),
+                    "display_name": data.get("display_name"),
+                    "size": data.get("size"),
+                    "employee_count": data.get("employee_count"),
+                    "employee_count_range": data.get("employee_count_range"),
+                    "founded": data.get("founded"),
+                    "industry": data.get("industry"),
+                    "naics": data.get("naics", []),
+                    "sic": data.get("sic", []),
+                    "location": data.get("location"),
+                    "locality": data.get("locality"),
+                    "region": data.get("region"),
+                    "country": data.get("country"),
+                    "type": data.get("type"),  # private, public, nonprofit, etc.
+                    "ticker": data.get("ticker"),
+                    "linkedin_url": data.get("linkedin_url"),
+                    "linkedin_id": data.get("linkedin_id"),
+                    "facebook_url": data.get("facebook_url"),
+                    "twitter_url": data.get("twitter_url"),
+                    "profiles": data.get("profiles", []),
+                    "tags": data.get("tags", [])[:15],  # Industry tags
+                    "headline": data.get("headline"),
+                    "summary": data.get("summary"),
+                    "alternative_names": data.get("alternative_names", []),
+                    "affiliated_profiles": data.get("affiliated_profiles", [])[:5],
+                    "total_funding_raised": data.get("total_funding_raised"),
+                    "latest_funding_stage": data.get("latest_funding_stage"),
+                    "last_funding_date": data.get("last_funding_date"),
+                    "number_funding_rounds": data.get("number_funding_rounds"),
+                    "inferred_revenue": data.get("inferred_revenue"),
+                    "direct_phone_numbers": len(data.get("direct_phone_numbers", [])),  # Count only, not actual numbers
+                    "employee_growth_rate": data.get("employee_growth_rate"),
+                    "fetched_at": datetime.utcnow().isoformat()
+                }
+
+        except httpx.TimeoutException:
+            logger.error(f"PDL Company API timeout for {domain}")
+            raise EnrichmentAPIError(self.source_name, "Company request timeout")
+        except httpx.RequestError as e:
+            logger.error(f"PDL Company API request error for {domain}: {e}")
+            raise EnrichmentAPIError(self.source_name, str(e))
+
+    def _mock_company_response(self, domain: str) -> Dict[str, Any]:
+        """Return mock company data when API key not configured."""
+        logger.info(f"PDL Company: Using mock data for {domain} (no API key)")
+        return {
+            "domain": domain,
+            "name": f"Company at {domain}",
+            "industry": "Technology",
+            "size": "51-200",
+            "employee_count": 150,
+            "country": "United States",
+            "type": "private",
+            "tags": ["technology", "software", "enterprise"],
+            "summary": f"A technology company operating at {domain}.",
+            "fetched_at": datetime.utcnow().isoformat(),
+            "_mock": True
+        }
+
 
 class HunterAPI(BaseEnrichmentAPI):
     """
@@ -323,6 +413,12 @@ class GNewsAPI(BaseEnrichmentAPI):
     """
     GNews API for company news and context.
     Docs: https://gnews.io/docs/v4
+
+    Enhanced to run multiple search queries for comprehensive news coverage:
+    - Company general news
+    - Company + AI/technology news
+    - Company + industry trends
+    - Company + leadership/strategy
     """
 
     source_name = "gnews"
@@ -335,14 +431,14 @@ class GNewsAPI(BaseEnrichmentAPI):
 
     async def enrich(self, email: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """
-        Search for company news using GNews.
+        Search for company news using GNews with multiple queries.
 
         Args:
             email: Email address (used to extract domain if not provided)
             domain: Company domain
 
         Returns:
-            News articles and company context
+            News articles and company context from multiple angles
         """
         if not self.api_key:
             return self._mock_response(email, domain)
@@ -352,44 +448,35 @@ class GNewsAPI(BaseEnrichmentAPI):
         company_name = domain.split(".")[0]
 
         try:
-            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-                response = await client.get(
-                    f"{self.base_url}/search",
-                    params={
-                        "token": self.api_key,
-                        "q": f"{company_name} company",
-                        "lang": "en",
-                        "max": 5
-                    }
-                )
+            # Run multiple search queries in parallel for comprehensive coverage
+            all_articles = await self._fetch_multi_query_news(company_name)
 
-                self._handle_error(response)
-                data = response.json()
+            # Deduplicate articles by URL
+            seen_urls = set()
+            unique_articles = []
+            for article in all_articles:
+                url = article.get("url")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_articles.append(article)
 
-                articles = data.get("articles", [])
+            # Build comprehensive summary
+            answer = self._build_news_summary(company_name, unique_articles)
 
-                # Build a summary from article titles
-                answer = None
-                if articles:
-                    headlines = [a.get("title", "") for a in articles[:3]]
-                    answer = f"Recent news about {company_name}: " + "; ".join(headlines)
+            # Categorize articles
+            categorized = self._categorize_articles(unique_articles)
 
-                return {
-                    "domain": domain,
-                    "answer": answer,
-                    "results": [
-                        {
-                            "title": a.get("title"),
-                            "url": a.get("url"),
-                            "content": a.get("description", "")[:500],
-                            "published_at": a.get("publishedAt"),
-                            "source": a.get("source", {}).get("name")
-                        }
-                        for a in articles[:5]
-                    ],
-                    "result_count": data.get("totalArticles", 0),
-                    "fetched_at": datetime.utcnow().isoformat()
-                }
+            return {
+                "domain": domain,
+                "company_name": company_name,
+                "answer": answer,
+                "results": unique_articles[:10],  # Top 10 unique articles
+                "categorized": categorized,
+                "result_count": len(unique_articles),
+                "themes": self._extract_themes(unique_articles),
+                "sentiment_indicators": self._analyze_sentiment_keywords(unique_articles),
+                "fetched_at": datetime.utcnow().isoformat()
+            }
 
         except httpx.TimeoutException:
             logger.error(f"GNews API timeout for {domain}")
@@ -398,15 +485,201 @@ class GNewsAPI(BaseEnrichmentAPI):
             logger.error(f"GNews API request error for {domain}: {e}")
             raise EnrichmentAPIError(self.source_name, str(e))
 
+    async def _fetch_multi_query_news(self, company_name: str) -> List[Dict[str, Any]]:
+        """
+        Fetch news from multiple search queries in parallel.
+
+        Args:
+            company_name: Company name to search for
+
+        Returns:
+            Combined list of articles from all queries
+        """
+        search_queries = [
+            f'"{company_name}"',  # Exact company name match
+            f"{company_name} AI artificial intelligence",
+            f"{company_name} technology innovation",
+            f"{company_name} strategy leadership CEO",
+            f"{company_name} expansion growth partnership",
+        ]
+
+        async with httpx.AsyncClient(timeout=DEEP_ENRICHMENT_TIMEOUT) as client:
+            tasks = []
+            for query in search_queries:
+                tasks.append(
+                    client.get(
+                        f"{self.base_url}/search",
+                        params={
+                            "token": self.api_key,
+                            "q": query,
+                            "lang": "en",
+                            "max": 5,
+                            "sortby": "relevance"
+                        }
+                    )
+                )
+
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+            all_articles = []
+            for i, response in enumerate(responses):
+                if isinstance(response, Exception):
+                    logger.warning(f"GNews query {i} failed: {response}")
+                    continue
+                try:
+                    if response.status_code == 200:
+                        data = response.json()
+                        articles = data.get("articles", [])
+                        for article in articles:
+                            all_articles.append({
+                                "title": article.get("title"),
+                                "url": article.get("url"),
+                                "content": article.get("description", "")[:800],
+                                "full_content": article.get("content", "")[:1500],
+                                "published_at": article.get("publishedAt"),
+                                "source": article.get("source", {}).get("name"),
+                                "source_url": article.get("source", {}).get("url"),
+                                "image": article.get("image"),
+                                "query_category": self._get_query_category(i)
+                            })
+                except Exception as e:
+                    logger.warning(f"Failed to parse GNews response {i}: {e}")
+
+            return all_articles
+
+    def _get_query_category(self, query_index: int) -> str:
+        """Map query index to category name."""
+        categories = [
+            "general",
+            "ai_technology",
+            "innovation",
+            "leadership",
+            "growth"
+        ]
+        return categories[query_index] if query_index < len(categories) else "other"
+
+    def _build_news_summary(self, company_name: str, articles: List[Dict]) -> str:
+        """Build a comprehensive news summary from articles."""
+        if not articles:
+            return f"No recent news found for {company_name}."
+
+        # Group by category
+        by_category = {}
+        for article in articles:
+            cat = article.get("query_category", "general")
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(article.get("title", ""))
+
+        summary_parts = [f"Recent news coverage for {company_name}:"]
+
+        if "general" in by_category:
+            summary_parts.append(f"General: {'; '.join(by_category['general'][:2])}")
+        if "ai_technology" in by_category:
+            summary_parts.append(f"AI/Tech: {'; '.join(by_category['ai_technology'][:2])}")
+        if "leadership" in by_category:
+            summary_parts.append(f"Leadership: {'; '.join(by_category['leadership'][:2])}")
+        if "growth" in by_category:
+            summary_parts.append(f"Growth: {'; '.join(by_category['growth'][:2])}")
+
+        return " | ".join(summary_parts)
+
+    def _categorize_articles(self, articles: List[Dict]) -> Dict[str, List[Dict]]:
+        """Categorize articles by topic."""
+        categorized = {
+            "ai_technology": [],
+            "leadership": [],
+            "growth": [],
+            "general": []
+        }
+
+        for article in articles:
+            cat = article.get("query_category", "general")
+            if cat in categorized:
+                categorized[cat].append(article)
+            else:
+                categorized["general"].append(article)
+
+        return categorized
+
+    def _extract_themes(self, articles: List[Dict]) -> List[str]:
+        """Extract key themes from article titles and content."""
+        themes = set()
+        theme_keywords = {
+            "AI adoption": ["ai", "artificial intelligence", "machine learning", "ml"],
+            "Cloud transformation": ["cloud", "aws", "azure", "gcp", "saas"],
+            "Digital transformation": ["digital", "transformation", "modernization"],
+            "Data strategy": ["data", "analytics", "insights", "big data"],
+            "Growth & expansion": ["growth", "expansion", "revenue", "market"],
+            "Partnership": ["partnership", "collaboration", "joint venture"],
+            "Innovation": ["innovation", "r&d", "research", "breakthrough"],
+            "Sustainability": ["sustainability", "esg", "green", "carbon"],
+            "Security": ["security", "cybersecurity", "privacy", "compliance"],
+            "Workforce": ["hiring", "workforce", "talent", "employees"]
+        }
+
+        combined_text = " ".join([
+            (a.get("title", "") + " " + a.get("content", "")).lower()
+            for a in articles
+        ])
+
+        for theme, keywords in theme_keywords.items():
+            if any(kw in combined_text for kw in keywords):
+                themes.add(theme)
+
+        return list(themes)[:5]
+
+    def _analyze_sentiment_keywords(self, articles: List[Dict]) -> Dict[str, int]:
+        """Analyze sentiment indicators from articles."""
+        positive = ["growth", "success", "expansion", "innovation", "award", "leading", "record"]
+        negative = ["layoff", "decline", "lawsuit", "investigation", "loss", "struggling"]
+        neutral = ["announce", "report", "update", "release", "partner"]
+
+        combined_text = " ".join([
+            (a.get("title", "") + " " + a.get("content", "")).lower()
+            for a in articles
+        ])
+
+        return {
+            "positive": sum(1 for word in positive if word in combined_text),
+            "negative": sum(1 for word in negative if word in combined_text),
+            "neutral": sum(1 for word in neutral if word in combined_text)
+        }
+
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
         domain = domain or email.split("@")[1]
+        company_name = domain.split(".")[0]
         logger.info(f"GNews: Using mock data for {domain} (no API key)")
         return {
             "domain": domain,
-            "answer": f"Company at {domain} is a technology company.",
-            "results": [],
-            "result_count": 0,
+            "company_name": company_name,
+            "answer": f"{company_name.title()} is an innovative company focused on digital transformation and technology solutions.",
+            "results": [
+                {
+                    "title": f"{company_name.title()} announces new AI initiative",
+                    "content": f"{company_name.title()} is investing in artificial intelligence to improve customer experiences.",
+                    "published_at": datetime.utcnow().isoformat(),
+                    "source": "Tech News Daily",
+                    "query_category": "ai_technology"
+                },
+                {
+                    "title": f"{company_name.title()} reports strong Q4 growth",
+                    "content": "The company exceeded analyst expectations with double-digit revenue growth.",
+                    "published_at": datetime.utcnow().isoformat(),
+                    "source": "Business Wire",
+                    "query_category": "growth"
+                }
+            ],
+            "categorized": {
+                "ai_technology": [],
+                "leadership": [],
+                "growth": [],
+                "general": []
+            },
+            "result_count": 2,
+            "themes": ["AI adoption", "Growth & expansion"],
+            "sentiment_indicators": {"positive": 3, "negative": 0, "neutral": 1},
             "fetched_at": datetime.utcnow().isoformat(),
             "_mock": True
         }

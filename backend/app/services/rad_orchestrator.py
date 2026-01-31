@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 SOURCE_PRIORITY = {
     "apollo": 5,
     "zoominfo": 4,
+    "pdl_company": 4,  # PDL Company API is highly reliable for company data
     "pdl": 3,
     "hunter": 2,
     "gnews": 1
@@ -115,6 +116,7 @@ class RADOrchestrator:
     ) -> Dict[str, Dict[str, Any]]:
         """
         Fetch data from all sources in parallel.
+        Enhanced to include PDL company enrichment for deeper company insights.
 
         Args:
             email: Email address
@@ -123,7 +125,8 @@ class RADOrchestrator:
         Returns:
             Dict mapping source name to response data
         """
-        tasks = [
+        # Phase 1: Fetch person data and news in parallel
+        person_tasks = [
             self._fetch_with_fallback("apollo", email, domain),
             self._fetch_with_fallback("pdl", email, domain),
             self._fetch_with_fallback("hunter", email, domain),
@@ -131,7 +134,7 @@ class RADOrchestrator:
             self._fetch_with_fallback("zoominfo", email, domain),
         ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*person_tasks, return_exceptions=True)
 
         raw_data = {}
         source_names = ["apollo", "pdl", "hunter", "gnews", "zoominfo"]
@@ -142,6 +145,20 @@ class RADOrchestrator:
                 raw_data[source_name] = {"_error": str(result)}
             else:
                 raw_data[source_name] = result
+
+        # Phase 2: Fetch deep company data from PDL
+        # This provides much richer company context
+        try:
+            pdl_api = self.apis.get("pdl")
+            if pdl_api and hasattr(pdl_api, 'enrich_company'):
+                logger.info(f"Fetching deep company enrichment for {domain}")
+                company_data = await pdl_api.enrich_company(domain)
+                raw_data["pdl_company"] = company_data
+                if not company_data.get("_error"):
+                    self.data_sources.append("pdl_company")
+        except Exception as e:
+            logger.warning(f"PDL company enrichment failed: {e}")
+            raw_data["pdl_company"] = {"_error": str(e)}
 
         return raw_data
 
@@ -216,17 +233,37 @@ class RADOrchestrator:
             normalized["email_score"] = hunter_data.get("score")
             normalized["email_deliverable"] = hunter_data.get("result") == "deliverable"
 
-        # Company context from GNews
+        # Company context from GNews (enhanced with categories and themes)
         gnews_data = raw_data.get("gnews", {})
         if gnews_data and not gnews_data.get("_error"):
             normalized["company_context"] = gnews_data.get("answer")
             normalized["recent_news"] = gnews_data.get("results", [])
+            normalized["news_themes"] = gnews_data.get("themes", [])
+            normalized["news_sentiment"] = gnews_data.get("sentiment_indicators", {})
+            normalized["news_by_category"] = gnews_data.get("categorized", {})
+
+        # Deep company data from PDL Company API
+        pdl_company = raw_data.get("pdl_company", {})
+        if pdl_company and not pdl_company.get("_error"):
+            normalized["company_summary"] = pdl_company.get("summary")
+            normalized["company_headline"] = pdl_company.get("headline")
+            normalized["company_type"] = pdl_company.get("type")
+            normalized["company_tags"] = pdl_company.get("tags", [])
+            normalized["total_funding"] = pdl_company.get("total_funding_raised")
+            normalized["latest_funding_stage"] = pdl_company.get("latest_funding_stage")
+            normalized["employee_growth_rate"] = pdl_company.get("employee_growth_rate")
+            normalized["inferred_revenue"] = pdl_company.get("inferred_revenue")
+            normalized["company_linkedin"] = pdl_company.get("linkedin_url")
+            # Merge employee count if not already set
+            if not normalized.get("employee_count") and pdl_company.get("employee_count"):
+                normalized["employee_count"] = pdl_company.get("employee_count")
 
         return normalized
 
     def _get_field_mappings(self) -> Dict[str, List[Tuple[str, str]]]:
         """
         Define field mappings from source fields to normalized fields.
+        Enhanced to include PDL company data for richer company insights.
 
         Returns:
             Dict mapping normalized field to list of (source, source_field) tuples
@@ -248,37 +285,50 @@ class RADOrchestrator:
                 ("pdl", "job_title"),
             ],
             "company_name": [
+                ("pdl_company", "name"),
                 ("apollo", "company_name"),
                 ("zoominfo", "company_name"),
                 ("pdl", "job_company_name"),
             ],
+            "company_display_name": [
+                ("pdl_company", "display_name"),
+            ],
             "industry": [
+                ("pdl_company", "industry"),
                 ("apollo", "industry"),
                 ("zoominfo", "industry"),
                 ("pdl", "job_company_industry"),
             ],
             "company_size": [
+                ("pdl_company", "size"),
                 ("apollo", "company_size"),
                 ("pdl", "job_company_size"),
             ],
             "employee_count": [
+                ("pdl_company", "employee_count"),
                 ("zoominfo", "employee_count"),
+            ],
+            "employee_count_range": [
+                ("pdl_company", "employee_count_range"),
             ],
             "linkedin_url": [
                 ("apollo", "linkedin_url"),
                 ("pdl", "linkedin_url"),
             ],
             "city": [
+                ("pdl_company", "locality"),
                 ("apollo", "city"),
                 ("zoominfo", "city"),
                 ("pdl", "location_locality"),
             ],
             "state": [
+                ("pdl_company", "region"),
                 ("apollo", "state"),
                 ("zoominfo", "state"),
                 ("pdl", "location_region"),
             ],
             "country": [
+                ("pdl_company", "country"),
                 ("apollo", "country"),
                 ("zoominfo", "country"),
                 ("pdl", "location_country"),
@@ -289,11 +339,31 @@ class RADOrchestrator:
             "skills": [
                 ("pdl", "skills"),
             ],
+            "interests": [
+                ("pdl", "interests"),
+            ],
+            "experience": [
+                ("pdl", "experience"),
+            ],
             "company_description": [
+                ("pdl_company", "summary"),
                 ("zoominfo", "description"),
             ],
             "founded_year": [
+                ("pdl_company", "founded"),
                 ("zoominfo", "founded_year"),
+            ],
+            "company_type": [
+                ("pdl_company", "type"),
+            ],
+            "ticker": [
+                ("pdl_company", "ticker"),
+            ],
+            "naics_codes": [
+                ("pdl_company", "naics"),
+            ],
+            "sic_codes": [
+                ("pdl_company", "sic"),
             ],
         }
 
@@ -343,7 +413,8 @@ class RADOrchestrator:
         Returns:
             Quality score between 0.0 and 1.0
         """
-        total_sources = len(self.apis)
+        # Total sources now includes pdl_company
+        total_sources = len(self.apis) + 1  # +1 for pdl_company
         successful_sources = sum(
             1 for data in raw_data.values()
             if data and not data.get("_error") and not data.get("_mock")
@@ -358,6 +429,17 @@ class RADOrchestrator:
             priority_bonus += 0.1
         if raw_data.get("zoominfo") and not raw_data["zoominfo"].get("_error"):
             priority_bonus += 0.1
+        if raw_data.get("pdl_company") and not raw_data["pdl_company"].get("_error"):
+            priority_bonus += 0.1
+
+        # Bonus for rich news data
+        gnews_data = raw_data.get("gnews", {})
+        if gnews_data and not gnews_data.get("_error"):
+            news_count = gnews_data.get("result_count", 0)
+            if news_count >= 5:
+                priority_bonus += 0.05
+            if gnews_data.get("themes"):
+                priority_bonus += 0.05
 
         # Cap at 1.0
         return min(1.0, coverage_score + priority_bonus)

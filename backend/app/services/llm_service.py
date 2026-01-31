@@ -668,9 +668,9 @@ Output ONLY valid JSON:
         user_context: Dict[str, Any],
         company_news: Optional[str]
     ) -> str:
-        """Build prompt for ebook personalization with deep enrichment data."""
+        """Build prompt for ebook personalization with deep enrichment data from all APIs."""
         parts = ["Generate DEEPLY personalized AMD ebook content for this prospect.\n"]
-        parts.append("Use ALL the enrichment data below to create specific, relevant content.\n")
+        parts.append("IMPORTANT: You have access to comprehensive enrichment data. USE ALL OF IT to create highly specific, relevant content.\n")
 
         # === PERSON DATA ===
         parts.append("=== PERSON PROFILE ===")
@@ -684,24 +684,92 @@ Output ONLY valid JSON:
             skills = profile.get('skills', [])
             if isinstance(skills, list) and skills:
                 parts.append(f"Technical Skills: {', '.join(skills[:10])}")
+                # Use skills to identify technical depth
+                tech_skills = [s for s in skills if any(k in s.lower() for k in ['python', 'java', 'cloud', 'aws', 'azure', 'kubernetes', 'docker', 'ai', 'ml', 'data'])]
+                if tech_skills:
+                    parts.append(f"(IMPORTANT: This person has technical background in: {', '.join(tech_skills[:5])})")
+
+        if profile.get('interests'):
+            interests = profile.get('interests', [])
+            if isinstance(interests, list) and interests:
+                parts.append(f"Professional Interests: {', '.join(interests[:8])}")
+
+        if profile.get('experience'):
+            experience = profile.get('experience', [])
+            if isinstance(experience, list) and experience:
+                parts.append("Career History:")
+                for exp in experience[:3]:
+                    if isinstance(exp, dict):
+                        exp_title = exp.get('title', {}).get('name', '') if isinstance(exp.get('title'), dict) else exp.get('title', '')
+                        exp_company = exp.get('company', {}).get('name', '') if isinstance(exp.get('company'), dict) else exp.get('company', '')
+                        if exp_title or exp_company:
+                            parts.append(f"  - {exp_title} at {exp_company}")
 
         if profile.get('linkedin_url'):
             parts.append(f"LinkedIn: {profile.get('linkedin_url')}")
 
-        # === COMPANY DATA ===
-        parts.append("\n=== COMPANY PROFILE ===")
-        company_name = profile.get('company_name', user_context.get('company', 'their company'))
+        # === COMPANY DATA (Enhanced with PDL Company API) ===
+        parts.append("\n=== COMPANY PROFILE (Deep Enrichment) ===")
+        company_name = profile.get('company_name') or profile.get('company_display_name') or user_context.get('company', 'their company')
         parts.append(f"Company: {company_name}")
         parts.append(f"Industry: {user_context.get('industry_input') or profile.get('industry', 'Technology')}")
 
-        if profile.get('company_size'):
-            parts.append(f"Company Size: {profile.get('company_size')}")
+        # Company size context - multiple data points
         if profile.get('employee_count'):
             parts.append(f"Employee Count: {profile.get('employee_count')}")
+        if profile.get('employee_count_range'):
+            parts.append(f"Size Range: {profile.get('employee_count_range')}")
+        elif profile.get('company_size'):
+            parts.append(f"Company Size: {profile.get('company_size')}")
+
+        # Company type and status
+        if profile.get('company_type'):
+            parts.append(f"Company Type: {profile.get('company_type')}")
+        if profile.get('ticker'):
+            parts.append(f"Stock Ticker: {profile.get('ticker')} (PUBLIC COMPANY)")
+
+        # Founding and maturity
         if profile.get('founded_year'):
-            parts.append(f"Founded: {profile.get('founded_year')}")
-        if profile.get('company_description'):
+            years_old = 2025 - int(profile.get('founded_year'))
+            parts.append(f"Founded: {profile.get('founded_year')} ({years_old} years old)")
+
+        # Funding context (important for understanding investment capacity)
+        if profile.get('total_funding'):
+            parts.append(f"Total Funding Raised: ${profile.get('total_funding'):,}")
+        if profile.get('latest_funding_stage'):
+            parts.append(f"Funding Stage: {profile.get('latest_funding_stage')}")
+        if profile.get('inferred_revenue'):
+            parts.append(f"Inferred Revenue: {profile.get('inferred_revenue')}")
+
+        # Growth indicators
+        if profile.get('employee_growth_rate'):
+            growth = profile.get('employee_growth_rate')
+            growth_desc = "rapidly growing" if growth > 0.2 else "growing steadily" if growth > 0 else "stable or contracting"
+            parts.append(f"Employee Growth Rate: {growth:.1%} ({growth_desc})")
+
+        # Company description
+        if profile.get('company_summary'):
+            parts.append(f"Company Summary: {profile.get('company_summary')[:400]}")
+        elif profile.get('company_headline'):
+            parts.append(f"Company Headline: {profile.get('company_headline')}")
+        elif profile.get('company_description'):
             parts.append(f"Company Description: {profile.get('company_description')[:300]}")
+
+        # Company tags (industry signals)
+        if profile.get('company_tags'):
+            tags = profile.get('company_tags', [])
+            if isinstance(tags, list) and tags:
+                parts.append(f"Industry Tags: {', '.join(tags[:10])}")
+                # Identify AI/tech readiness from tags
+                ai_tags = [t for t in tags if any(k in t.lower() for k in ['ai', 'machine learning', 'cloud', 'data', 'saas', 'technology'])]
+                if ai_tags:
+                    parts.append(f"(AI/TECH SIGNALS: Company is associated with: {', '.join(ai_tags)})")
+
+        # NAICS/SIC codes for industry precision
+        if profile.get('naics_codes'):
+            parts.append(f"NAICS Codes: {profile.get('naics_codes')}")
+        if profile.get('sic_codes'):
+            parts.append(f"SIC Codes: {profile.get('sic_codes')}")
 
         # Location context
         location_parts = []
@@ -714,12 +782,18 @@ Output ONLY valid JSON:
         if location_parts:
             parts.append(f"Location: {', '.join(location_parts)}")
 
+        # Social presence
+        if profile.get('company_linkedin'):
+            parts.append(f"Company LinkedIn: {profile.get('company_linkedin')}")
+
         # === EMAIL VERIFICATION (Hunter) ===
         if profile.get('email_verified') is not None:
             parts.append("\n=== EMAIL VERIFICATION ===")
             parts.append(f"Email Verified: {profile.get('email_verified')}")
             if profile.get('email_score'):
                 parts.append(f"Email Score: {profile.get('email_score')}")
+            if profile.get('email_deliverable'):
+                parts.append(f"Deliverable: {profile.get('email_deliverable')}")
 
         # === USER CONTEXT ===
         parts.append("\n=== BUYER CONTEXT ===")
@@ -757,62 +831,112 @@ Output ONLY valid JSON:
         if persona:
             parts.append(f"Role & Priorities: {persona_map.get(persona, persona)}")
 
-        # === COMPANY NEWS FROM GNEWS ===
-        parts.append("\n=== RECENT COMPANY NEWS (from GNews API) ===")
+        # === COMPANY NEWS (Enhanced GNews with multi-query analysis) ===
+        parts.append("\n=== COMPANY NEWS & MARKET INTELLIGENCE ===")
         if company_news and company_news.strip():
-            parts.append(f"News Summary: {company_news[:600]}")
-        else:
-            parts.append("No recent news found - use industry trends instead")
+            parts.append(f"News Summary: {company_news[:700]}")
 
-        # Include recent news articles if available
+        # News themes detected
+        news_themes = profile.get('news_themes', [])
+        if news_themes and isinstance(news_themes, list):
+            parts.append(f"Detected Themes: {', '.join(news_themes)}")
+            # Highlight relevant themes for AMD positioning
+            ai_themes = [t for t in news_themes if 'ai' in t.lower() or 'cloud' in t.lower() or 'digital' in t.lower()]
+            if ai_themes:
+                parts.append(f"(IMPORTANT - AI/CLOUD THEMES DETECTED: {', '.join(ai_themes)})")
+
+        # News sentiment analysis
+        sentiment = profile.get('news_sentiment', {})
+        if sentiment and isinstance(sentiment, dict):
+            pos = sentiment.get('positive', 0)
+            neg = sentiment.get('negative', 0)
+            if pos > neg + 2:
+                parts.append(f"Sentiment: POSITIVE ({pos} positive indicators, {neg} negative)")
+            elif neg > pos + 2:
+                parts.append(f"Sentiment: CHALLENGING ({neg} negative indicators, {pos} positive)")
+            else:
+                parts.append(f"Sentiment: NEUTRAL/MIXED")
+
+        # Categorized news by topic
+        news_by_category = profile.get('news_by_category', {})
+        if news_by_category and isinstance(news_by_category, dict):
+            if news_by_category.get('ai_technology'):
+                parts.append("AI/Tech News: Company has recent AI/technology coverage")
+            if news_by_category.get('growth'):
+                parts.append("Growth News: Company has recent growth/expansion coverage")
+            if news_by_category.get('leadership'):
+                parts.append("Leadership News: Company has recent leadership/strategy coverage")
+
+        # Recent news headlines with source
         recent_news = profile.get('recent_news', [])
         if recent_news and isinstance(recent_news, list):
             parts.append("\nRecent Headlines:")
-            for i, article in enumerate(recent_news[:3]):
+            for i, article in enumerate(recent_news[:5]):
                 if isinstance(article, dict):
                     title = article.get('title', '')
-                    source = article.get('source', {}).get('name', '') if isinstance(article.get('source'), dict) else ''
+                    source = article.get('source', '')
+                    content = article.get('content', '')[:200] if article.get('content') else ''
+                    category = article.get('query_category', '')
                     if title:
-                        parts.append(f"  {i+1}. {title}" + (f" ({source})" if source else ""))
+                        parts.append(f"  {i+1}. [{category.upper()}] {title}")
+                        if source:
+                            parts.append(f"     Source: {source}")
+                        if content:
+                            parts.append(f"     Summary: {content}...")
+
+        if not recent_news and not company_news:
+            parts.append("No recent news found - use industry trends instead")
 
         # === CASE STUDY SELECTION ===
         parts.append("\n=== CASE STUDY TO HIGHLIGHT ===")
         industry = (user_context.get('industry_input') or profile.get('industry', '')).lower()
-        if 'telecom' in industry or 'tech' in industry or 'software' in industry or 'gaming' in industry or 'media' in industry:
+        company_tags_lower = ' '.join([str(t).lower() for t in profile.get('company_tags', [])])
+
+        # Use company tags to refine case study selection
+        if any(k in industry or k in company_tags_lower for k in ['telecom', 'tech', 'software', 'gaming', 'media', 'saas', 'cloud']):
             parts.append("Selected: KT CLOUD - AI/GPU cloud services, massive scale, innovation focus")
             parts.append("Key angles: cloud-native AI, GPU acceleration, developer platform")
-        elif 'manufact' in industry or 'retail' in industry or 'energy' in industry or 'consumer' in industry:
+            parts.append("Metrics to highlight: Scale, performance, time-to-market")
+        elif any(k in industry or k in company_tags_lower for k in ['manufact', 'retail', 'energy', 'consumer', 'industrial', 'supply chain']):
             parts.append("Selected: SMURFIT WESTROCK - manufacturing, cost optimization, sustainability")
             parts.append("Key angles: 25% cost reduction, carbon footprint, operational efficiency")
-        elif 'health' in industry or 'pharma' in industry or 'life' in industry:
+            parts.append("Metrics to highlight: Cost savings, sustainability, operational uptime")
+        elif any(k in industry or k in company_tags_lower for k in ['health', 'pharma', 'life', 'medical', 'biotech']):
             parts.append("Selected: PQR + Healthcare angle - compliance, patient data, security")
             parts.append("Key angles: HIPAA compliance, secure AI, data governance")
-        elif 'financ' in industry or 'bank' in industry or 'insurance' in industry:
+            parts.append("Metrics to highlight: Compliance, security, patient outcome improvements")
+        elif any(k in industry or k in company_tags_lower for k in ['financ', 'bank', 'insurance', 'fintech', 'trading']):
             parts.append("Selected: PQR + Financial angle - security, compliance, automation")
             parts.append("Key angles: regulatory compliance, fraud detection, risk management")
+            parts.append("Metrics to highlight: Compliance, processing speed, risk reduction")
         else:
             parts.append("Selected: PQR - IT services, security, automation")
             parts.append("Key angles: automation, security, operational excellence")
+            parts.append("Metrics to highlight: Efficiency, security posture, automation ROI")
 
         # === PERSONALIZATION INSTRUCTIONS ===
         parts.append("\n=== PERSONALIZATION REQUIREMENTS ===")
-        parts.append("1. HOOK: Reference specific company/industry details from the data above")
-        parts.append("   - If there's company news, reference it naturally")
-        parts.append("   - Match tone to their seniority and role")
-        parts.append("   - Address their specific buying stage concerns")
+        parts.append("You have RICH DATA above. Use it to create highly specific content.")
         parts.append("")
-        parts.append("2. CASE STUDY FRAMING: Connect the selected case study to THEIR situation")
-        parts.append(f"   - Draw parallels between case study company and {company_name}")
-        parts.append("   - Highlight metrics/outcomes that matter to their role")
-        parts.append("   - Make it feel like 'this could be us'")
+        parts.append("1. HOOK: Reference SPECIFIC details from the data")
+        parts.append("   - If there's company news, weave in a specific headline or theme")
+        parts.append("   - Reference their company size, funding stage, or growth trajectory")
+        parts.append("   - Match tone to seniority (exec = strategic, engineer = technical)")
+        parts.append("   - If they have tech skills like Python/AWS/ML, acknowledge their technical depth")
         parts.append("")
-        parts.append("3. CTA: Specific to their buying stage and role priorities")
-        parts.append("   - Awareness stage: educational, low commitment")
-        parts.append("   - Consideration stage: comparison-focused, proof points")
-        parts.append("   - Decision stage: ROI data, talk to expert")
-        parts.append("   - Implementation stage: best practices, technical guidance")
+        parts.append("2. CASE STUDY FRAMING: Draw SPECIFIC parallels")
+        parts.append(f"   - Connect case study company challenges to {company_name}'s situation")
+        parts.append("   - Use their company size/industry/funding stage for relevance")
+        parts.append("   - Highlight metrics that matter to their role")
+        parts.append("   - If news themes show AI/cloud interest, emphasize those outcomes")
+        parts.append("")
+        parts.append("3. CTA: Specific to buying stage AND data signals")
+        parts.append("   - If high growth rate: emphasize scaling solutions")
+        parts.append("   - If funded startup: ROI and competitive positioning")
+        parts.append("   - If established enterprise: modernization and efficiency")
+        parts.append("   - Match the commitment level to their buying stage")
 
-        parts.append("\nGenerate highly personalized JSON now. Be SPECIFIC, not generic.")
+        parts.append("\nGenerate highly personalized JSON now. Be SPECIFIC, reference actual data points.")
         return "\n".join(parts)
 
     def _parse_ebook_response(self, content: str) -> Optional[Dict[str, str]]:
@@ -836,47 +960,85 @@ Output ONLY valid JSON:
         profile: Dict[str, Any],
         user_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Generate personalized ebook content when LLM API not available."""
+        """Generate personalized ebook content when LLM API not available.
+        Uses all available enrichment data for maximum personalization."""
         user_context = user_context or {}
         first_name = profile.get('first_name', 'Reader')
-        company = profile.get('company_name') or user_context.get('company', 'your organization')
+        company = profile.get('company_name') or profile.get('company_display_name') or user_context.get('company', 'your organization')
         title = profile.get('title', 'leader')
         industry = user_context.get('industry_input') or profile.get('industry', 'your industry')
         goal = user_context.get('goal', 'awareness')
         persona = user_context.get('persona', 'c_suite')
 
-        # Get enrichment data for deeper personalization
+        # Enhanced enrichment data
         company_size = profile.get('company_size', '')
         company_news = profile.get('company_context', '')
         recent_news = profile.get('recent_news', [])
         seniority = profile.get('seniority', '')
         employee_count = profile.get('employee_count', '')
 
-        # Build news reference if available
-        news_ref = ""
-        if company_news and len(company_news) > 20:
-            news_ref = f" With recent developments at {company}, "
-        elif recent_news and len(recent_news) > 0:
-            news_ref = f" Given what's happening in {industry}, "
+        # New enhanced data points
+        news_themes = profile.get('news_themes', [])
+        sentiment = profile.get('news_sentiment', {})
+        company_tags = profile.get('company_tags', [])
+        company_summary = profile.get('company_summary', '')
+        total_funding = profile.get('total_funding', '')
+        funding_stage = profile.get('latest_funding_stage', '')
+        growth_rate = profile.get('employee_growth_rate', 0)
+        company_type = profile.get('company_type', '')
+        skills = profile.get('skills', [])
 
-        # Build company context
+        # Build news reference using actual headlines/themes
+        news_ref = ""
+        if recent_news and len(recent_news) > 0:
+            first_headline = recent_news[0].get('title', '') if isinstance(recent_news[0], dict) else ''
+            if first_headline:
+                news_ref = f" With recent news like \"{first_headline[:60]}...\", "
+        elif news_themes and len(news_themes) > 0:
+            news_ref = f" With {company}'s focus on {news_themes[0].lower()}, "
+        elif company_news and len(company_news) > 20:
+            news_ref = f" Given recent developments at {company}, "
+
+        # Build rich company context
         size_context = ""
         if employee_count:
-            size_context = f" As a {employee_count}-person organization, "
+            size_context = f" As a {employee_count:,}-employee organization, " if isinstance(employee_count, int) else f" As a {employee_count}-person organization, "
         elif company_size:
             size_context = f" As a {company_size} company, "
 
-        # Hook based on buying stage - deeply personalized
+        # Growth context
+        growth_context = ""
+        if growth_rate and isinstance(growth_rate, (int, float)):
+            if growth_rate > 0.2:
+                growth_context = f" With {company}'s rapid growth ({growth_rate:.0%} employee growth), "
+            elif growth_rate > 0:
+                growth_context = f" As {company} continues to scale, "
+
+        # Funding/stage context
+        funding_context = ""
+        if funding_stage:
+            funding_context = f" as a {funding_stage} company"
+        elif company_type and company_type != 'private':
+            funding_context = f" as a {company_type} company"
+
+        # Technical skills context
+        tech_context = ""
+        if skills and isinstance(skills, list):
+            ai_skills = [s for s in skills[:10] if any(k in s.lower() for k in ['ai', 'ml', 'python', 'data', 'cloud'])]
+            if ai_skills:
+                tech_context = f" Given your background in {', '.join(ai_skills[:2])}, "
+
+        # Hook based on buying stage - deeply personalized with all data
         hooks = {
-            "awareness": f"{first_name},{news_ref}understanding where {company} stands on the AI readiness curve is the critical first step.{size_context}{company} can learn from the 33% of organizations already leading in this space.",
-            "consideration": f"{first_name}, as you evaluate AI infrastructure options for {company},{news_ref}this guide provides the comparison frameworks and proof points that {title}s in {industry} need to make informed decisions.",
-            "decision": f"{first_name}, you're ready to make a decision on {company}'s AI infrastructure.{size_context}This guide delivers the ROI data and validation that will give you confidence to move forward.",
-            "implementation": f"{first_name}, with {company} already on the implementation path,{news_ref}this guide provides the technical playbook and best practices to accelerate your success.",
+            "awareness": f"{first_name},{news_ref}{growth_context}understanding where {company} stands on the AI readiness curve is the critical first step.{size_context}{company}{funding_context} can learn from the 33% of organizations already leading in this space.",
+            "consideration": f"{first_name},{tech_context}as you evaluate AI infrastructure options for {company},{news_ref}this guide provides the comparison frameworks and proof points that {title}s in {industry} need to make informed decisions.",
+            "decision": f"{first_name},{growth_context}you're ready to make a decision on {company}'s AI infrastructure.{size_context}This guide delivers the ROI data and validation that will give you confidence to move forward.",
+            "implementation": f"{first_name}, with {company} already on the implementation path,{tech_context}this guide provides the technical playbook and best practices to accelerate your success.",
             # Legacy values mapped to new
-            "exploring": f"{first_name},{news_ref}as {company} explores AI infrastructure options, this guide will help you understand where you stand and chart the path to AI leadership.",
-            "evaluating": f"{first_name}, evaluating AI solutions for {company} requires solid frameworks.{size_context}This guide provides the comparison data that {title}s in {industry} need.",
+            "exploring": f"{first_name},{news_ref}as {company}{funding_context} explores AI infrastructure options, this guide will help you understand where you stand and chart the path to AI leadership.",
+            "evaluating": f"{first_name},{tech_context}evaluating AI solutions for {company} requires solid frameworks.{size_context}This guide provides the comparison data that {title}s in {industry} need.",
             "learning": f"{first_name}, staying ahead in {industry} means understanding AI infrastructure trends.{news_ref}This guide offers actionable insights for {company}.",
-            "building_case": f"{first_name}, building a business case for AI investment at {company} requires compelling data.{size_context}This guide provides the ROI frameworks you need."
+            "building_case": f"{first_name},{growth_context}building a business case for AI investment at {company} requires compelling data.{size_context}This guide provides the ROI frameworks you need."
         }
 
         # CTA based on persona and stage - highly specific
@@ -901,16 +1063,18 @@ Output ONLY valid JSON:
             ("procurement", "consideration"): f"Access the vendor comparison framework with key evaluation criteria for {industry}.",
         }
 
-        # Case study framing based on industry - with specific parallels
+        # Case study framing based on industry and company tags - with specific parallels
         industry_lower = (industry or "").lower()
-        if 'telecom' in industry_lower or 'tech' in industry_lower or 'software' in industry_lower:
-            case_framing = f"KT Cloud faced the same challenge {company} likely faces: scaling AI compute to meet demand while controlling costs. As {seniority or 'a leader'} at a {company_size or 'growing'} {industry} organization, you'll see how their AMD Instinct deployment achieved massive scale. The blueprint translates directly to {company}'s situation."
-        elif 'manufact' in industry_lower or 'retail' in industry_lower or 'consumer' in industry_lower:
+        tags_lower = ' '.join([str(t).lower() for t in company_tags]) if company_tags else ''
+
+        if any(k in industry_lower or k in tags_lower for k in ['telecom', 'tech', 'software', 'saas', 'cloud']):
+            case_framing = f"KT Cloud faced the same challenge {company} likely faces: scaling AI compute to meet demand while controlling costs. As {seniority or 'a leader'} at a {company_size or 'growing'} {industry} organization{funding_context}, you'll see how their AMD Instinct deployment achieved massive scale.{growth_context}The blueprint translates directly to {company}'s situation."
+        elif any(k in industry_lower or k in tags_lower for k in ['manufact', 'retail', 'consumer', 'industrial']):
             case_framing = f"Smurfit Westrock's transformation mirrors the challenges facing {company}: balancing cost optimization with sustainability goals in {industry}. Their 25% cost reduction while cutting emissions by 30% shows what's achievable.{size_context}Similar scale organizations have followed this playbook."
-        elif 'health' in industry_lower or 'pharma' in industry_lower:
-            case_framing = f"For {company} operating in healthcare, compliance and security are non-negotiable. PQR's approach to secure AI infrastructure while maintaining HIPAA-grade data protection provides a proven model. Their automation-first approach addresses the same challenges {title}s in healthcare face daily."
-        elif 'financ' in industry_lower or 'bank' in industry_lower:
-            case_framing = f"Financial services organizations like {company} need AI infrastructure that meets strict regulatory requirements. PQR's security-first modernization approach, achieving 40% faster threat detection, demonstrates how {industry} can innovate without compromising compliance."
+        elif any(k in industry_lower or k in tags_lower for k in ['health', 'pharma', 'life', 'medical']):
+            case_framing = f"For {company} operating in healthcare, compliance and security are non-negotiable. PQR's approach to secure AI infrastructure while maintaining HIPAA-grade data protection provides a proven model.{tech_context}Their automation-first approach addresses the same challenges {title}s in healthcare face daily."
+        elif any(k in industry_lower or k in tags_lower for k in ['financ', 'bank', 'insurance', 'fintech']):
+            case_framing = f"Financial services organizations like {company} need AI infrastructure that meets strict regulatory requirements. PQR's security-first modernization approach, achieving 40% faster threat detection, demonstrates how {industry} can innovate without compromising compliance.{funding_context}"
         else:
             case_framing = f"PQR's transformation shows how organizations in {industry} can modernize infrastructure while maintaining enterprise-grade security. As a {title} at {company},{size_context}you'll recognize the challenges they solved—and the 40% efficiency gains that followed."
 
@@ -925,5 +1089,13 @@ Output ONLY valid JSON:
             "personalized_cta": cta.strip(),
             "model_used": "mock",
             "tokens_used": 0,
-            "latency_ms": 0
+            "latency_ms": 0,
+            "enrichment_data_used": {
+                "has_news_themes": bool(news_themes),
+                "has_skills": bool(skills),
+                "has_funding_data": bool(funding_stage or total_funding),
+                "has_growth_data": bool(growth_rate),
+                "has_company_tags": bool(company_tags),
+                "news_article_count": len(recent_news)
+            }
         }
