@@ -84,11 +84,14 @@ class ApolloAPI(BaseEnrichmentAPI):
             async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
                 response = await client.post(
                     f"{self.base_url}/people/match",
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Api-Key": self.api_key
+                    },
                     json={
-                        "api_key": self.api_key,
                         "email": email,
-                        "reveal_personal_emails": False
+                        "reveal_personal_emails": False,
+                        "reveal_phone_number": False  # Never request phone numbers
                     }
                 )
 
