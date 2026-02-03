@@ -858,6 +858,105 @@ class PDFService:
             font-size: 10pt;
             color: var(--amd-text-muted);
         }
+
+        /* ==================== ASSESSMENT QUESTIONS GRID ==================== */
+        .assessment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px 35px;
+            margin-top: 30px;
+        }
+
+        .assessment-item {
+            background: var(--amd-card);
+            border: 1px solid var(--amd-border);
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+
+        .assessment-number {
+            font-size: 36pt;
+            font-weight: 300;
+            color: var(--amd-cyan);
+            line-height: 1;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .assessment-question {
+            font-size: 10pt;
+            color: var(--amd-text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ==================== WHY AMD CTA SECTION ==================== */
+        .why-amd-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .why-amd-card {
+            background: var(--amd-card);
+            border: 1px solid var(--amd-border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .why-amd-card h4 {
+            color: var(--amd-cyan);
+            font-size: 11pt;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .why-amd-card p {
+            font-size: 10pt;
+            color: var(--amd-text-secondary);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .cta-section-large {
+            background: linear-gradient(135deg, rgba(0, 200, 170, 0.15) 0%, rgba(0, 100, 200, 0.10) 100%);
+            border: 2px solid rgba(0, 200, 170, 0.4);
+            border-radius: 20px;
+            padding: 50px 60px;
+            text-align: center;
+            margin-top: 40px;
+            page-break-inside: avoid;
+        }
+
+        .cta-section-large .cta-title {
+            font-size: 26pt;
+            font-weight: 800;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+
+        .cta-section-large .cta-personalized {
+            font-size: 13pt;
+            max-width: 600px;
+            margin: 0 auto 36px;
+            color: var(--amd-text-secondary);
+            line-height: 1.7;
+        }
+
+        .cta-button-large {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--amd-cyan) 0%, var(--amd-cyan-bright) 100%);
+            color: var(--amd-dark);
+            padding: 18px 50px;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-decoration: none;
+            letter-spacing: 2px;
+            border-radius: 10px;
+            font-size: 12pt;
+        }
     </style>
 </head>
 <body>
@@ -1124,7 +1223,42 @@ class PDFService:
             <h2>Where Do You Stand?</h2>
         </div>
 
-        <p>$assessment_questions</p>
+        <p style="margin-bottom: 10px;">Use these questions to assess where your organization stands on the modernization curve:</p>
+
+        <div class="assessment-grid">
+            <div class="assessment-item">
+                <div class="assessment-number">01</div>
+                <div class="assessment-question">Do your long-term IT investments align with your enterprise AI strategy?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">02</div>
+                <div class="assessment-question">When was the last time your core infrastructure was meaningfully modernized?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">03</div>
+                <div class="assessment-question">Can your current IT environment support AI workloads without requiring major upgrades?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">04</div>
+                <div class="assessment-question">Are you measuring the ROI of your modernization efforts?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">05</div>
+                <div class="assessment-question">Do you have the skills to drive modernization and AI adoption at scale?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">06</div>
+                <div class="assessment-question">Is your AI strategy supported by a dedicated or protected budget?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">07</div>
+                <div class="assessment-question">What's your approach to application modernization?</div>
+            </div>
+            <div class="assessment-item">
+                <div class="assessment-number">08</div>
+                <div class="assessment-question">Is your infrastructure resilient enough to handle the dynamic scaling needs of AI workloads?</div>
+            </div>
+        </div>
     </div>
 
     <!-- WHY AMD -->
@@ -1133,12 +1267,31 @@ class PDFService:
             <h2>Why AMD</h2>
         </div>
 
-        <p>$why_amd</p>
+        <p style="margin-bottom: 25px;">$why_amd</p>
 
-        <div class="cta-section">
+        <div class="why-amd-grid">
+            <div class="why-amd-card">
+                <h4>Open Ecosystem</h4>
+                <p>Build workload-optimized architectures without vendor lock-in using AMD's comprehensive portfolio of CPUs, GPUs, and adaptive computing solutions.</p>
+            </div>
+            <div class="why-amd-card">
+                <h4>Right-Sized Solutions</h4>
+                <p>Choose solutions that optimize cost efficiency—whether cloud-based, on-prem, or hybrid—without over-provisioning resources.</p>
+            </div>
+            <div class="why-amd-card">
+                <h4>AMD EPYC™ Processors</h4>
+                <p>Industry-leading performance for enterprise data center workloads with exceptional efficiency and security features.</p>
+            </div>
+            <div class="why-amd-card">
+                <h4>AMD Instinct™ Accelerators</h4>
+                <p>Purpose-built for AI and HPC workloads, delivering breakthrough performance for training and inference.</p>
+            </div>
+        </div>
+
+        <div class="cta-section-large">
             <div class="cta-title">Ready to Accelerate Your AI Journey?</div>
             <div class="cta-personalized">$personalized_cta</div>
-            <a href="https://www.amd.com/en/solutions/data-center.html" class="cta-button">Explore AMD Solutions →</a>
+            <a href="https://www.amd.com/en/solutions/data-center.html" class="cta-button-large">Explore AMD Solutions →</a>
         </div>
 
         <div class="page-footer">
