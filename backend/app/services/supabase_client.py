@@ -78,6 +78,7 @@ class SupabaseClient:
             Inserted record
         """
         data = {
+            "id": str(uuid.uuid4()),
             "email": email,
             "source": source,
             "payload": payload,

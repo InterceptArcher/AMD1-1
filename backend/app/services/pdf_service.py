@@ -25,6 +25,21 @@ logger = logging.getLogger(__name__)
 # PDF Configuration
 PDF_EXPIRY_HOURS = 24 * 7  # 7 days
 
+# Character limits for PDF text boxes
+MAX_HOOK_LENGTH = 400
+MAX_CASE_STUDY_FRAMING_LENGTH = 300
+MAX_CTA_LENGTH = 250
+
+
+def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
+    """
+    Truncate text to max_length characters, adding suffix if truncated.
+    Ensures text doesn't overflow PDF text boxes.
+    """
+    if not text or len(text) <= max_length:
+        return text or ""
+    return text[:max_length - len(suffix)].rsplit(' ', 1)[0] + suffix
+
 
 class PDFService:
     """
@@ -186,6 +201,11 @@ class PDFService:
         """Render AMD ebook HTML template with personalization."""
         template = Template(self._get_amd_ebook_template())
 
+        # Truncate personalized content to fit PDF text boxes
+        hook_truncated = truncate_text(personalized_hook, MAX_HOOK_LENGTH)
+        framing_truncated = truncate_text(case_study_framing, MAX_CASE_STUDY_FRAMING_LENGTH)
+        cta_truncated = truncate_text(personalized_cta, MAX_CTA_LENGTH)
+
         variables = {
             "first_name": profile.get("first_name", "Reader"),
             "last_name": profile.get("last_name", ""),
@@ -193,10 +213,10 @@ class PDFService:
             "title": profile.get("title", "Professional"),
             "industry": user_context.get("industry_input") or profile.get("industry", "your industry"),
             "generated_date": datetime.utcnow().strftime("%B %d, %Y"),
-            # Personalized sections
-            "personalized_hook": personalized_hook,
-            "case_study_framing": case_study_framing,
-            "personalized_cta": personalized_cta,
+            # Personalized sections (truncated to fit PDF boxes)
+            "personalized_hook": hook_truncated,
+            "case_study_framing": framing_truncated,
+            "personalized_cta": cta_truncated,
             # Case study content
             "case_study_title": case_study["title"],
             "case_study_company": case_study["company"],
@@ -344,6 +364,8 @@ class PDFService:
             border-radius: 12px;
             max-width: 420px;
             position: relative;
+            overflow: hidden;
+            word-wrap: break-word;
         }
 
         .cover-personalized::before {
@@ -423,6 +445,10 @@ class PDFService:
             margin: 35px 0;
             font-size: 12pt;
             line-height: 1.7;
+            max-height: 200px;
+            overflow: hidden;
+            word-wrap: break-word;
+            page-break-inside: avoid;
         }
 
         .personalized-hook-label {
@@ -451,6 +477,7 @@ class PDFService:
             justify-content: space-between;
             gap: 35px;
             margin: 45px 0;
+            page-break-inside: avoid;
         }
 
         .stat-item {
@@ -494,6 +521,8 @@ class PDFService:
             border-radius: 12px;
             padding: 28px 32px;
             margin: 30px 0;
+            page-break-inside: avoid;
+            overflow: hidden;
         }
 
         .info-box-header {
@@ -626,6 +655,9 @@ class PDFService:
             margin-bottom: 28px;
             font-style: italic;
             color: var(--amd-text-secondary);
+            max-height: 150px;
+            overflow: hidden;
+            word-wrap: break-word;
         }
 
         .case-study-framing strong {
@@ -680,6 +712,9 @@ class PDFService:
             padding: 50px;
             text-align: center;
             margin-top: 45px;
+            page-break-inside: avoid;
+            max-height: 300px;
+            overflow: hidden;
         }
 
         .cta-title {

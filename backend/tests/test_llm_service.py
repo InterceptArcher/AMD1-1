@@ -16,7 +16,9 @@ class TestLLMService:
     @pytest.fixture
     def llm_service(self):
         """Fixture: LLM service in mock mode (no API key)."""
-        return LLMService(api_key=None)
+        # LLMService no longer accepts api_key parameter
+        # Without API keys in settings, it falls back to mock mode
+        return LLMService()
 
     @pytest.mark.asyncio
     async def test_generate_personalization_returns_dict(self, llm_service):
@@ -88,29 +90,37 @@ class TestLLMService:
         output_text = result["intro_hook"] + result["cta"]
         assert "TechCorp" in output_text or "Alice" in output_text
 
-    def test_llm_service_init_with_api_key(self):
+    @patch('app.services.llm_service.settings')
+    def test_llm_service_init_with_providers(self, mock_settings):
         """
-        LLMService init: Should accept optional API key.
+        LLMService init: Should initialize with available providers.
         """
-        service = LLMService(api_key="mock-key-123")
+        # Mock settings to have an API key
+        mock_settings.ANTHROPIC_API_KEY = "mock-key-123"
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
 
-        assert service.api_key == "mock-key-123"
-        # Should create Anthropic client
-        assert service.client is not None
+        service = LLMService()
+
+        # Should have providers list
+        assert hasattr(service, 'providers')
+        assert isinstance(service.providers, list)
 
     @patch('app.services.llm_service.settings')
     def test_llm_service_init_without_api_key(self, mock_settings):
         """
         LLMService init: Should work without API key (mock mode).
         """
-        # Mock settings to have no API key
+        # Mock settings to have no API keys
         mock_settings.ANTHROPIC_API_KEY = None
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
 
-        service = LLMService(api_key=None)
+        service = LLMService()
 
-        # Should not raise; client will be None
+        # Should not raise; providers will be empty
         assert service is not None
-        assert service.client is None
+        assert len(service.providers) == 0
 
     @pytest.mark.asyncio
     @patch('app.services.llm_service.settings')
@@ -118,10 +128,12 @@ class TestLLMService:
         """
         Mock response: Should include model_used and latency metadata.
         """
-        # Force mock mode by patching settings
+        # Force mock mode by patching ALL API keys to None
         mock_settings.ANTHROPIC_API_KEY = None
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
 
-        llm_service = LLMService(api_key=None)
+        llm_service = LLMService()
         profile = {"email": "john@acme.com", "first_name": "John"}
 
         result = await llm_service.generate_personalization(profile)
@@ -136,10 +148,12 @@ class TestLLMService:
         """
         Mock response: raw_response should have _mock flag.
         """
-        # Force mock mode by patching settings
+        # Force mock mode by patching ALL API keys to None
         mock_settings.ANTHROPIC_API_KEY = None
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
 
-        llm_service = LLMService(api_key=None)
+        llm_service = LLMService()
         profile = {"email": "john@acme.com"}
 
         result = await llm_service.generate_personalization(profile)
@@ -157,7 +171,9 @@ class TestPersonalizationQuality:
         Intro hook: Should respect max length constraint.
         """
         mock_settings.ANTHROPIC_API_KEY = None
-        llm_service = LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        llm_service = LLMService()
 
         profile = {"email": "john@acme.com", "company_name": "Acme"}
 
@@ -174,7 +190,9 @@ class TestPersonalizationQuality:
         CTA: Should respect max length constraint.
         """
         mock_settings.ANTHROPIC_API_KEY = None
-        llm_service = LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        llm_service = LLMService()
 
         profile = {"email": "john@acme.com", "title": "VP Sales"}
 
@@ -191,7 +209,9 @@ class TestPersonalizationQuality:
         Personalization: Should vary based on profile and user context.
         """
         mock_settings.ANTHROPIC_API_KEY = None
-        llm_service = LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        llm_service = LLMService()
 
         profile1 = {
             "email": "john@acme.com",
@@ -227,14 +247,18 @@ class TestIndustryHooks:
     @patch('app.services.llm_service.settings')
     def llm_service(self, mock_settings):
         mock_settings.ANTHROPIC_API_KEY = None
-        return LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        return LLMService()
 
     @pytest.mark.asyncio
     @patch('app.services.llm_service.settings')
     async def test_technology_industry_hook(self, mock_settings):
         """Technology industry should get tech-specific hook."""
         mock_settings.ANTHROPIC_API_KEY = None
-        llm_service = LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        llm_service = LLMService()
 
         profile = {
             "first_name": "John",
@@ -253,7 +277,9 @@ class TestIndustryHooks:
     async def test_finance_industry_hook(self, mock_settings):
         """Financial services industry should get finance-specific hook."""
         mock_settings.ANTHROPIC_API_KEY = None
-        llm_service = LLMService(api_key=None)
+        mock_settings.OPENAI_API_KEY = None
+        mock_settings.GEMINI_API_KEY = None
+        llm_service = LLMService()
 
         profile = {
             "first_name": "Jane",
@@ -273,28 +299,28 @@ class TestShouldUseOpus:
 
     def test_high_quality_uses_opus(self):
         """Should use Opus for high quality profiles."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"data_quality_score": 0.9}
 
         assert service.should_use_opus(profile) is True
 
     def test_low_quality_uses_haiku(self):
         """Should use Haiku for low quality profiles."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"data_quality_score": 0.3}
 
         assert service.should_use_opus(profile) is False
 
     def test_vip_domain_uses_opus(self):
         """Should use Opus for VIP domains."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"domain": "google.com", "data_quality_score": 0.5}
 
         assert service.should_use_opus(profile) is True
 
     def test_non_vip_domain_quality_threshold(self):
         """Non-VIP domain should depend on quality score."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"domain": "smallco.com", "data_quality_score": 0.5}
 
         assert service.should_use_opus(profile) is False
@@ -305,7 +331,7 @@ class TestPromptBuilding:
 
     def test_build_prompt_includes_name(self):
         """Prompt should include first name."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"first_name": "John", "company_name": "Acme"}
 
         prompt = service._build_prompt(profile)
@@ -314,7 +340,7 @@ class TestPromptBuilding:
 
     def test_build_prompt_includes_company(self):
         """Prompt should include company name."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"first_name": "John", "company_name": "Acme Corp"}
 
         prompt = service._build_prompt(profile)
@@ -323,7 +349,7 @@ class TestPromptBuilding:
 
     def test_build_prompt_includes_title(self):
         """Prompt should include job title."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"title": "VP Sales"}
 
         prompt = service._build_prompt(profile)
@@ -332,7 +358,7 @@ class TestPromptBuilding:
 
     def test_build_prompt_includes_industry(self):
         """Prompt should include industry."""
-        service = LLMService(api_key=None)
+        service = LLMService()
         profile = {"industry": "Technology"}
 
         prompt = service._build_prompt(profile)
@@ -341,7 +367,7 @@ class TestPromptBuilding:
 
     def test_system_prompt_format(self):
         """System prompt should instruct JSON output."""
-        service = LLMService(api_key=None)
+        service = LLMService()
 
         system_prompt = service._get_system_prompt()
 

@@ -102,8 +102,12 @@ async def enrich_profile(
             finalized["last_name"] = request.lastName
         if request.company:
             finalized["company_name"] = request.company
+        if request.companySize:
+            finalized["company_size"] = request.companySize
         if request.industry:
             finalized["industry"] = request.industry
+        if request.persona:
+            finalized["title"] = request.persona  # Store specific role as title
 
         # Add user-provided context to the profile for LLM
         user_context = {
@@ -111,6 +115,7 @@ async def enrich_profile(
             "persona": request.persona,
             "industry_input": request.industry,  # User-selected industry
             "company": request.company,  # User-provided company name
+            "company_size": request.companySize,  # User-selected company size
             "first_name": request.firstName,
             "last_name": request.lastName,
         }

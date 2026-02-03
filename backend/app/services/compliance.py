@@ -158,6 +158,10 @@ class ComplianceService:
         Returns:
             ComplianceResult with pass/fail and any issues
         """
+        # Handle None inputs
+        intro_hook = intro_hook or ""
+        cta = cta or ""
+
         result = ComplianceResult(
             passed=True,
             original_intro=intro_hook,
@@ -215,6 +219,12 @@ class ComplianceService:
             List of issue descriptions
         """
         issues = []
+
+        # Handle None or empty content
+        if not content:
+            issues.append(f"{content_type}: Content is empty or None")
+            return issues
+
         content_lower = content.lower()
 
         # Check banned terms

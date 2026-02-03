@@ -89,6 +89,7 @@ export default function EmailForm({ onSubmit }: EmailFormProps) {
           value={company}
           onChange={(e) => setCompany(e.target.value)}
           required
+          maxLength={60}
           placeholder="Enter your company name"
           style={inputStyle}
         />
@@ -171,6 +172,7 @@ export default function EmailForm({ onSubmit }: EmailFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          maxLength={100}
           pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
           placeholder="your.email@company.com"
           style={inputStyle}
@@ -188,6 +190,7 @@ export default function EmailForm({ onSubmit }: EmailFormProps) {
           data-testid="name-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          maxLength={50}
           placeholder="John Smith"
           style={inputStyle}
         />

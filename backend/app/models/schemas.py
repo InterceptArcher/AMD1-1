@@ -22,10 +22,11 @@ class EnrichmentRequest(BaseModel):
     firstName: Optional[str] = Field(None, description="User's first name")
     lastName: Optional[str] = Field(None, description="User's last name")
     company: Optional[str] = Field(None, description="User's company name")
+    companySize: Optional[str] = Field(None, description="Company size (startup, small, midmarket, enterprise, large_enterprise)")
     # User-provided context for better personalization
     goal: Optional[str] = Field(None, description="Buying stage (awareness, consideration, decision, implementation)")
-    persona: Optional[str] = Field(None, description="User's role (c_suite, vp_director, it_infrastructure, engineering, data_ai, security, procurement)")
-    industry: Optional[str] = Field(None, description="User's industry (technology, financial_services, healthcare, retail_ecommerce, manufacturing, etc.)")
+    persona: Optional[str] = Field(None, description="User's specific role (ceo, cto, cfo, ciso, vp_engineering, it_manager, etc.)")
+    industry: Optional[str] = Field(None, description="User's industry (technology, financial_services, healthcare, manufacturing, etc.)")
     cta: Optional[str] = Field(None, description="Campaign CTA context")
     # Cache control
     force_refresh: Optional[bool] = Field(False, description="Force re-enrichment even if data exists")
@@ -37,9 +38,10 @@ class EnrichmentRequest(BaseModel):
                 "firstName": "John",
                 "lastName": "Smith",
                 "company": "Acme Corp",
+                "companySize": "enterprise",
                 "domain": "acme.com",
                 "goal": "consideration",
-                "persona": "c_suite",
+                "persona": "cto",
                 "industry": "technology"
             }
         }

@@ -54,7 +54,7 @@ class TestRADOrchestrator:
         assert "apollo" in raw_data
         assert "pdl" in raw_data
         assert "hunter" in raw_data
-        assert "tavily" in raw_data
+        assert "gnews" in raw_data
         assert "zoominfo" in raw_data
 
     @pytest.mark.asyncio
@@ -88,7 +88,7 @@ class TestRADOrchestrator:
                 "score": 95,
                 "result": "deliverable"
             },
-            "tavily": {},
+            "gnews": {},
             "zoominfo": {}
         }
         orchestrator.data_sources = ["apollo", "pdl", "hunter"]
@@ -116,7 +116,7 @@ class TestRADOrchestrator:
                 "job_company_size": "500+"
             },
             "hunter": {},
-            "tavily": {},
+            "gnews": {},
             "zoominfo": {}
         }
         orchestrator.data_sources = ["apollo", "pdl"]
@@ -180,7 +180,7 @@ class TestRADOrchestrator:
             "apollo": {"first_name": "John"},
             "pdl": {"country": "US"},
             "hunter": {"_error": "failed"},
-            "tavily": {"_error": "failed"},
+            "gnews": {"_error": "failed"},
             "zoominfo": {"_error": "failed"}
         }
 
@@ -199,7 +199,7 @@ class TestRADOrchestrator:
             "apollo": {"name": "John"},
             "pdl": {"country": "US"},
             "hunter": {"verified": True},
-            "tavily": {"context": "news"},
+            "gnews": {"context": "news"},
             "zoominfo": {"company": "Acme"}
         }
 
@@ -259,7 +259,7 @@ class TestSourcePriority:
         assert "apollo" in SOURCE_PRIORITY
         assert "pdl" in SOURCE_PRIORITY
         assert "hunter" in SOURCE_PRIORITY
-        assert "tavily" in SOURCE_PRIORITY
+        assert "gnews" in SOURCE_PRIORITY
         assert "zoominfo" in SOURCE_PRIORITY
 
     def test_source_priority_ordering(self):

@@ -47,6 +47,64 @@ GEMINI_MODEL = "gemini-1.5-flash"
 MAX_INTRO_LENGTH = 200  # characters
 MAX_CTA_LENGTH = 150  # characters
 
+# Role mapping: form values to human-readable titles and seniority
+ROLE_MAPPING = {
+    # Executive Leadership
+    "ceo": {"title": "CEO", "seniority": "c_suite", "department": "executive"},
+    "coo": {"title": "COO", "seniority": "c_suite", "department": "operations"},
+    "c_suite_other": {"title": "Executive", "seniority": "c_suite", "department": "executive"},
+    # Technology Leadership
+    "cto": {"title": "CTO", "seniority": "c_suite", "department": "technology"},
+    "cio": {"title": "CIO", "seniority": "c_suite", "department": "technology"},
+    "vp_engineering": {"title": "VP of Engineering", "seniority": "vp", "department": "engineering"},
+    # Security & Compliance
+    "ciso": {"title": "CISO", "seniority": "c_suite", "department": "security"},
+    "vp_security": {"title": "VP of Security", "seniority": "vp", "department": "security"},
+    "security_manager": {"title": "Security Manager", "seniority": "manager", "department": "security"},
+    # Data & AI
+    "cdo": {"title": "Chief Data Officer", "seniority": "c_suite", "department": "data"},
+    "vp_data": {"title": "VP of Data/AI", "seniority": "vp", "department": "data"},
+    "data_manager": {"title": "Data Science Manager", "seniority": "manager", "department": "data"},
+    # Finance
+    "cfo": {"title": "CFO", "seniority": "c_suite", "department": "finance"},
+    "vp_finance": {"title": "VP of Finance", "seniority": "vp", "department": "finance"},
+    "finance_manager": {"title": "Finance Manager", "seniority": "manager", "department": "finance"},
+    # IT & Infrastructure
+    "vp_it": {"title": "VP of IT", "seniority": "vp", "department": "it"},
+    "it_manager": {"title": "IT Manager", "seniority": "manager", "department": "it"},
+    "sysadmin": {"title": "Systems Administrator", "seniority": "ic", "department": "it"},
+    # Engineering & Development
+    "vp_eng": {"title": "VP of Engineering", "seniority": "vp", "department": "engineering"},
+    "eng_manager": {"title": "Engineering Manager", "seniority": "manager", "department": "engineering"},
+    "senior_engineer": {"title": "Senior Engineer", "seniority": "senior_ic", "department": "engineering"},
+    "engineer": {"title": "Software Engineer", "seniority": "ic", "department": "engineering"},
+    # Operations & Procurement
+    "vp_ops": {"title": "VP of Operations", "seniority": "vp", "department": "operations"},
+    "ops_manager": {"title": "Operations Manager", "seniority": "manager", "department": "operations"},
+    "procurement": {"title": "Procurement Manager", "seniority": "manager", "department": "procurement"},
+    # Other
+    "other": {"title": "Professional", "seniority": "unknown", "department": "unknown"},
+}
+
+# Company size mapping for personalization context
+COMPANY_SIZE_MAPPING = {
+    "startup": {"label": "startup", "employee_range": "1-50", "segment": "smb"},
+    "small": {"label": "small business", "employee_range": "51-200", "segment": "smb"},
+    "midmarket": {"label": "mid-market company", "employee_range": "201-1,000", "segment": "mid_market"},
+    "enterprise": {"label": "enterprise", "employee_range": "1,001-10,000", "segment": "enterprise"},
+    "large_enterprise": {"label": "large enterprise", "employee_range": "10,000+", "segment": "enterprise"},
+}
+
+
+def get_role_info(persona: str) -> Dict[str, str]:
+    """Get role information from persona value."""
+    return ROLE_MAPPING.get(persona, ROLE_MAPPING["other"])
+
+
+def get_company_size_info(size: str) -> Dict[str, str]:
+    """Get company size information."""
+    return COMPANY_SIZE_MAPPING.get(size, {"label": "company", "employee_range": "unknown", "segment": "unknown"})
+
 
 @dataclass
 class PersonalizationResult:
@@ -693,7 +751,7 @@ Output ONLY valid JSON:
             if isinstance(skills, list) and skills:
                 parts.append(f"Technical Skills: {', '.join(skills[:10])}")
                 # Use skills to identify technical depth
-                tech_skills = [s for s in skills if any(k in s.lower() for k in ['python', 'java', 'cloud', 'aws', 'azure', 'kubernetes', 'docker', 'ai', 'ml', 'data'])]
+                tech_skills = [s for s in skills if s and any(k in s.lower() for k in ['python', 'java', 'cloud', 'aws', 'azure', 'kubernetes', 'docker', 'ai', 'ml', 'data'])]
                 if tech_skills:
                     parts.append(f"(IMPORTANT: This person has technical background in: {', '.join(tech_skills[:5])})")
 
@@ -769,7 +827,7 @@ Output ONLY valid JSON:
             if isinstance(tags, list) and tags:
                 parts.append(f"Industry Tags: {', '.join(tags[:10])}")
                 # Identify AI/tech readiness from tags
-                ai_tags = [t for t in tags if any(k in t.lower() for k in ['ai', 'machine learning', 'cloud', 'data', 'saas', 'technology'])]
+                ai_tags = [t for t in tags if t and any(k in t.lower() for k in ['ai', 'machine learning', 'cloud', 'data', 'saas', 'technology'])]
                 if ai_tags:
                     parts.append(f"(AI/TECH SIGNALS: Company is associated with: {', '.join(ai_tags)})")
 
@@ -821,14 +879,48 @@ Output ONLY valid JSON:
         }
 
         persona_map = {
+            # Executive Leadership
+            "ceo": "CEO/PRESIDENT - cares about: strategic vision, competitive advantage, shareholder value, market leadership",
+            "coo": "COO - cares about: operational excellence, efficiency, scalability, execution",
+            "c_suite_other": "C-SUITE EXECUTIVE - cares about: strategic outcomes, ROI, competitive advantage, board-level metrics",
+            # Technology Leadership
+            "cto": "CTO - cares about: technical strategy, innovation, architecture decisions, engineering excellence",
+            "cio": "CIO - cares about: IT strategy, digital transformation, system reliability, vendor management",
+            "vp_engineering": "VP ENGINEERING - cares about: technical roadmap, team productivity, platform scalability, build vs buy",
+            # Security & Compliance
+            "ciso": "CISO - cares about: security posture, threat mitigation, compliance frameworks, zero trust",
+            "vp_security": "VP SECURITY - cares about: security architecture, risk management, incident response",
+            "security_manager": "SECURITY MANAGER - cares about: implementation details, tooling, daily security operations",
+            # Data & AI
+            "cdo": "CHIEF DATA OFFICER - cares about: data strategy, AI governance, analytics maturity, data monetization",
+            "vp_data": "VP DATA/AI - cares about: ML platform, model performance, GPU utilization, MLOps",
+            "data_manager": "DATA SCIENCE MANAGER - cares about: team productivity, model deployment, compute costs, training efficiency",
+            # Finance
+            "cfo": "CFO - cares about: ROI, TCO, capex vs opex, financial risk, budget allocation",
+            "vp_finance": "VP FINANCE - cares about: cost optimization, vendor contracts, budget planning",
+            "finance_manager": "FINANCE MANAGER - cares about: cost tracking, procurement process, financial controls",
+            # IT & Infrastructure
+            "vp_it": "VP IT - cares about: infrastructure strategy, reliability, modernization roadmap",
+            "it_manager": "IT MANAGER - cares about: uptime, integration, operations, support burden, technical debt",
+            "sysadmin": "SYSTEMS ADMIN - cares about: deployment, monitoring, maintenance, documentation",
+            # Engineering & Development
+            "vp_eng": "VP ENGINEERING - cares about: technical roadmap, team productivity, architecture, delivery velocity",
+            "eng_manager": "ENGINEERING MANAGER - cares about: team efficiency, technical decisions, sprint delivery",
+            "senior_engineer": "SENIOR ENGINEER - cares about: code quality, performance, architecture patterns, best practices",
+            "engineer": "SOFTWARE ENGINEER - cares about: developer experience, tooling, learning opportunities",
+            # Operations & Procurement
+            "vp_ops": "VP OPERATIONS - cares about: operational efficiency, process optimization, cost control",
+            "ops_manager": "OPERATIONS MANAGER - cares about: day-to-day efficiency, workflows, team coordination",
+            "procurement": "PROCUREMENT MANAGER - cares about: TCO, vendor comparison, contract terms, risk mitigation",
+            # Other
+            "other": "PROFESSIONAL - cares about: relevant solutions for their specific challenges",
+            # Legacy values (backward compatibility)
             "c_suite": "C-SUITE EXECUTIVE - cares about: strategic outcomes, ROI, competitive advantage, board-level metrics",
             "vp_director": "VP/DIRECTOR - cares about: balancing strategy with execution, team enablement, measurable impact",
             "it_infrastructure": "IT/INFRASTRUCTURE MANAGER - cares about: reliability, integration, operations, technical debt",
             "engineering": "ENGINEERING/DEVOPS - cares about: architecture patterns, deployment, automation, developer experience",
             "data_ai": "DATA/AI ENGINEER - cares about: model performance, GPU efficiency, training costs, inference latency",
             "security": "SECURITY/COMPLIANCE - cares about: data protection, governance, audit trails, regulatory compliance",
-            "procurement": "PROCUREMENT - cares about: TCO, vendor comparison, contract terms, risk mitigation",
-            # Legacy values
             "executive": "EXECUTIVE - cares about: strategic outcomes, ROI, competitive advantage",
             "sales_gtm": "SALES/GTM LEADER - cares about: revenue impact, competitive differentiation",
             "hr_people": "HR/PEOPLE OPS - cares about: workforce enablement, skill development"
@@ -838,6 +930,18 @@ Output ONLY valid JSON:
             parts.append(f"Buying Stage: {goal_map.get(goal, goal)}")
         if persona:
             parts.append(f"Role & Priorities: {persona_map.get(persona, persona)}")
+
+        # Company size context from user input
+        company_size = user_context.get('company_size', '')
+        if company_size:
+            size_info = get_company_size_info(company_size)
+            parts.append(f"Company Segment: {size_info['label'].upper()} ({size_info['employee_range']} employees)")
+            if size_info['segment'] == 'enterprise':
+                parts.append("(ENTERPRISE CONTEXT: Focus on scale, compliance, integration with existing systems)")
+            elif size_info['segment'] == 'mid_market':
+                parts.append("(MID-MARKET CONTEXT: Balance cost efficiency with capability, growth-focused)")
+            elif size_info['segment'] == 'smb':
+                parts.append("(SMB CONTEXT: Focus on simplicity, time-to-value, cost-effectiveness)")
 
         # === COMPANY NEWS (Enhanced GNews with multi-query analysis) ===
         parts.append("\n=== COMPANY NEWS & MARKET INTELLIGENCE ===")
@@ -849,7 +953,7 @@ Output ONLY valid JSON:
         if news_themes and isinstance(news_themes, list):
             parts.append(f"Detected Themes: {', '.join(news_themes)}")
             # Highlight relevant themes for AMD positioning
-            ai_themes = [t for t in news_themes if 'ai' in t.lower() or 'cloud' in t.lower() or 'digital' in t.lower()]
+            ai_themes = [t for t in news_themes if t and ('ai' in t.lower() or 'cloud' in t.lower() or 'digital' in t.lower())]
             if ai_themes:
                 parts.append(f"(IMPORTANT - AI/CLOUD THEMES DETECTED: {', '.join(ai_themes)})")
 
@@ -898,8 +1002,8 @@ Output ONLY valid JSON:
         # === CASE STUDY SELECTION ===
         parts.append("\n=== CASE STUDY TO HIGHLIGHT ===")
         # IMPORTANT: Prioritize user-selected industry from form over API-derived data
-        user_industry = user_context.get('industry_input', '').lower()
-        api_industry = profile.get('industry', '').lower()
+        user_industry = (user_context.get('industry_input') or '').lower()
+        api_industry = (profile.get('industry') or '').lower()
 
         # Map frontend industry values to case study categories
         industry_to_case_study = {
@@ -1096,7 +1200,7 @@ Output ONLY valid JSON:
             first_headline = recent_news[0].get('title', '') if isinstance(recent_news[0], dict) else ''
             if first_headline:
                 news_ref = f" With recent news like \"{first_headline[:60]}...\", "
-        elif news_themes and len(news_themes) > 0:
+        elif news_themes and len(news_themes) > 0 and news_themes[0]:
             news_ref = f" With {company}'s focus on {news_themes[0].lower()}, "
         elif company_news and len(company_news) > 20:
             news_ref = f" Given recent developments at {company}, "
@@ -1126,7 +1230,7 @@ Output ONLY valid JSON:
         # Technical skills context
         tech_context = ""
         if skills and isinstance(skills, list):
-            ai_skills = [s for s in skills[:10] if any(k in s.lower() for k in ['ai', 'ml', 'python', 'data', 'cloud'])]
+            ai_skills = [s for s in skills[:10] if s and any(k in s.lower() for k in ['ai', 'ml', 'python', 'data', 'cloud'])]
             if ai_skills:
                 tech_context = f" Given your background in {', '.join(ai_skills[:2])}, "
 
@@ -1167,7 +1271,7 @@ Output ONLY valid JSON:
 
         # Case study framing based on USER-SELECTED industry (not API tags which are often wrong)
         # Map frontend industry values to case study categories
-        user_industry = user_context.get('industry_input', '').lower()
+        user_industry = (user_context.get('industry_input') or '').lower()
 
         industry_to_case_study = {
             # Healthcare -> PQR Healthcare

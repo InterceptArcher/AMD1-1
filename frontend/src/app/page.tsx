@@ -67,6 +67,7 @@ function HomeContent() {
           firstName: inputs.firstName,
           lastName: inputs.lastName,
           company: inputs.company,
+          companySize: inputs.companySize,
           goal: inputs.goal,
           persona: inputs.persona,
           industry: inputs.industry,

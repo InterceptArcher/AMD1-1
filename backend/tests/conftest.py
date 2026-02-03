@@ -68,4 +68,6 @@ async def mock_rad_orchestrator(mock_supabase):
 @pytest.fixture
 def mock_llm_service():
     """Fixture: LLMService (mocked, no API calls)."""
-    return LLMService(api_key="mock-key")
+    # LLMService no longer accepts api_key parameter
+    # It reads from settings and falls back to mock mode if no keys configured
+    return LLMService()
