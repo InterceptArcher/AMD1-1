@@ -148,64 +148,54 @@ Many organizational leaders understand that data center modernization is a prior
 - 32% of organizations—data center Challengers—have started but have not completed their modernization
 - 42% of organizations—data center Observers—plan to modernize within the next 2 years""",
 
-    "leaders_section": """DATA CENTER LEADERS
+    "leaders_section": """Gartner forecasts that by 2026, more than 80% of enterprises will have used generative AI technology. Before integrating AI into their production environment, organizations need to modernize their infrastructure. Leaders are ready for AI expansion.
 
-Gartner forecasts that by 2026, more than 80% of enterprises will have used generative AI technology. Before integrating AI into their production environment, organizations need to modernize their infrastructure. Leaders are ready for AI expansion.
-
-ADVANTAGES FOR LEADERS:
+Advantages for Leaders:
 1. Operational Efficiency - They can reduce operational costs by allocating more time and budget to innovation. Leaders can also drive efficiency further through automation, streamlined asset management, and consolidation.
 2. Agility and competitive advantage - Leaders can outpace competition through enhanced decision-making, faster product development, and innovative products and services.""",
 
-    "challengers_section": """DATA CENTER CHALLENGERS
+    "challengers_section": """Challengers are those actively working toward data center transformation, navigating skill gaps, budget constraints, and infrastructure challenges. Even when AI makes it into production, 61% of surveyed organizations say that scaling AI across the business is their greatest challenge.
 
-Challengers are those actively working toward data center transformation, navigating skill gaps, budget constraints, and infrastructure challenges. Even when AI makes it into production, 61% of surveyed organizations say that scaling AI across the business is their greatest challenge.
-
-ADVANTAGES FOR CHALLENGERS:
+Advantages for Challengers:
 1. Learning from others - Challengers can benefit from lessons learned by early adopters, avoiding mistakes proactively.
 2. Cost advantages - Early adopters often pay a premium for emerging technologies. Challengers can avoid these extra expenses.""",
 
-    "observers_section": """DATA CENTER OBSERVERS
+    "observers_section": """Observers have yet to embark on modernization and need time to build the foundation for more transformational change. Their most significant obstacle is a limited budget for strategic initiatives.
 
-Observers have yet to embark on modernization and need time to build the foundation for more transformational change. Their most significant obstacle is a limited budget for strategic initiatives.
-
-ADVANTAGES FOR OBSERVERS:
+Advantages for Observers:
 1. Leapfrog potential - Observers can leapfrog with modern, AI-centric designs while avoiding a rapid, "cobbled-up" approach.
 2. Strategic focus - Observers can prioritize their resources better by adopting AI for high-impact use cases first.""",
 
-    "path_to_leadership": """THE PATH TO LEADERSHIP: MOVING THROUGH THE STAGES
+    "path_to_leadership": """A holistic AI integration strategy—embedding AI into both IT and business processes for maximum impact—is integral to maturing enterprise AI readiness. The first step is to develop your strategic priorities, including aligning IT with your business vision and understanding the value of AI so you can justify your infrastructure investments.""",
 
-A holistic AI integration strategy—embedding AI into both IT and business processes for maximum impact—is integral to maturing enterprise AI readiness. The first step is to develop your strategic priorities, including aligning IT with your business vision and understanding the value of AI so you can justify your infrastructure investments.
+    "modernization_models": """Two modernization strategies are the most common: "modernizing in place" and "refactoring and shifting."
 
-OVERCOMING BARRIERS:
-- Legacy infrastructure: Existing IT infrastructure does not sufficiently support a modern AI data center
-- Data security and privacy: Security and data privacy are the top two barriers to GenAI adoption
-- Skill gaps: The lack of in-house AI expertise is a significant technical challenge""",
+Modernizing in place means updating existing applications on-premises to modern architectures and integrating AI. This can often be the best approach for cost-effective transformation.
 
-    "modernization_models": """MODERNIZATION MODELS
+Refactoring and shifting means rearchitecting applications for AI with cloud-native frameworks and migrating them to the cloud. This is an advanced, future-forward cloud strategy.""",
 
-Two modernization strategies are the most common: "modernizing in place" and "refactoring and shifting."
+    "why_amd": """AI will become increasingly task-specific and industry-specialized, driving more optimized data, models, and compute solutions. AMD is a trusted partner that can guide you through AI adoption and innovation.
 
-MODERNIZING IN PLACE: Updating existing applications on-premises to modern architectures and integrating AI. This can often be the best approach for cost-effective transformation.
-
-REFACTORING AND SHIFTING: Rearchitecting applications for AI with cloud-native frameworks and migrating them to the cloud. This is an advanced, future-forward cloud strategy.""",
-
-    "why_amd": """WHY AMD: YOUR STRATEGIC PARTNER FOR DATA CENTER AND AI INNOVATION
-
-AI will become increasingly task-specific and industry-specialized, driving more optimized data, models, and compute solutions. AMD is a trusted partner that can guide you through AI adoption and innovation.
-
-AMD offers an open ecosystem of CPU, GPU, and adaptive computing solutions that empowers you to build workload-optimized architectures without vendor lock-in. Design a solution around your goals with a customizable portfolio of AMD products: AMD EPYC (CPUs), AMD Instinct (GPUs), and AMD Pensando (DPUs).
+AMD offers an open ecosystem of CPU, GPU, and adaptive computing solutions that empowers you to build workload-optimized architectures without vendor lock-in. Design a solution around your goals with a customizable portfolio of AMD products: AMD EPYC™ processors, AMD Instinct™ accelerators, and AMD Pensando™ DPUs.
 
 AMD allows you to choose the right-sized AI solutions that optimize cost efficiency without over-provisioning resources—whether cloud-based AI to preserve capital expenditures, on-prem AI to reduce operational expenses, or a hybrid approach to balance cost and security objectives.""",
 
-    "assessment_questions": """WHERE DO YOU STAND ON THE MODERNIZATION CURVE?
+    "assessment_questions": """Use these questions to assess where your organization stands on the modernization curve:
 
 1. Do your long-term IT investments align with your enterprise AI strategy?
+
 2. When was the last time your core infrastructure was meaningfully modernized?
+
 3. Can your current IT environment support AI workloads without requiring major upgrades?
+
 4. Are you measuring the ROI of your modernization efforts?
+
 5. Do you have the skills to drive modernization and AI adoption at scale?
+
 6. Is your AI strategy supported by a dedicated or protected budget?
+
 7. What's your approach to application modernization?
+
 8. Is your infrastructure resilient enough to handle the dynamic scaling needs of AI workloads?"""
 }
 

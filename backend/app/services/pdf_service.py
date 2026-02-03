@@ -25,20 +25,43 @@ logger = logging.getLogger(__name__)
 # PDF Configuration
 PDF_EXPIRY_HOURS = 24 * 7  # 7 days
 
-# Character limits for PDF text boxes
-MAX_HOOK_LENGTH = 400
-MAX_CASE_STUDY_FRAMING_LENGTH = 300
-MAX_CTA_LENGTH = 250
+# Character limits for PDF text boxes (increased for better content)
+MAX_HOOK_LENGTH = 500
+MAX_CASE_STUDY_FRAMING_LENGTH = 400
+MAX_CTA_LENGTH = 350
 
 
-def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
+def truncate_text(text: str, max_length: int) -> str:
     """
-    Truncate text to max_length characters, adding suffix if truncated.
-    Ensures text doesn't overflow PDF text boxes.
+    Truncate text to max_length characters, ending at a sentence boundary.
+    Ensures text doesn't overflow PDF text boxes while maintaining readability.
     """
     if not text or len(text) <= max_length:
         return text or ""
-    return text[:max_length - len(suffix)].rsplit(' ', 1)[0] + suffix
+
+    # Try to find a sentence boundary (., !, ?) within the limit
+    truncated = text[:max_length]
+
+    # Look for last sentence ending
+    last_period = truncated.rfind('.')
+    last_exclaim = truncated.rfind('!')
+    last_question = truncated.rfind('?')
+
+    # Find the latest sentence boundary
+    last_sentence_end = max(last_period, last_exclaim, last_question)
+
+    # If we found a sentence boundary reasonably close to the limit (within 30%), use it
+    if last_sentence_end > max_length * 0.7:
+        return text[:last_sentence_end + 1].strip()
+
+    # Otherwise, truncate at word boundary without adding "..."
+    # Find last space and end there
+    last_space = truncated.rfind(' ')
+    if last_space > max_length * 0.7:
+        return text[:last_space].strip()
+
+    # Last resort: just truncate
+    return truncated.strip()
 
 
 class PDFService:
@@ -350,7 +373,7 @@ class PDFService:
         }
 
         .cover-title-gradient {
-            background: linear-gradient(135deg, #ffffff 0%, var(--amd-cyan) 100%);
+            background: linear-gradient(135deg, var(--amd-cyan) 0%, #00e0be 50%, #40f0d0 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -709,12 +732,10 @@ class PDFService:
             background: linear-gradient(135deg, rgba(0, 200, 170, 0.12) 0%, rgba(0, 100, 200, 0.08) 100%);
             border: 1px solid rgba(0, 200, 170, 0.3);
             border-radius: 16px;
-            padding: 50px;
+            padding: 40px 50px;
             text-align: center;
-            margin-top: 45px;
+            margin-top: 35px;
             page-break-inside: avoid;
-            max-height: 300px;
-            overflow: hidden;
         }
 
         .cta-title {
@@ -1126,7 +1147,7 @@ class PDFService:
                 <p style="margin: 5px 0 0 0;">Generated on $generated_date</p>
             </div>
             <div>
-                © 2025 Advanced Micro Devices, Inc.
+                © 2026 Advanced Micro Devices, Inc.
             </div>
         </div>
     </div>

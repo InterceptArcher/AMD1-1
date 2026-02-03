@@ -27,77 +27,71 @@ const GOAL_OPTIONS = [
   { value: 'implementation', label: 'Already implementing, need guidance' },
 ];
 
-// Grouped role options - specific titles for better API targeting
+// Grouped role options - Technical vs Business, then by seniority
 const ROLE_GROUPS = [
   {
-    label: 'Executive Leadership',
+    label: 'Technical Executive',
     options: [
-      { value: 'ceo', label: 'CEO / President / Managing Director' },
-      { value: 'coo', label: 'COO / Chief Operating Officer' },
-      { value: 'c_suite_other', label: 'Other C-Suite Executive' },
+      { value: 'cto', label: 'CTO' },
+      { value: 'cio', label: 'CIO' },
+      { value: 'ciso', label: 'CISO' },
+      { value: 'cdo', label: 'Chief Data Officer' },
     ],
   },
   {
-    label: 'Technology Leadership',
+    label: 'Business Executive',
     options: [
-      { value: 'cto', label: 'CTO / Chief Technology Officer' },
-      { value: 'cio', label: 'CIO / Chief Information Officer' },
-      { value: 'vp_engineering', label: 'VP of Engineering / Technology' },
+      { value: 'ceo', label: 'CEO' },
+      { value: 'coo', label: 'COO' },
+      { value: 'cfo', label: 'CFO' },
+      { value: 'c_suite_other', label: 'Other C-Suite' },
     ],
   },
   {
-    label: 'Security & Compliance',
+    label: 'Technical Leadership',
     options: [
-      { value: 'ciso', label: 'CISO / Chief Security Officer' },
-      { value: 'vp_security', label: 'VP / Director of Security' },
-      { value: 'security_manager', label: 'Security Manager / Architect' },
+      { value: 'vp_engineering', label: 'VP Engineering' },
+      { value: 'vp_it', label: 'VP IT' },
+      { value: 'vp_data', label: 'VP Data or AI' },
+      { value: 'vp_security', label: 'VP Security' },
     ],
   },
   {
-    label: 'Data & AI',
+    label: 'Business Leadership',
     options: [
-      { value: 'cdo', label: 'CDO / Chief Data Officer' },
-      { value: 'vp_data', label: 'VP / Director of Data / AI' },
-      { value: 'data_manager', label: 'Data Science Manager / Lead' },
+      { value: 'vp_ops', label: 'VP Operations' },
+      { value: 'vp_finance', label: 'VP Finance' },
     ],
   },
   {
-    label: 'Finance',
+    label: 'Technical Manager',
     options: [
-      { value: 'cfo', label: 'CFO / Chief Financial Officer' },
-      { value: 'vp_finance', label: 'VP / Director of Finance' },
-      { value: 'finance_manager', label: 'Finance Manager / Controller' },
-    ],
-  },
-  {
-    label: 'IT & Infrastructure',
-    options: [
-      { value: 'vp_it', label: 'VP / Director of IT' },
-      { value: 'it_manager', label: 'IT Manager / Infrastructure Lead' },
-      { value: 'sysadmin', label: 'Systems Administrator / Engineer' },
-    ],
-  },
-  {
-    label: 'Engineering & Development',
-    options: [
-      { value: 'vp_eng', label: 'VP / Director of Engineering' },
       { value: 'eng_manager', label: 'Engineering Manager' },
-      { value: 'senior_engineer', label: 'Senior Engineer / Architect' },
-      { value: 'engineer', label: 'Software Engineer / Developer' },
+      { value: 'it_manager', label: 'IT Manager' },
+      { value: 'data_manager', label: 'Data Science Manager' },
+      { value: 'security_manager', label: 'Security Manager' },
     ],
   },
   {
-    label: 'Operations & Procurement',
+    label: 'Technical Individual',
     options: [
-      { value: 'vp_ops', label: 'VP / Director of Operations' },
+      { value: 'senior_engineer', label: 'Senior Engineer or Architect' },
+      { value: 'engineer', label: 'Engineer' },
+      { value: 'sysadmin', label: 'Systems Administrator' },
+    ],
+  },
+  {
+    label: 'Business Role',
+    options: [
       { value: 'ops_manager', label: 'Operations Manager' },
-      { value: 'procurement', label: 'Procurement / Vendor Manager' },
+      { value: 'finance_manager', label: 'Finance Manager' },
+      { value: 'procurement', label: 'Procurement' },
     ],
   },
   {
     label: 'Other',
     options: [
-      { value: 'other', label: 'Other Role' },
+      { value: 'other', label: 'Other' },
     ],
   },
 ];
@@ -115,18 +109,17 @@ const COMPANY_SIZE_OPTIONS = [
 // Industry options aligned with case study mapping
 const INDUSTRY_OPTIONS = [
   { value: '', label: 'Select your industry...' },
-  { value: 'technology', label: 'Technology & Software' },
-  { value: 'financial_services', label: 'Financial Services & Banking' },
-  { value: 'healthcare', label: 'Healthcare & Life Sciences' },
-  { value: 'manufacturing', label: 'Manufacturing & Industrial' },
-  { value: 'retail', label: 'Retail & E-commerce' },
-  { value: 'energy', label: 'Energy & Utilities' },
+  { value: 'technology', label: 'Technology' },
+  { value: 'financial_services', label: 'Financial Services' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'manufacturing', label: 'Manufacturing' },
+  { value: 'retail', label: 'Retail' },
+  { value: 'energy', label: 'Energy' },
   { value: 'telecommunications', label: 'Telecommunications' },
-  { value: 'media', label: 'Media & Entertainment' },
-  { value: 'government', label: 'Government & Public Sector' },
-  { value: 'education', label: 'Education & Research' },
-  { value: 'professional_services', label: 'Professional Services & Consulting' },
-  { value: 'non_profit', label: 'Non-Profit' },
+  { value: 'media', label: 'Media' },
+  { value: 'government', label: 'Government' },
+  { value: 'education', label: 'Education' },
+  { value: 'professional_services', label: 'Professional Services' },
   { value: 'other', label: 'Other' },
 ];
 
