@@ -700,14 +700,15 @@ YOUR TASK: Generate 3 sections that feel individually crafted:
 
    BANNED: "organizations like yours", "companies in your industry", "professionals like you"
 
-2. CASE_STUDY_FRAMING (2-3 sentences) - Create a DIRECT parallel:
-   REQUIRED FORMULA: "[Case study company] faced [challenge] similar to what [Their company] is navigating... [specific result with metric]"
+2. CASE_STUDY_FRAMING (2 sentences MAXIMUM, under 50 words) - Create a DIRECT parallel:
+   REQUIRED FORMULA: "[Case study company] achieved [metric] by [approach]. [Their company] can replicate this for [specific benefit]."
 
    MUST include:
-   ✓ Case study name + their company name in same sentence
-   ✓ A specific metric (25% cost reduction, 40% faster, etc.)
-   ✓ Direct comparison: "Like [Company]..." or "[Company], like [Case Study]..."
-   ✓ Industry/size relevance: "As a fellow [industry/size] organization..."
+   ✓ Case study name + their company name
+   ✓ ONE specific metric (25% cost reduction, 40% faster, etc.)
+   ✓ Keep it TIGHT - no filler phrases like "the parallels are striking"
+
+   BANNED: Long compound sentences, multiple clauses, verbose transitions
 
 3. PERSONALIZED_CTA (1-2 sentences) - Drive ACTION specific to their stage:
 
@@ -727,7 +728,7 @@ QUALITY CHECK - Your output must pass these tests:
 Output ONLY valid JSON:
 {
   "personalized_hook": "Your personalized opening that makes them feel understood...",
-  "case_study_framing": "Direct parallel between case study and their company...",
+  "case_study_framing": "PQR achieved 40% faster threat detection with AMD infrastructure. Sun Life can apply this same approach to strengthen compliance and risk management.",
   "personalized_cta": "Stage-specific action that speaks to their exact situation..."
 }"""
 
