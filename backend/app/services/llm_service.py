@@ -1184,8 +1184,47 @@ Output ONLY valid JSON:
 
         return "\n".join(parts)
 
+    def _truncate_to_sentence(self, text: str, max_chars: int) -> str:
+        """
+        Truncate text to max_chars at the last complete sentence.
+
+        Ensures text doesn't cut off mid-sentence by finding the last
+        sentence-ending punctuation (. ! ?) before the limit.
+
+        Args:
+            text: Text to truncate
+            max_chars: Maximum character limit
+
+        Returns:
+            Truncated text ending at a complete sentence
+        """
+        if not text or len(text) <= max_chars:
+            return text
+
+        # Find the last sentence boundary before max_chars
+        truncated = text[:max_chars]
+
+        # Look for last sentence-ending punctuation
+        last_period = truncated.rfind('.')
+        last_exclaim = truncated.rfind('!')
+        last_question = truncated.rfind('?')
+
+        # Get the latest sentence boundary
+        last_boundary = max(last_period, last_exclaim, last_question)
+
+        if last_boundary > 0:
+            return text[:last_boundary + 1].strip()
+
+        # No sentence boundary found - return as much as possible
+        # Try to break at a space to avoid mid-word cutoff
+        last_space = truncated.rfind(' ')
+        if last_space > max_chars // 2:
+            return text[:last_space].strip() + '.'
+
+        return truncated.strip()
+
     def _parse_ebook_response(self, content: str) -> Optional[Dict[str, str]]:
-        """Parse ebook personalization response."""
+        """Parse ebook personalization response and enforce length limits."""
         try:
             json_match = re.search(
                 r'\{[^{}]*"personalized_hook"[^{}]*"case_study_framing"[^{}]*"personalized_cta"[^{}]*\}',
@@ -1195,6 +1234,16 @@ Output ONLY valid JSON:
             if json_match:
                 data = json.loads(json_match.group())
                 if all(k in data for k in ["personalized_hook", "case_study_framing", "personalized_cta"]):
+                    # Enforce hard character limits with sentence-boundary truncation
+                    data["personalized_hook"] = self._truncate_to_sentence(
+                        data["personalized_hook"], 350
+                    )
+                    data["case_study_framing"] = self._truncate_to_sentence(
+                        data["case_study_framing"], 250
+                    )
+                    data["personalized_cta"] = self._truncate_to_sentence(
+                        data["personalized_cta"], 200
+                    )
                     return data
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse error for ebook response: {e}")
