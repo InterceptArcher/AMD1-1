@@ -1140,10 +1140,45 @@ Output ONLY valid JSON:
             parts.append("   - Metric to cite: 40% efficiency gains, security automation")
 
         parts.append("\n=== OUTPUT REQUIREMENTS ===")
-        parts.append("Your JSON output MUST:")
-        parts.append(f"1. personalized_hook: Start with \"{company_name}\" or reference their news/growth")
-        parts.append("2. case_study_framing: Name the case study company AND cite a specific metric")
-        parts.append(f"3. personalized_cta: Include \"{company_name}\" and match the {goal or 'awareness'} stage")
+        parts.append("Your JSON output MUST pass these tests:")
+        parts.append(f"\n1. PERSONALIZED_HOOK must:")
+        parts.append(f"   ✓ Start with \"{company_name}\" (exact company name)")
+        if recent_news and isinstance(recent_news, list) and len(recent_news) > 0:
+            parts.append(f"   ✓ Reference a SPECIFIC news item or theme detected above")
+        if profile.get('employee_count'):
+            parts.append(f"   ✓ Reference the company scale ({profile.get('employee_count'):,} employees)" if isinstance(profile.get('employee_count'), int) else f"   ✓ Reference the company scale")
+        if profile.get('latest_funding_stage'):
+            parts.append(f"   ✓ Reference their growth stage ({profile.get('latest_funding_stage')})")
+        parts.append(f"   ✗ DO NOT use generic phrases like 'organizations like yours' or 'companies in your industry'")
+        parts.append(f"   ✗ DO NOT use clichés like 'in today's rapidly evolving landscape'")
+
+        parts.append(f"\n2. CASE_STUDY_FRAMING must:")
+        parts.append(f"   ✓ Name both the case study company AND \"{company_name}\" in the same sentence")
+        parts.append(f"   ✓ Include at least ONE specific metric (percentage, number, timeframe)")
+        parts.append(f"   ✓ Draw a DIRECT parallel: 'Like {company_name}, [case study] faced...'")
+        parts.append(f"   ✗ DO NOT just describe the case study without connecting to their company")
+
+        parts.append(f"\n3. PERSONALIZED_CTA must:")
+        parts.append(f"   ✓ Include \"{company_name}\" explicitly")
+        parts.append(f"   ✓ Use {goal.upper() if goal else 'AWARENESS'}-appropriate action verb:")
+        if goal in ['awareness', 'exploring', 'learning']:
+            parts.append(f"      (AWARENESS: discover, learn, see, understand)")
+        elif goal in ['consideration', 'evaluating']:
+            parts.append(f"      (CONSIDERATION: compare, evaluate, assess, explore options)")
+        elif goal in ['decision', 'building_case']:
+            parts.append(f"      (DECISION: get the data, validate, confirm, access the proof)")
+        elif goal in ['implementation']:
+            parts.append(f"      (IMPLEMENTATION: access the playbook, accelerate, implement)")
+        else:
+            parts.append(f"      (Match to their {goal or 'awareness'} stage)")
+        parts.append(f"   ✗ DO NOT use generic CTAs like 'learn more' or 'get started'")
+
+        parts.append("\n=== EXAMPLE OUTPUT FORMAT ===")
+        parts.append("{")
+        parts.append(f'  "personalized_hook": "{company_name}\'s [specific news/theme/growth signal]...",')
+        parts.append(f'  "case_study_framing": "Like {company_name}, [Case Study] faced [similar challenge]...",')
+        parts.append(f'  "personalized_cta": "[Action verb] where {company_name} stands on the AI readiness curve..."')
+        parts.append("}")
         parts.append("\nGENERATE THE JSON NOW:")
 
         return "\n".join(parts)
