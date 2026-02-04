@@ -26,7 +26,10 @@ fi
 # Install Supabase CLI if not present
 if ! command -v supabase &> /dev/null; then
   echo "Installing Supabase CLI..."
-  npm install -g supabase
+  # npm global install no longer supported, use direct binary download
+  SUPABASE_VERSION="v1.200.3"
+  curl -fsSL "https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/supabase_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin supabase
+  chmod +x /usr/local/bin/supabase
 fi
 
 # Login to Supabase

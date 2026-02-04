@@ -333,10 +333,11 @@ jobs:
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions@github.com'
+          git pull --rebase origin main || true
           git add deployment_logs/
           # [skip ci] prevents infinite loops
-          git commit -m "chore: add validation failure log [skip ci]"
-          git push
+          git commit -m "chore: add validation failure log [skip ci]" || true
+          git push || echo "Failed to push log, continuing..."
 
   # ====================================================
   # JOB 5: PROMOTE TO PROD
