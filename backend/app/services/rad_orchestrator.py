@@ -415,7 +415,8 @@ class RADOrchestrator:
 
         for source_name, source_field in sources:
             source_data = raw_data.get(source_name, {})
-            if source_data and not source_data.get("_error"):
+            # Skip sources with errors or mock data (mock data has hardcoded values)
+            if source_data and not source_data.get("_error") and not source_data.get("_mock"):
                 value = source_data.get(source_field)
                 if value is not None and value != "":
                     priority = SOURCE_PRIORITY.get(source_name, 0)

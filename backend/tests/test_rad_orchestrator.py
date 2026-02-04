@@ -157,6 +157,36 @@ class TestRADOrchestrator:
 
         assert result == "FromPDL"
 
+    def test_resolve_field_skips_mock_data(self, orchestrator):
+        """
+        _resolve_field: Should skip sources with mock data (hardcoded values).
+        """
+        raw_data = {
+            "zoominfo": {"employee_count": 100, "_mock": True},
+            "pdl_company": {"employee_count": 5000},
+        }
+
+        sources = [("pdl_company", "employee_count"), ("zoominfo", "employee_count")]
+        result = orchestrator._resolve_field("employee_count", sources, raw_data)
+
+        # Should use real PDL data, not ZoomInfo mock
+        assert result == 5000
+
+    def test_resolve_field_returns_none_when_only_mock(self, orchestrator):
+        """
+        _resolve_field: Should return None if only mock data available.
+        """
+        raw_data = {
+            "zoominfo": {"employee_count": 100, "_mock": True},
+            "pdl_company": {},
+        }
+
+        sources = [("pdl_company", "employee_count"), ("zoominfo", "employee_count")]
+        result = orchestrator._resolve_field("employee_count", sources, raw_data)
+
+        # Should return None so fallback logic can run
+        assert result is None
+
     def test_resolve_field_returns_none_if_no_data(self, orchestrator):
         """
         _resolve_field: Should return None if no sources have the field.
