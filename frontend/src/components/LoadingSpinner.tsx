@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface UserContext {
   firstName?: string;
@@ -92,47 +92,45 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
   const [currentStep, setCurrentStep] = useState(0);
   const [displayMessage, setDisplayMessage] = useState(message || 'Personalizing your content...');
 
-  // Generate personalized loading steps
-  const getLoadingSteps = (): string[] => {
-    const steps: string[] = [];
+  // Generate personalized loading steps - memoized to prevent recreation
+  const steps = useMemo(() => {
+    const result: string[] = [];
 
     if (userContext?.firstName && userContext?.company) {
-      steps.push(`Hi ${userContext.firstName}, preparing your personalized guide for ${userContext.company}...`);
+      result.push(`Hi ${userContext.firstName}, preparing your personalized guide for ${userContext.company}...`);
     } else if (userContext?.firstName) {
-      steps.push(`Hi ${userContext.firstName}, creating your personalized ebook...`);
+      result.push(`Hi ${userContext.firstName}, creating your personalized ebook...`);
     } else {
-      steps.push('Creating your personalized ebook...');
+      result.push('Creating your personalized ebook...');
     }
 
     // Enrichment steps
-    steps.push('Gathering company intelligence...');
-    steps.push('Analyzing recent industry news...');
+    result.push('Gathering company intelligence...');
+    result.push('Analyzing recent industry news...');
 
     // Add industry-specific messages
     if (userContext?.industry && INDUSTRY_MESSAGES[userContext.industry]) {
-      steps.push(...INDUSTRY_MESSAGES[userContext.industry]);
+      result.push(...INDUSTRY_MESSAGES[userContext.industry]);
     }
 
     // Add persona-specific message
     if (userContext?.persona && PERSONA_MESSAGES[userContext.persona]) {
-      steps.push(PERSONA_MESSAGES[userContext.persona]);
+      result.push(PERSONA_MESSAGES[userContext.persona]);
     }
 
     // Add goal-specific message
     if (userContext?.goal && GOAL_MESSAGES[userContext.goal]) {
-      steps.push(GOAL_MESSAGES[userContext.goal]);
+      result.push(GOAL_MESSAGES[userContext.goal]);
     }
 
     // Final steps
-    steps.push('Selecting relevant case studies...');
-    steps.push('Generating personalized insights with AI...');
-    steps.push('Formatting your custom PDF...');
-    steps.push('Finalizing your personalized content...');
+    result.push('Selecting relevant case studies...');
+    result.push('Generating personalized insights with AI...');
+    result.push('Formatting your custom PDF...');
+    result.push('Finalizing your personalized content...');
 
-    return steps;
-  };
-
-  const steps = getLoadingSteps();
+    return result;
+  }, [userContext?.firstName, userContext?.company, userContext?.industry, userContext?.persona, userContext?.goal]);
 
   useEffect(() => {
     if (!userContext) {
@@ -140,20 +138,25 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
       return;
     }
 
+    // Set initial message
+    setDisplayMessage(steps[0]);
+    setCurrentStep(0);
+
     // Cycle through personalized messages (pace to show most steps within loading time)
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
-        const next = (prev + 1) % steps.length;
+        const next = prev + 1;
+        // Stop at last step instead of looping
+        if (next >= steps.length) {
+          return prev;
+        }
         setDisplayMessage(steps[next]);
         return next;
       });
     }, 2000);
 
-    // Set initial message
-    setDisplayMessage(steps[0]);
-
     return () => clearInterval(interval);
-  }, [userContext, steps.length]);
+  }, [userContext, steps, message]);
 
   // Calculate progress percentage
   const progress = Math.min(((currentStep + 1) / steps.length) * 100, 95);

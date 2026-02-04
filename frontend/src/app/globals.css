@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* AMD Brand Fonts: Roboto Condensed (headings), Source Sans 3 (body) */
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700;800&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+/* AMD Brand Fonts: Inter (headings + body) for clean modern look */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   --amd-dark: #0a0a12;
@@ -15,9 +15,9 @@
   --amd-light: #e8e8ec;
   --amd-muted: #a0a0b0;
 
-  /* Font families */
-  --font-heading: 'Roboto Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  --font-body: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  /* Font families - clean Inter for everything */
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
