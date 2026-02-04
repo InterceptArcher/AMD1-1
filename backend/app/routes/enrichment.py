@@ -166,14 +166,17 @@ async def enrich_profile(
         finalized["ebook_personalization"] = ebook_personalization
         finalized["user_context"] = user_context
 
-        # Update finalize_data with personalization
-        supabase.upsert_finalize_data(
-            email=email,
-            normalized_data=finalized,
-            intro=intro_hook,
-            cta=cta,
-            data_sources=orchestrator.data_sources
-        )
+        # Update finalize_data with personalization (non-fatal - log error but continue)
+        try:
+            supabase.upsert_finalize_data(
+                email=email,
+                normalized_data=finalized,
+                intro=intro_hook,
+                cta=cta,
+                data_sources=orchestrator.data_sources
+            )
+        except Exception as db_err:
+            logger.warning(f"[{job_id}] Failed to store finalize_data: {db_err} - returning data anyway")
         
         logger.info(f"[{job_id}] Enrichment completed for {email}")
         
@@ -185,7 +188,7 @@ async def enrich_profile(
             created_at=datetime.utcnow()
         )
 
-        # Add extra info about data sources (for debugging)
+        # Add extra info about data sources and personalization (for frontend)
         return {
             **response.model_dump(),
             "data_sources": orchestrator.data_sources,
@@ -195,7 +198,15 @@ async def enrich_profile(
                 "company_name": finalized.get("company_name"),
                 "title": finalized.get("title"),
                 "industry": finalized.get("industry"),
-            }
+                "employee_count": finalized.get("employee_count"),
+                "latest_funding_stage": finalized.get("latest_funding_stage"),
+                "news_themes": finalized.get("news_themes", []),
+                "recent_news": finalized.get("recent_news", [])[:3],  # First 3 headlines
+                "skills": finalized.get("skills", [])[:5],  # First 5 skills
+            },
+            # Include ebook personalization for frontend rendering
+            "ebook_personalization": ebook_personalization,
+            "user_context": user_context
         }
         
     except ValueError as e:
@@ -205,10 +216,13 @@ async def enrich_profile(
             detail=str(e)
         )
     except Exception as e:
-        logger.error(f"Enrichment failed: {e}")
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Enrichment failed for {request.email}: {type(e).__name__}: {e}")
+        logger.error(f"Traceback: {error_traceback}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Enrichment processing failed"
+            detail=f"Enrichment processing failed: {type(e).__name__}: {str(e)[:200]}"
         )
 
 

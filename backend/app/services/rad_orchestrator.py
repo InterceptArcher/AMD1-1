@@ -86,10 +86,13 @@ class RADOrchestrator:
             # Step 1: Fetch raw data from all APIs in parallel
             raw_data = await self._fetch_all_sources(email, domain)
 
-            # Step 2: Store raw data in Supabase
+            # Step 2: Store raw data in Supabase (non-fatal - continue even if storage fails)
             for source, data in raw_data.items():
                 if data and not data.get("_error"):
-                    self.supabase.store_raw_data(email, source, data)
+                    try:
+                        self.supabase.store_raw_data(email, source, data)
+                    except Exception as storage_err:
+                        logger.warning(f"Failed to store raw data for {source}: {storage_err} - continuing anyway")
                     self.data_sources.append(source)
 
             # Step 3: Apply resolution logic
