@@ -13,6 +13,12 @@ interface PersonalizationData {
   company?: string;
   title?: string;
   email?: string;
+  // Enhanced enrichment data for display
+  employee_count?: number;
+  funding_stage?: string;
+  recent_news?: Array<{ title: string; source?: string }>;
+  skills?: string[];
+  news_themes?: string[];
 }
 
 interface UserContext {
@@ -100,13 +106,22 @@ function HomeContent() {
       // Wait for both API and minimum loading time
       const [profileData] = await Promise.all([apiCall(), minLoadingTime]);
 
+      // Extract enrichment data for display
+      const normalizedProfile = profileData.normalized_profile || {};
+
       setPersonalizationData({
         intro_hook: profileData.personalization?.intro_hook || 'Welcome!',
         cta: profileData.personalization?.cta || 'Get started today',
-        first_name: inputs.firstName || profileData.normalized_profile?.first_name,
-        company: inputs.company || profileData.normalized_profile?.company,
-        title: profileData.normalized_profile?.title,
+        first_name: inputs.firstName || normalizedProfile.first_name,
+        company: inputs.company || normalizedProfile.company_name,
+        title: normalizedProfile.title,
         email: inputs.email,
+        // Enhanced data from enrichment APIs
+        employee_count: normalizedProfile.employee_count,
+        funding_stage: normalizedProfile.latest_funding_stage,
+        recent_news: normalizedProfile.recent_news?.slice(0, 3),
+        skills: normalizedProfile.skills?.slice(0, 5),
+        news_themes: normalizedProfile.news_themes?.slice(0, 3),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -116,102 +131,171 @@ function HomeContent() {
   };
 
   return (
-    <main className="min-h-screen relative">
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#00c8aa]/5 rounded-full blur-[120px] translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#00c8aa]/3 rounded-full blur-[100px] -translate-x-1/2 translate-y-1/2" />
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Enhanced Background Effects */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Primary glow - top right */}
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#00c8aa]/[0.07] rounded-full blur-[150px] translate-x-1/3 -translate-y-1/3" />
+        {/* Secondary glow - bottom left */}
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#00c8aa]/[0.04] rounded-full blur-[120px] -translate-x-1/3 translate-y-1/3" />
+        {/* Accent glow - center */}
+        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-blue-500/[0.03] rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+        {/* Subtle grid overlay */}
+        <div className="absolute inset-0 amd-grid-pattern opacity-30" />
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* Header */}
-        <header className="px-6 py-6 lg:px-12">
+        <header className="px-6 py-6 lg:px-12 animate-fade-in-up">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="text-2xl font-bold tracking-[0.2em] text-white" style={{ fontFamily: "'Gill Sans', 'Gill Sans MT', 'Avenir', 'Helvetica Neue', Arial, sans-serif" }}>AMD</div>
-            <div className="hidden sm:flex items-center gap-6 text-sm text-white/70">
-              <span>Enterprise Solutions</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00c8aa]" />
-              <span>AI Readiness</span>
+            <img
+              src="/amd-logo.svg"
+              alt="AMD"
+              className="h-8 sm:h-10 w-auto transition-transform hover:scale-105"
+            />
+            <div className="hidden sm:flex items-center gap-6 text-sm text-white/60">
+              <span className="hover:text-white/80 transition-colors cursor-default">Enterprise Solutions</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00c8aa] animate-pulse" />
+              <span className="hover:text-white/80 transition-colors cursor-default">AI Readiness</span>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-12">
+        <div className="flex-1 flex items-center justify-center px-6 py-8 lg:py-12 lg:px-12">
           <div className="w-full max-w-6xl">
             {!personalizationData && !isLoading && (
-              <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
                 {/* Left Side - Hero */}
-                <div className="animate-fade-in-up">
-                  <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#00c8aa]/40 bg-[#00c8aa]/10 mb-8">
+                <div className="animate-fade-in-left">
+                  {/* Badge */}
+                  <div className="amd-badge mb-8">
                     <span className="w-2 h-2 rounded-full bg-[#00c8aa] animate-pulse" />
-                    <span className="text-sm text-[#00c8aa] font-semibold">Free Personalized Ebook</span>
+                    <span>Free Personalized Ebook</span>
                   </div>
 
-                  <p className="text-[#00c8aa] font-bold uppercase tracking-widest text-sm mb-5">
+                  {/* Eyebrow */}
+                  <p className="text-[#00c8aa] font-bold uppercase tracking-[0.2em] text-sm mb-4 animate-fade-in-up stagger-1">
                     From Observers to Leaders
                   </p>
 
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] mb-8 text-white">
+                  {/* Main Headline */}
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] mb-6 text-white animate-fade-in-up stagger-2">
                     An Enterprise<br />
-                    <span className="amd-text-gradient">AI Readiness</span><br />
+                    <span className="amd-text-gradient-animated">AI Readiness</span><br />
                     Framework
                   </h1>
 
-                  <p className="text-lg text-white/80 leading-relaxed mb-10 max-w-lg">
+                  {/* Subheadline */}
+                  <p className="text-lg sm:text-xl text-white/70 leading-relaxed mb-10 max-w-lg animate-fade-in-up stagger-3">
                     Discover where your organization stands on the modernization curve and get a personalized roadmap to AI leadership.
                   </p>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-8">
-                    <div className="animate-fade-in-up stagger-1">
-                      <div className="text-4xl font-bold text-[#00c8aa]">33%</div>
-                      <div className="text-sm text-white/60 mt-2 font-medium">Leaders</div>
+                  {/* Stats with enhanced styling */}
+                  <div className="grid grid-cols-3 gap-6 sm:gap-8 animate-fade-in-up stagger-4">
+                    <div className="amd-stat group cursor-default">
+                      <div className="text-3xl sm:text-4xl font-bold text-[#00c8aa] transition-transform group-hover:scale-105">33%</div>
+                      <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Leaders</div>
                     </div>
-                    <div className="animate-fade-in-up stagger-2">
-                      <div className="text-4xl font-bold text-white">58%</div>
-                      <div className="text-sm text-white/60 mt-2 font-medium">Challengers</div>
+                    <div className="amd-stat group cursor-default">
+                      <div className="text-3xl sm:text-4xl font-bold text-white transition-transform group-hover:scale-105">58%</div>
+                      <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Challengers</div>
                     </div>
-                    <div className="animate-fade-in-up stagger-3">
-                      <div className="text-4xl font-bold text-white/70">9%</div>
-                      <div className="text-sm text-white/60 mt-2 font-medium">Observers</div>
+                    <div className="amd-stat group cursor-default">
+                      <div className="text-3xl sm:text-4xl font-bold text-white/60 transition-transform group-hover:scale-105">9%</div>
+                      <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Observers</div>
+                    </div>
+                  </div>
+
+                  {/* Trust indicators */}
+                  <div className="mt-10 pt-8 border-t border-white/10 animate-fade-in-up stagger-5">
+                    <div className="flex flex-wrap items-center gap-6 text-sm text-white/40">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span>Personalized to your role</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span>Industry-specific insights</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span>Instant PDF download</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Right Side - Form */}
-                <div className="animate-fade-in-up stagger-2">
-                  <div className="amd-card p-8 lg:p-10 amd-glow">
+                {/* Right Side - Form Card */}
+                <div className="animate-fade-in-right stagger-2">
+                  <div className="amd-card-premium p-8 lg:p-10 amd-glow-intense">
+                    {/* Form Header */}
                     <div className="mb-8">
-                      <h2 className="text-2xl font-bold mb-3 text-white">Get Your Personalized Guide</h2>
-                      <p className="text-white/70 text-base">
-                        Tailored insights for your industry and role
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-[#00c8aa]/15 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h2 className="text-xl sm:text-2xl font-bold text-white">Get Your Guide</h2>
+                          <p className="text-white/50 text-sm">Takes 30 seconds</p>
+                        </div>
+                      </div>
+                      <p className="text-white/60 text-base">
+                        We&apos;ll create a personalized ebook based on your industry, role, and goals.
                       </p>
                     </div>
+
+                    {/* Form Component */}
                     <EmailConsentForm onSubmit={handleSubmit} isLoading={isLoading} />
+
+                    {/* Privacy note */}
+                    <div className="mt-6 flex items-start gap-2 text-xs text-white/40">
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span>Your data is secure and never shared with third parties.</span>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
             {isLoading && (
-              <div className="max-w-xl mx-auto">
+              <div className="max-w-xl mx-auto animate-fade-in-scale">
                 <LoadingSpinner userContext={userContext || undefined} />
               </div>
             )}
 
             {personalizationData && (
-              <div className="max-w-2xl mx-auto animate-fade-in-up">
+              <div className="max-w-2xl mx-auto animate-fade-in-scale">
                 <PersonalizedContent data={personalizationData} error={error} onReset={handleReset} />
               </div>
             )}
 
             {error && !personalizationData && !isLoading && (
-              <div className="max-w-md mx-auto amd-card p-8 border-red-500/30 bg-red-500/5">
-                <p className="text-red-400 text-base">{error}</p>
+              <div className="max-w-md mx-auto amd-card p-8 border-red-500/30 bg-red-500/5 animate-fade-in-up">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Something went wrong</h3>
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                </div>
                 <button
                   onClick={handleReset}
-                  className="mt-6 text-sm font-semibold text-[#00c8aa] hover:underline"
+                  className="w-full mt-4 py-3 px-4 rounded-lg border border-white/20 text-white/80 hover:bg-white/5 transition-colors font-medium"
                 >
                   Try again
                 </button>
@@ -221,13 +305,16 @@ function HomeContent() {
         </div>
 
         {/* Footer */}
-        <footer className="px-6 py-8 lg:px-12 border-t border-white/10">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/50">
-            <div>© 2026 Advanced Micro Devices, Inc.</div>
+        <footer className="px-6 py-6 lg:px-12 border-t border-white/[0.06]">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/40">
+            <div className="flex items-center gap-2">
+              <img src="/amd-logo.svg" alt="AMD" className="h-4 w-auto opacity-50" />
+              <span>© 2026 Advanced Micro Devices, Inc.</span>
+            </div>
             <div className="flex items-center gap-8">
-              <span className="hover:text-white/70 cursor-pointer transition-colors">Privacy</span>
-              <span className="hover:text-white/70 cursor-pointer transition-colors">Terms</span>
-              <span className="hover:text-white/70 cursor-pointer transition-colors">Contact</span>
+              <span className="hover:text-white/60 cursor-pointer transition-colors">Privacy</span>
+              <span className="hover:text-white/60 cursor-pointer transition-colors">Terms</span>
+              <span className="hover:text-white/60 cursor-pointer transition-colors">Contact</span>
             </div>
           </div>
         </footer>
@@ -239,8 +326,11 @@ function HomeContent() {
 export default function Home() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#00c8aa] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a12]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-[#00c8aa] border-t-transparent rounded-full animate-spin" />
+          <p className="text-white/50 text-sm">Loading...</p>
+        </div>
       </div>
     }>
       <HomeContent />

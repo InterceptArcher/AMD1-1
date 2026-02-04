@@ -10,6 +10,7 @@
   --amd-darker: #050508;
   --amd-gray: #1a1a2e;
   --amd-cyan: #00c8aa;
+  --amd-cyan-bright: #00e0be;
   --amd-cyan-dim: rgba(0, 200, 170, 0.15);
   --amd-light: #e8e8ec;
   --amd-muted: #a0a0b0;
@@ -79,6 +80,13 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 30px rgba(0, 200, 170, 0.1);
 }
 
+.amd-glow-intense {
+  box-shadow:
+    0 0 20px rgba(0, 200, 170, 0.2),
+    0 0 60px rgba(0, 200, 170, 0.15),
+    0 0 100px rgba(0, 200, 170, 0.1);
+}
+
 /* Text gradient */
 .amd-text-gradient {
   background: linear-gradient(135deg, #ffffff 0%, var(--amd-cyan) 100%);
@@ -87,31 +95,56 @@ h1, h2, h3, h4, h5, h6 {
   background-clip: text;
 }
 
+/* Animated text gradient */
+.amd-text-gradient-animated {
+  background: linear-gradient(90deg, #ffffff, var(--amd-cyan), #ffffff);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 3s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 /* Form styling - improved contrast */
 .amd-input {
   @apply w-full bg-white/[0.08] border border-white/20 rounded-lg px-4 py-3.5 text-white placeholder-white/50;
   @apply focus:outline-none focus:border-[#00c8aa] focus:ring-2 focus:ring-[#00c8aa]/30;
-  @apply transition-all duration-200;
+  @apply transition-all duration-300;
   font-size: 15px;
 }
 
-.amd-input:hover {
+.amd-input:hover:not(:focus) {
   @apply border-white/30 bg-white/[0.1];
+}
+
+.amd-input:focus {
+  @apply bg-white/[0.12];
+  box-shadow: 0 0 20px rgba(0, 200, 170, 0.15);
 }
 
 .amd-select {
   @apply w-full bg-white/[0.08] border border-white/20 rounded-lg px-4 py-3.5 text-white;
   @apply focus:outline-none focus:border-[#00c8aa] focus:ring-2 focus:ring-[#00c8aa]/30;
-  @apply transition-all duration-200 appearance-none cursor-pointer;
+  @apply transition-all duration-300 appearance-none cursor-pointer;
   font-size: 15px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a0a0b0'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2300c8aa'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 20px;
 }
 
-.amd-select:hover {
+.amd-select:hover:not(:focus) {
   @apply border-white/30 bg-white/[0.1];
+}
+
+.amd-select:focus {
+  @apply bg-white/[0.12];
+  box-shadow: 0 0 20px rgba(0, 200, 170, 0.15);
 }
 
 .amd-select option {
@@ -124,29 +157,86 @@ h1, h2, h3, h4, h5, h6 {
   @apply block text-sm font-semibold text-white/80 mb-2.5 tracking-wide;
 }
 
-/* Button styling */
+/* Button styling - enhanced */
 .amd-button-primary {
   @apply relative w-full py-4 px-6 bg-[#00c8aa] text-[#0a0a12] font-bold text-sm uppercase tracking-widest;
   @apply rounded-lg transition-all duration-300 overflow-hidden;
 }
 
+.amd-button-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.amd-button-primary:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
 .amd-button-primary:hover:not(:disabled) {
-  @apply bg-[#00e0be] shadow-lg;
-  box-shadow: 0 10px 40px rgba(0, 200, 170, 0.3);
-  transform: translateY(-2px);
+  @apply bg-[#00e0be];
+  box-shadow:
+    0 10px 40px rgba(0, 200, 170, 0.35),
+    0 0 20px rgba(0, 200, 170, 0.2);
+  transform: translateY(-3px);
 }
 
 .amd-button-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 20px rgba(0, 200, 170, 0.25);
 }
 
 .amd-button-primary:disabled {
   @apply bg-white/15 text-white/40 cursor-not-allowed;
 }
 
-/* Card styling */
+/* Shimmer button effect */
+.amd-button-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.amd-button-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: button-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes button-shimmer {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+/* Card styling - glass morphism */
 .amd-card {
   @apply bg-white/[0.04] border border-white/15 rounded-2xl backdrop-blur-sm;
+  position: relative;
+}
+
+.amd-card-premium {
+  @apply bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/20 rounded-2xl backdrop-blur-md;
+  position: relative;
+}
+
+.amd-card-premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 200, 170, 0.3), transparent, rgba(0, 200, 170, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .amd-card-hover {
@@ -154,8 +244,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .amd-card-hover:hover {
-  @apply border-[#00c8aa]/40 bg-white/[0.07];
-  box-shadow: 0 0 40px rgba(0, 200, 170, 0.1);
+  @apply border-[#00c8aa]/40 bg-white/[0.08];
+  box-shadow: 0 0 40px rgba(0, 200, 170, 0.12);
+  transform: translateY(-2px);
 }
 
 /* Checkbox styling */
@@ -164,6 +255,42 @@ h1, h2, h3, h4, h5, h6 {
   @apply checked:bg-[#00c8aa] checked:border-[#00c8aa];
   @apply focus:ring-2 focus:ring-[#00c8aa]/50 focus:ring-offset-0 focus:ring-offset-transparent;
   @apply transition-all duration-200;
+}
+
+/* Stat counter animation */
+.amd-stat {
+  position: relative;
+}
+
+.amd-stat::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: var(--amd-cyan);
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.amd-stat:hover::after {
+  transform: scaleX(1);
+}
+
+/* Badge styling */
+.amd-badge {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-full;
+  @apply border border-[#00c8aa]/40 bg-[#00c8aa]/10;
+  @apply text-sm text-[#00c8aa] font-semibold;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 200, 170, 0.2); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 200, 170, 0); }
 }
 
 /* Loading animations */
@@ -182,6 +309,16 @@ h1, h2, h3, h4, h5, h6 {
   100% { transform: translateY(100vh); }
 }
 
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
@@ -190,26 +327,41 @@ h1, h2, h3, h4, h5, h6 {
   animation: float 3s ease-in-out infinite;
 }
 
+.animate-rotate-slow {
+  animation: rotate-slow 8s linear infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1.5s ease-in-out infinite;
+}
+
 /* Progress bar animation */
 @keyframes progress-shine {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
 
+.progress-shine {
+  position: relative;
+  overflow: hidden;
+}
+
 .progress-shine::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
   animation: progress-shine 1.5s ease-in-out infinite;
 }
 
-/* Stagger animation */
+/* Stagger animation delays */
 .stagger-1 { animation-delay: 0.1s; }
 .stagger-2 { animation-delay: 0.2s; }
 .stagger-3 { animation-delay: 0.3s; }
 .stagger-4 { animation-delay: 0.4s; }
 .stagger-5 { animation-delay: 0.5s; }
+.stagger-6 { animation-delay: 0.6s; }
+.stagger-7 { animation-delay: 0.7s; }
 
 /* Fade in animation */
 @keyframes fadeInUp {
@@ -223,9 +375,111 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out forwards;
   opacity: 0;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+/* Typing effect cursor */
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: var(--amd-cyan);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Highlight animation */
+@keyframes highlight-pulse {
+  0%, 100% {
+    background: rgba(0, 200, 170, 0.1);
+    box-shadow: 0 0 0 0 rgba(0, 200, 170, 0.2);
+  }
+  50% {
+    background: rgba(0, 200, 170, 0.15);
+    box-shadow: 0 0 20px 0 rgba(0, 200, 170, 0.1);
+  }
+}
+
+.highlight-pulse {
+  animation: highlight-pulse 2s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Icon animation */
+.icon-bounce {
+  transition: transform 0.3s ease;
+}
+
+.icon-bounce:hover {
+  transform: translateY(-2px);
+}
+
+/* Success checkmark animation */
+@keyframes checkmark {
+  0% {
+    stroke-dashoffset: 50;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkmark-animate {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: checkmark 0.5s ease-out 0.2s forwards;
 }
 
 /* Scrollbar styling */
@@ -244,4 +498,26 @@ h1, h2, h3, h4, h5, h6 {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--amd-muted);
+}
+
+/* Focus visible for accessibility */
+.focus-visible-ring:focus-visible {
+  @apply outline-none ring-2 ring-[#00c8aa] ring-offset-2 ring-offset-[#0a0a12];
+}
+
+/* Selection color */
+::selection {
+  background: rgba(0, 200, 170, 0.3);
+  color: white;
+}
+
+/* Reduce motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -353,11 +353,14 @@ class PDFService:
         }
 
         .amd-logo {
-            font-size: 28pt;
-            font-weight: 800;
-            letter-spacing: 4px;
             margin-bottom: 180px;
-            color: #ffffff;
+            display: flex;
+            align-items: center;
+        }
+
+        .amd-logo svg {
+            height: 36px;
+            width: auto;
         }
 
         .cover-badge {
@@ -984,7 +987,14 @@ class PDFService:
 <body>
     <!-- COVER PAGE -->
     <div class="cover-page">
-        <div class="amd-logo">AMD</div>
+        <div class="amd-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" fill="none">
+                <path d="M0 40 L16 8 L32 40 L25 40 L21.5 32 L10.5 32 L7 40 Z M16 14 L12 28 L20 28 Z" fill="white"/>
+                <path d="M40 40 L40 8 L48 8 L56 24 L64 8 L72 8 L72 40 L65 40 L65 20 L56 36 L47 20 L47 40 Z" fill="white"/>
+                <path d="M80 8 L80 40 L96 40 C108 40 114 32 114 24 C114 16 108 8 96 8 Z M87 14 L96 14 C103 14 107 18 107 24 C107 30 103 34 96 34 L87 34 Z" fill="white"/>
+                <path d="M128 24 L148 10 L148 18 L172 18 L172 30 L148 30 L148 38 Z" fill="#00c8aa"/>
+            </svg>
+        </div>
 
         <div class="cover-badge">
             <span class="cover-badge-text">Enterprise Guide</span>
