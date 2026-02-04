@@ -67,11 +67,22 @@ PROJECT_INFO=$(curl -s \
   "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}" \
   -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}")
 
-PROJECT_NAME=$(echo "$PROJECT_INFO" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
-PROJECT_REGION=$(echo "$PROJECT_INFO" | grep -o '"region":"[^"]*"' | head -1 | cut -d'"' -f4)
+# Debug: show response (without sensitive data)
+echo "API Response received: $(echo "$PROJECT_INFO" | head -c 100)..."
+
+# Check for API error
+if echo "$PROJECT_INFO" | grep -q '"error"'; then
+  echo "ERROR: Supabase API returned an error:"
+  echo "$PROJECT_INFO"
+  exit 1
+fi
+
+PROJECT_NAME=$(echo "$PROJECT_INFO" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+PROJECT_REGION=$(echo "$PROJECT_INFO" | grep -o '"region":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
 
 if [[ -z "$PROJECT_NAME" ]]; then
   echo "ERROR: Could not find project with ref: $SUPABASE_PROJECT_REF"
+  echo "Response was: $PROJECT_INFO"
   exit 1
 fi
 
