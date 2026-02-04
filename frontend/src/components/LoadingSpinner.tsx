@@ -140,14 +140,14 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
       return;
     }
 
-    // Cycle through personalized messages (slower pace for better readability)
+    // Cycle through personalized messages (pace to show most steps within loading time)
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
         const next = (prev + 1) % steps.length;
         setDisplayMessage(steps[next]);
         return next;
       });
-    }, 3500);
+    }, 2000);
 
     // Set initial message
     setDisplayMessage(steps[0]);
