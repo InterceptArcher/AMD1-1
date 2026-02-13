@@ -6,6 +6,7 @@ Stores PDFs in Supabase Storage, returns signed URLs.
 
 import logging
 import io
+import json
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
@@ -1939,3 +1940,492 @@ startxref
         except Exception as e:
             logger.error(f"Failed to get PDF URL: {e}")
             return None
+
+    async def generate_executive_review_pdf(
+        self,
+        executive_review: Dict[str, Any],
+        embed_json: bool = True
+    ) -> bytes:
+        """
+        Generate PDF for AMD Executive Review (2-page assessment).
+        Renders the JSON-structured content and optionally embeds JSON as PDF metadata.
+
+        Args:
+            executive_review: Dict with keys:
+                - company_name: Company name
+                - stage: Observer/Challenger/Leader
+                - stage_sidebar: Stage-specific statistic
+                - advantages: List of {headline, description}
+                - risks: List of {headline, description}
+                - recommendations: List of {title, description}
+                - case_study: Case study name
+                - case_study_description: Case study description
+            embed_json: Whether to embed the JSON data as PDF metadata
+
+        Returns:
+            PDF bytes
+        """
+        try:
+            # Generate HTML from executive review JSON
+            html_content = self._render_executive_review_template(executive_review)
+
+            # Convert to PDF
+            pdf_bytes = await self._html_to_pdf(html_content)
+
+            if not pdf_bytes:
+                raise ValueError("PDF generation returned empty content")
+
+            # Embed JSON metadata if requested
+            if embed_json:
+                pdf_bytes = self._embed_json_metadata(pdf_bytes, executive_review)
+
+            logger.info(f"Generated executive review PDF for {executive_review.get('company_name')}: {len(pdf_bytes)} bytes")
+            return pdf_bytes
+
+        except Exception as e:
+            logger.error(f"Executive review PDF generation failed: {e}")
+            raise
+
+    def _embed_json_metadata(self, pdf_bytes: bytes, data: Dict[str, Any]) -> bytes:
+        """
+        Embed JSON data as PDF metadata for programmatic access.
+        Uses pypdf to add custom metadata fields.
+
+        Args:
+            pdf_bytes: Original PDF bytes
+            data: JSON data to embed
+
+        Returns:
+            PDF bytes with embedded metadata
+        """
+        try:
+            import pypdf
+
+            # Read the PDF
+            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+            writer = pypdf.PdfWriter()
+
+            # Copy all pages
+            for page in reader.pages:
+                writer.add_page(page)
+
+            # Add custom metadata
+            metadata = {
+                "/ExecutiveReviewData": json.dumps(data),
+                "/GeneratedBy": "AMD Data Center Modernization Engine",
+                "/GeneratedAt": datetime.utcnow().isoformat(),
+                "/ContentType": "ExecutiveReview",
+                "/Company": data.get("company_name", ""),
+                "/Stage": data.get("stage", ""),
+            }
+
+            # Copy existing metadata and add new fields
+            if reader.metadata:
+                for key, value in reader.metadata.items():
+                    if key not in metadata:
+                        writer.add_metadata({key: value})
+
+            writer.add_metadata(metadata)
+
+            # Write to bytes
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+
+            logger.info(f"Embedded JSON metadata in PDF ({len(json.dumps(data))} bytes)")
+            return output.read()
+
+        except ImportError:
+            logger.warning("pypdf not available, skipping metadata embedding")
+            return pdf_bytes
+        except Exception as e:
+            logger.warning(f"Failed to embed JSON metadata: {e}, returning PDF without metadata")
+            return pdf_bytes
+
+    @staticmethod
+    def extract_json_from_pdf(pdf_bytes: bytes) -> Optional[Dict[str, Any]]:
+        """
+        Extract embedded JSON metadata from a PDF.
+
+        Args:
+            pdf_bytes: PDF file bytes
+
+        Returns:
+            Extracted JSON data dict, or None if not found
+        """
+        try:
+            import pypdf
+
+            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+
+            if not reader.metadata:
+                logger.info("No metadata found in PDF")
+                return None
+
+            # Look for the ExecutiveReviewData field
+            json_str = reader.metadata.get("/ExecutiveReviewData")
+            if not json_str:
+                logger.info("No ExecutiveReviewData field found in PDF metadata")
+                return None
+
+            # Parse the JSON
+            data = json.loads(json_str)
+            logger.info(f"Successfully extracted JSON from PDF: {len(json_str)} bytes")
+            return data
+
+        except ImportError:
+            logger.warning("pypdf not available, cannot extract JSON")
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in PDF metadata: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to extract JSON from PDF: {e}")
+            return None
+
+    def _render_executive_review_template(self, review: Dict[str, Any]) -> str:
+        """
+        Render HTML template for executive review PDF.
+        Uses AMD branding with structured JSON content.
+
+        Args:
+            review: Executive review data dict
+
+        Returns:
+            Rendered HTML string
+        """
+        company_name = review.get("company_name", "Your Company")
+        stage = review.get("stage", "Challenger")
+        stage_sidebar = review.get("stage_sidebar", "")
+        advantages = review.get("advantages", [])
+        risks = review.get("risks", [])
+        recommendations = review.get("recommendations", [])
+        case_study = review.get("case_study", "")
+        case_study_desc = review.get("case_study_description", "")
+
+        # Build advantages HTML
+        advantages_html = ""
+        for idx, adv in enumerate(advantages, 1):
+            advantages_html += f"""
+                <div class="review-item">
+                    <div class="item-number">{idx:02d}</div>
+                    <div class="item-content">
+                        <div class="item-headline">{adv.get('headline', '')}</div>
+                        <div class="item-description">{adv.get('description', '')}</div>
+                    </div>
+                </div>
+            """
+
+        # Build risks HTML
+        risks_html = ""
+        for idx, risk in enumerate(risks, 1):
+            risks_html += f"""
+                <div class="review-item">
+                    <div class="item-number">{idx:02d}</div>
+                    <div class="item-content">
+                        <div class="item-headline">{risk.get('headline', '')}</div>
+                        <div class="item-description">{risk.get('description', '')}</div>
+                    </div>
+                </div>
+            """
+
+        # Build recommendations HTML
+        recommendations_html = ""
+        for idx, rec in enumerate(recommendations, 1):
+            recommendations_html += f"""
+                <div class="recommendation-item">
+                    <div class="rec-number">{idx}</div>
+                    <div class="rec-content">
+                        <div class="rec-title">{rec.get('title', '')}</div>
+                        <div class="rec-description">{rec.get('description', '')}</div>
+                    </div>
+                </div>
+            """
+
+        # Build conditional HTML separately to avoid nested f-string issues
+        stage_sidebar_html = f'<div class="stage-sidebar">{stage_sidebar}</div>' if stage_sidebar else ''
+        case_study_html = ""
+        if case_study:
+            case_study_html = (
+                '<div class="case-study-box">'
+                '<div class="case-study-label">Customer Success Story</div>'
+                f'<div class="case-study-title">{case_study}</div>'
+                f'<div class="case-study-description">{case_study_desc}</div>'
+                '</div>'
+            )
+
+        # Return full HTML template
+        return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMD Executive Review - {company_name}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700;800&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @page {{
+            size: letter;
+            margin: 0.75in;
+        }}
+
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }}
+
+        body {{
+            font-family: 'Source Sans 3', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2d3748;
+            background: white;
+            font-size: 10pt;
+        }}
+
+        h1, h2, h3 {{
+            font-family: 'Roboto Condensed', Arial, sans-serif;
+            color: #1a202c;
+        }}
+
+        /* Header */
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #00c8aa;
+        }}
+
+        .amd-logo {{
+            font-family: 'Gill Sans', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #ed1c24;
+        }}
+
+        .doc-title {{
+            font-size: 12px;
+            color: #718096;
+            text-align: right;
+        }}
+
+        /* Cover Section */
+        .cover {{
+            margin-bottom: 40px;
+        }}
+
+        .cover-title {{
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: #1a202c;
+        }}
+
+        .cover-subtitle {{
+            font-size: 14px;
+            color: #00c8aa;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }}
+
+        .company-badge {{
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(0, 200, 170, 0.1);
+            border: 1px solid #00c8aa;
+            border-radius: 6px;
+            font-weight: 600;
+            color: #00c8aa;
+        }}
+
+        /* Stage Badge */
+        .stage-badge {{
+            display: inline-block;
+            padding: 6px 14px;
+            background: #00c8aa;
+            color: white;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 15px 0;
+        }}
+
+        .stage-sidebar {{
+            background: #f7fafc;
+            border-left: 4px solid #00c8aa;
+            padding: 15px 20px;
+            margin: 20px 0;
+            font-size: 11px;
+            color: #4a5568;
+            font-style: italic;
+        }}
+
+        /* Section Headings */
+        .section-heading {{
+            font-size: 18px;
+            font-weight: 800;
+            color: #1a202c;
+            margin: 30px 0 20px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }}
+
+        /* Review Items (Advantages & Risks) */
+        .review-item {{
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }}
+
+        .item-number {{
+            font-size: 28px;
+            font-weight: 300;
+            color: #00c8aa;
+            min-width: 40px;
+            line-height: 1;
+        }}
+
+        .item-content {{
+            flex: 1;
+        }}
+
+        .item-headline {{
+            font-size: 12px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 6px;
+        }}
+
+        .item-description {{
+            font-size: 10px;
+            color: #4a5568;
+            line-height: 1.6;
+        }}
+
+        /* Recommendations */
+        .recommendation-item {{
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            page-break-inside: avoid;
+        }}
+
+        .rec-number {{
+            width: 30px;
+            height: 30px;
+            background: #00c8aa;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }}
+
+        .rec-content {{
+            flex: 1;
+        }}
+
+        .rec-title {{
+            font-size: 11px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 6px;
+        }}
+
+        .rec-description {{
+            font-size: 10px;
+            color: #4a5568;
+            line-height: 1.6;
+        }}
+
+        /* Case Study Box */
+        .case-study-box {{
+            background: linear-gradient(135deg, rgba(0, 200, 170, 0.1) 0%, rgba(0, 200, 170, 0.05) 100%);
+            border: 1px solid #00c8aa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 25px 0;
+            page-break-inside: avoid;
+        }}
+
+        .case-study-label {{
+            font-size: 9px;
+            color: #00c8aa;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+        }}
+
+        .case-study-title {{
+            font-size: 13px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }}
+
+        .case-study-description {{
+            font-size: 10px;
+            color: #4a5568;
+            line-height: 1.6;
+        }}
+
+        /* Footer */
+        .footer {{
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 9px;
+            color: #a0aec0;
+            text-align: center;
+        }}
+
+        /* Page Break Control */
+        .page-break {{
+            page-break-after: always;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="amd-logo">AMD</div>
+        <div class="doc-title">Data Center Modernization<br>Executive Review</div>
+    </div>
+
+    <div class="cover">
+        <div class="cover-title">Data Center Modernization Assessment</div>
+        <div class="cover-subtitle">Executive Review</div>
+        <div class="company-badge">{company_name}</div>
+        <div class="stage-badge">{stage}</div>
+        {stage_sidebar_html}
+    </div>
+
+    <h2 class="section-heading">Strategic Advantages</h2>
+    {advantages_html}
+
+    <h2 class="section-heading">Risks to Manage</h2>
+    {risks_html}
+
+    <div class="page-break"></div>
+
+    <h2 class="section-heading">Recommended Next Steps</h2>
+    {recommendations_html}
+
+    {case_study_html}
+
+    <div class="footer">
+        <p>Generated by AMD Data Center Modernization Engine | {datetime.utcnow().strftime("%B %d, %Y")}</p>
+        <p>&copy; 2026 Advanced Micro Devices, Inc. All rights reserved.</p>
+    </div>
+</body>
+</html>'''

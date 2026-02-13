@@ -8,8 +8,8 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Depends
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
+from fastapi.responses import Response, JSONResponse
 from app.models.schemas import (
     EnrichmentRequest,
     EnrichmentResponse,
@@ -34,6 +34,8 @@ from app.services.executive_review_service import (
     map_industry_display,
     get_stage_sidebar,
 )
+from app.services.context_inference_service import infer_context
+from app.services.news_analysis_service import analyze_news
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ async def enrich_profile(
         logger.info(f"[{job_id}] Data sources used: {orchestrator.data_sources}")
         logger.info(f"[{job_id}] Quality score: {finalized.get('data_quality_score', 0)}")
 
-        # Override enriched data with user-provided info (more reliable than API data)
+        # Override enriched data with user-provided info (when available)
         if request.firstName:
             finalized["first_name"] = request.firstName
         if request.lastName:
@@ -117,17 +119,21 @@ async def enrich_profile(
         if request.industry:
             finalized["industry"] = request.industry
         if request.persona:
-            finalized["title"] = request.persona  # Store specific role as title
+            finalized["title"] = request.persona
 
-        # Add user-provided context to the profile for LLM
+        # Run context inference to fill gaps
+        inferred = infer_context(finalized, user_goal=request.goal)
+
+        # Build user context from enriched + inferred data
         user_context = {
-            "goal": request.goal,
-            "persona": request.persona,
-            "industry_input": request.industry,  # User-selected industry
-            "company": request.company,  # User-provided company name
-            "company_size": request.companySize,  # User-selected company size
-            "first_name": request.firstName,
-            "last_name": request.lastName,
+            "goal": request.goal or inferred["journey_stage"],
+            "persona": request.persona or finalized.get("title"),
+            "industry_input": request.industry or finalized.get("industry"),
+            "company": request.company or finalized.get("company_name"),
+            "company_size": request.companySize or finalized.get("company_size"),
+            "first_name": request.firstName or finalized.get("first_name"),
+            "last_name": request.lastName or finalized.get("last_name"),
+            "inferred_context": inferred,
         }
 
         # Get company news from Tavily (if available in enrichment)
@@ -677,6 +683,30 @@ async def deliver_ebook(
         )
 
 
+def _infer_persona_from_title(title: str) -> str:
+    """Map an enriched job title to BDM or ITDM persona."""
+    if not title:
+        return "BDM"
+    title_lower = title.lower()
+    itdm_signals = {"engineer", "developer", "architect", "cto", "cio", "ciso",
+                     "it ", "data", "security", "devops", "sre", "infrastructure",
+                     "platform", "cloud", "technical", "software", "systems"}
+    if any(s in title_lower for s in itdm_signals):
+        return "ITDM"
+    return "BDM"
+
+
+def _infer_segment_from_employee_count(count) -> str:
+    """Map employee count to AMD segment."""
+    if not count or not isinstance(count, (int, float)):
+        return "Enterprise"
+    if count < 200:
+        return "SMB"
+    elif count < 1000:
+        return "Mid-Market"
+    return "Enterprise"
+
+
 @router.post(
     "/executive-review",
     responses={
@@ -686,37 +716,85 @@ async def deliver_ebook(
 )
 async def generate_executive_review(
     request: EnrichmentRequest,
+    supabase: SupabaseClient = Depends(get_supabase_client)
 ) -> dict:
     """
     POST /rad/executive-review
 
     Generate personalized executive review content for AMD 2-page assessment.
-    Returns structured JSON with stage, advantages, risks, recommendations, and case study.
-
-    This endpoint is separate from /enrich - it focuses only on the executive review content
-    and doesn't require enrichment APIs or database storage.
+    Now works with minimal input (email only + optional goal).
+    Enriches data via APIs and infers context automatically.
 
     Args:
-        request: EnrichmentRequest with company info and new fields (itEnvironment, businessPriority, challenge)
+        request: EnrichmentRequest - only email is required. All other fields optional.
 
     Returns:
-        ExecutiveReviewContent with all personalized sections
+        ExecutiveReviewContent with all personalized sections + enrichment data
     """
     try:
-        logger.info(f"Executive review generation for {request.company}")
+        email = request.email.lower().strip()
+        domain = request.domain or email.split("@")[1]
+        logger.info(f"Executive review generation for {email}")
 
-        # Map form inputs to AMD terminology
-        company_name = request.company or "Your Company"
-        industry = map_industry_display(request.industry or "technology")
-        segment = map_company_size_to_segment(request.companySize or "enterprise")
-        persona = map_role_to_persona(request.persona or "cto")
-        stage = map_it_environment_to_stage(request.itEnvironment or "modernizing")
-        priority = map_priority_display(request.businessPriority or "improving_performance")
-        challenge = map_challenge_display(request.challenge or "integration_friction")
+        # Step 1: Enrich from email via APIs
+        orchestrator = RADOrchestrator(supabase)
+        finalized = await orchestrator.enrich(email, domain)
 
-        logger.info(f"Mapped inputs: stage={stage}, segment={segment}, persona={persona}, priority={priority}, challenge={challenge}")
+        logger.info(f"Enrichment complete. Quality: {finalized.get('data_quality_score', 0)}, Sources: {orchestrator.data_sources}")
 
-        # Generate executive review
+        # Step 2: Analyze news for deeper insights
+        news_articles = finalized.get("recent_news", []) or []
+        news_analysis = analyze_news(news_articles)
+
+        # Step 3: Infer context from enrichment data
+        inferred = infer_context(finalized, user_goal=request.goal)
+        logger.info(f"Context inferred: {inferred}")
+
+        # Step 4: Resolve final values - use enriched/inferred data, fall back to form inputs
+        company_name = finalized.get("company_name") or request.company or domain.split(".")[0].title()
+        raw_industry = finalized.get("industry") or request.industry or "technology"
+        industry = map_industry_display(raw_industry)
+
+        # Segment from employee count (enriched) or company size (form)
+        employee_count = finalized.get("employee_count")
+        if employee_count:
+            segment = _infer_segment_from_employee_count(employee_count)
+        else:
+            segment = map_company_size_to_segment(request.companySize or "enterprise")
+
+        # Persona from enriched title
+        enriched_title = finalized.get("title") or ""
+        if request.persona:
+            persona = map_role_to_persona(request.persona)
+        else:
+            persona = _infer_persona_from_title(enriched_title)
+
+        # Stage, priority, challenge from context inference
+        stage = map_it_environment_to_stage(inferred["it_environment"])
+        priority = map_priority_display(inferred["business_priority"])
+        challenge = map_challenge_display(inferred["primary_challenge"])
+
+        logger.info(f"Resolved: company={company_name}, industry={industry}, segment={segment}, "
+                     f"persona={persona}, stage={stage}, priority={priority}, challenge={challenge}")
+
+        # Step 5: Generate executive review with enrichment context
+        enrichment_context = {
+            "employee_count": employee_count,
+            "founded_year": finalized.get("founded_year"),
+            "employee_growth_rate": finalized.get("employee_growth_rate"),
+            "latest_funding_stage": finalized.get("latest_funding_stage"),
+            "total_funding": finalized.get("total_funding_raised"),
+            "company_summary": finalized.get("company_summary"),
+            "recent_news": finalized.get("recent_news", []),
+            "news_themes": finalized.get("news_themes", []),
+            "title": enriched_title,
+            "news_analysis": {
+                "sentiment": news_analysis["sentiment"]["overall"],
+                "ai_readiness": news_analysis["ai_readiness"]["stage"],
+                "crisis": news_analysis["crisis"]["is_crisis"],
+            },
+        }
+
         service = ExecutiveReviewService()
         result = await service.generate_executive_review(
             company_name=company_name,
@@ -726,6 +804,7 @@ async def generate_executive_review(
             stage=stage,
             priority=priority,
             challenge=challenge,
+            enrichment_context=enrichment_context,
         )
 
         logger.info(f"Executive review generated for {company_name}")
@@ -742,13 +821,204 @@ async def generate_executive_review(
                 "challenge": challenge,
             },
             "executive_review": result,
+            # Include enrichment data for frontend display
+            "enrichment": {
+                "first_name": finalized.get("first_name"),
+                "last_name": finalized.get("last_name"),
+                "title": enriched_title,
+                "company_name": company_name,
+                "employee_count": employee_count,
+                "founded_year": finalized.get("founded_year"),
+                "industry": raw_industry,
+                "data_quality_score": finalized.get("data_quality_score", 0),
+                "news_themes": finalized.get("news_themes", []),
+                "recent_news": (finalized.get("recent_news") or [])[:3],
+            },
+            "inferred_context": inferred,
+            "news_analysis": {
+                "sentiment": news_analysis["sentiment"]["overall"],
+                "ai_readiness": news_analysis["ai_readiness"]["stage"],
+                "crisis": news_analysis["crisis"]["is_crisis"],
+            },
         }
 
     except Exception as e:
+        import traceback
         logger.error(f"Executive review generation failed: {e}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Executive review generation failed: {str(e)}"
+        )
+
+
+@router.post(
+    "/executive-review-pdf",
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+)
+async def generate_executive_review_pdf(
+    request: EnrichmentRequest,
+    embed_json: bool = True,
+) -> Response:
+    """
+    POST /rad/executive-review-pdf
+
+    Generate and download PDF for AMD Executive Review (2-page assessment).
+
+    This endpoint combines the executive review JSON generation with PDF rendering,
+    and optionally embeds the JSON data as PDF metadata for programmatic access.
+
+    Args:
+        request: EnrichmentRequest with company info and modernization details
+        embed_json: Whether to embed the JSON data as PDF metadata (default: True)
+
+    Returns:
+        PDF file as direct download with Content-Disposition header
+    """
+    try:
+        logger.info(f"Executive review PDF generation for {request.company}")
+
+        # Map form inputs to AMD terminology
+        company_name = request.company or "Your Company"
+        industry = map_industry_display(request.industry or "technology")
+        segment = map_company_size_to_segment(request.companySize or "enterprise")
+        persona = map_role_to_persona(request.persona or "cto")
+        stage = map_it_environment_to_stage(request.itEnvironment or "modernizing")
+        priority = map_priority_display(request.businessPriority or "improving_performance")
+        challenge = map_challenge_display(request.challenge or "integration_friction")
+
+        # Generate executive review JSON
+        review_service = ExecutiveReviewService()
+        executive_review = await review_service.generate_executive_review(
+            company_name=company_name,
+            industry=industry,
+            segment=segment,
+            persona=persona,
+            stage=stage,
+            priority=priority,
+            challenge=challenge,
+        )
+
+        # Generate PDF from JSON
+        pdf_service = PDFService()
+        pdf_bytes = await pdf_service.generate_executive_review_pdf(
+            executive_review=executive_review,
+            embed_json=embed_json
+        )
+
+        # Generate filename
+        company_slug = company_name.lower().replace(" ", "_")[:30]
+        timestamp = datetime.utcnow().strftime("%Y%m%d")
+        filename = f"amd_executive_review_{company_slug}_{timestamp}.pdf"
+
+        logger.info(f"Executive review PDF generated for {company_name}: {len(pdf_bytes)} bytes")
+
+        # Return PDF as download
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Company": company_name,
+                "X-Stage": stage,
+                "X-JSON-Embedded": "true" if embed_json else "false",
+            }
+        )
+
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Executive review PDF generation failed: {type(e).__name__}: {e}")
+        logger.error(f"Traceback: {error_traceback}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF generation failed: {str(e)}"
+        )
+
+
+@router.post(
+    "/extract-pdf-json",
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+)
+async def extract_pdf_json(
+    file: UploadFile = File(..., description="PDF file with embedded JSON metadata")
+) -> JSONResponse:
+    """
+    POST /rad/extract-pdf-json
+
+    Extract embedded JSON metadata from an AMD Executive Review PDF.
+
+    This endpoint reads a PDF file generated by /executive-review-pdf and extracts
+    the embedded JSON data, allowing programmatic access to the structured content.
+
+    Args:
+        file: Uploaded PDF file
+
+    Returns:
+        JSONResponse with extracted executive review data
+
+    Raises:
+        HTTPException: 400 if file is not a PDF or has no embedded data
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith('.pdf'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be a PDF"
+            )
+
+        # Read file contents
+        pdf_bytes = await file.read()
+
+        if not pdf_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty PDF file"
+            )
+
+        logger.info(f"Extracting JSON from uploaded PDF: {file.filename} ({len(pdf_bytes)} bytes)")
+
+        # Extract JSON metadata
+        extracted_data = PDFService.extract_json_from_pdf(pdf_bytes)
+
+        if not extracted_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No embedded JSON found in PDF. This PDF may not have been generated by the AMD Executive Review system."
+            )
+
+        logger.info(f"Successfully extracted JSON from PDF: {file.filename}")
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "filename": file.filename,
+                "data": extracted_data,
+                "metadata": {
+                    "company": extracted_data.get("company_name"),
+                    "stage": extracted_data.get("stage"),
+                    "extracted_at": datetime.utcnow().isoformat(),
+                }
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"JSON extraction failed: {type(e).__name__}: {e}")
+        logger.error(f"Traceback: {error_traceback}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract JSON from PDF: {str(e)}"
         )
 
 

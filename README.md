@@ -91,12 +91,15 @@ This system transforms visitor emails into personalized ebook experiences throug
 │       ├── routes/
 │       │   └── enrichment.py   # /rad/* endpoints
 │       └── services/
-│           ├── supabase_client.py    # DB operations
-│           ├── rad_orchestrator.py   # Multi-source enrichment
-│           ├── enrichment_apis.py    # Apollo, PDL, Hunter, Tavily, ZoomInfo
-│           ├── llm_service.py        # Anthropic SDK integration
-│           ├── compliance.py         # Content validation
-│           └── pdf_service.py        # Ebook generation
+│           ├── supabase_client.py          # DB operations
+│           ├── rad_orchestrator.py         # Multi-source enrichment
+│           ├── enrichment_apis.py          # Apollo, PDL, Hunter, Tavily, ZoomInfo
+│           ├── context_inference_service.py # Infers IT env, priority, challenge from data
+│           ├── news_analysis_service.py     # Sentiment, entities, AI readiness from news
+│           ├── executive_review_service.py  # AMD executive review generation
+│           ├── llm_service.py              # Anthropic SDK integration
+│           ├── compliance.py               # Content validation
+│           └── pdf_service.py              # Ebook generation
 │
 ├── supabase/
 │   ├── config.toml             # Supabase configuration
@@ -152,6 +155,9 @@ supabase db push
 | `/rad/profile/{email}` | GET | Retrieve finalized profile |
 | `/rad/pdf/{email}` | POST | Generate personalized PDF |
 | `/rad/deliver/{email}` | POST | Generate PDF and send via email (with download fallback) |
+| `/rad/executive-review` | POST | Generate AMD Executive Review JSON (2-page assessment) |
+| `/rad/executive-review-pdf` | POST | Generate and download Executive Review PDF with embedded JSON |
+| `/rad/extract-pdf-json` | POST | Extract embedded JSON metadata from uploaded PDF |
 | `/rad/health` | GET | Service health check |
 
 **Example: Enrich an email**
@@ -192,15 +198,29 @@ curl -X POST http://localhost:8000/rad/enrich \
 
 **Auto-correction:** Removes terms or falls back to safe copy.
 
-### User Input Collection
+### Minimal-Input Enrichment-First Design (v2)
 
-The landing page collects key context for better personalization:
-- **Name**: First and last name for personalized greetings
-- **Goal**: What brings them here (exploring, evaluating, learning, building case)
-- **Persona**: Role type (executive, IT, security, data/AI, sales, HR)
-- **Industry**: Vertical market (healthcare, financial services, tech, gaming, manufacturing, retail, government, energy, telecom)
+The form now collects only **email** (required) and **journey stage** (optional). All other data is enriched automatically:
 
-These inputs directly influence the LLM-generated content.
+**How it works:**
+1. User enters work email + consents
+2. Backend enriches via 5 APIs (Apollo, PDL, Hunter, GNews, ZoomInfo)
+3. **Context Inference Service** analyzes enrichment data to infer:
+   - IT environment maturity (traditional/modernizing/modern)
+   - Business priority (cost/performance/AI adoption)
+   - Primary challenge (legacy/integration/skills/governance)
+   - Urgency level (low/medium/high)
+   - Journey stage (if not user-provided)
+4. **News Analysis Service** extracts deeper insights:
+   - Sentiment analysis (positive/negative/neutral)
+   - Entity extraction (technologies, competitors, partners)
+   - AI readiness stage (none/exploring/piloting/deployed)
+   - Crisis detection (workforce, regulatory, financial, security)
+5. Executive review is generated with full enrichment context
+
+**Rationale:** Reducing form fields from 11 to 1 required field eliminates friction while enrichment APIs provide the same (or richer) data. The inference services use signal-based heuristics to determine what the user would have selected manually, resulting in comparable personalization quality with significantly reduced user effort.
+
+**Previous design (v1):** 11 required fields including name, company, company size, industry, role, journey stage, IT environment, business priority, and challenge. This approach provided accurate self-reported data but created form friction.
 
 ### PDF Generation & Delivery
 
@@ -225,6 +245,77 @@ The PDF ebook uses AMD-aligned typography:
 - Primary Accent: `#00c8aa` (AMD Cyan)
 - Dark Background: `#0a0a12`
 - Text: `#f0f0f5`
+
+### Executive Review JSON-Based PDFs
+
+**NEW**: Generate structured 2-page AMD Executive Review assessments with embedded JSON metadata.
+
+**Key Features:**
+- **JSON-First Architecture**: All content is structured JSON (advantages, risks, recommendations)
+- **Embedded Metadata**: JSON data is embedded as PDF metadata for programmatic access
+- **Extraction API**: Upload any generated PDF to extract the original JSON data
+- **Few-Shot LLM Generation**: Uses Claude with stage-specific examples (Observer/Challenger/Leader)
+
+**Workflow:**
+1. Submit company details, IT environment, business priority, and challenge
+2. System maps inputs to AMD taxonomy (Stage, Segment, Persona)
+3. Claude generates JSON with:
+   - 2 Strategic Advantages
+   - 2 Risks to Manage
+   - 3 Recommended Next Steps
+   - Relevant case study selection (KT Cloud, Smurfit Westrock, or PQR)
+4. PDF is rendered with AMD branding + embedded JSON metadata
+5. Users can extract JSON later via `/rad/extract-pdf-json`
+
+**JSON Structure:**
+```json
+{
+  "company_name": "Acme Corp",
+  "stage": "Challenger",
+  "stage_sidebar": "58% of Challengers are currently undertaking modernization initiatives.",
+  "advantages": [
+    {
+      "headline": "Performance gains from upgrading core systems",
+      "description": "Modernizing high-volume workloads improves responsiveness across operations."
+    }
+  ],
+  "risks": [...],
+  "recommendations": [...],
+  "case_study": "KT Cloud Expands AI Power with AMD Instinct Accelerators",
+  "case_study_description": "..."
+}
+```
+
+**API Usage:**
+
+Generate JSON only (minimal input - just email):
+```bash
+curl -X POST http://localhost:8000/rad/executive-review \
+  -H "Content-Type: application/json" \
+  -d '{"email": "john@acme.com", "goal": "consideration"}'
+```
+
+The endpoint enriches via APIs, infers context, and generates the executive review automatically.
+
+Generate and download PDF:
+```bash
+curl -X POST http://localhost:8000/rad/executive-review-pdf \
+  -H "Content-Type: application/json" \
+  -d '{...}' \
+  --output executive_review.pdf
+```
+
+Extract JSON from existing PDF:
+```bash
+curl -X POST http://localhost:8000/rad/extract-pdf-json \
+  -F "file=@executive_review.pdf"
+```
+
+**Use Cases:**
+- Programmatic PDF analysis and data extraction
+- Integration with CRM systems (extract JSON, sync to Salesforce)
+- A/B testing of content variations (compare JSON structures)
+- Audit trails (track what content was delivered to each company)
 
 ### AcroForm PDF Personalization (In Progress)
 

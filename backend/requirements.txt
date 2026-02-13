@@ -22,3 +22,4 @@ python-json-logger==2.0.7
 # PDF Generation
 reportlab==4.0.7
 weasyprint>=60.0  # HTML to PDF - requires system deps: libpango, libcairo
+pypdf>=3.0.0  # PDF metadata read/write for JSON embedding

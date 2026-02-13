@@ -5,7 +5,7 @@ Generates personalized content based on Stage, Industry, Segment, Persona, Prior
 
 import logging
 import json
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from anthropic import Anthropic
 
 from app.config import settings
@@ -134,44 +134,90 @@ CASE_STUDIES = {
 }
 
 
-def select_case_study(stage: str, priority: str, industry: str) -> tuple[str, str]:
+def select_case_study(
+    stage: str,
+    priority: str,
+    industry: str,
+    challenge: str = "",
+    employee_count: Optional[int] = None,
+    growth_rate: Optional[float] = None,
+) -> tuple[str, str]:
     """
-    Select the most relevant case study based on stage, priority, and industry.
+    Select the most relevant case study using multi-factor weighted scoring.
+
+    Factors and weights:
+    - Industry match: 40%
+    - Challenge match: 25%
+    - Company size match: 15%
+    - Growth stage match: 10%
+    - Tech maturity match: 10%
+
     Returns (case_study_name, case_study_description).
     """
-    # Priority-based selection
-    if priority == "reducing_cost":
-        cs = CASE_STUDIES["smurfit_westrock"]
-        return cs["name"], cs["description"]
+    # Define case study profiles for scoring
+    case_study_profiles = {
+        "kt_cloud": {
+            "industries": {"technology", "telecommunications", "media"},
+            "challenges": {"skills_gap", "integration_friction"},
+            "priorities": {"preparing_ai", "improving_performance"},
+            "stages": {"Challenger", "Leader"},
+            "size": "large",  # Large scale deployment
+        },
+        "smurfit_westrock": {
+            "industries": {"manufacturing", "retail", "energy", "professional_services"},
+            "challenges": {"legacy_systems", "resource_constraints"},
+            "priorities": {"reducing_cost", "improving_performance"},
+            "stages": {"Observer", "Challenger"},
+            "size": "large",  # Enterprise cost optimization
+        },
+        "pqr": {
+            "industries": {"healthcare", "financial_services", "government", "education"},
+            "challenges": {"data_governance", "integration_friction"},
+            "priorities": {"preparing_ai", "reducing_cost"},
+            "stages": {"Leader", "Challenger"},
+            "size": "mid",  # Security-focused
+        },
+    }
 
-    if priority == "preparing_ai" or stage == "Leader":
-        cs = CASE_STUDIES["kt_cloud"]
-        return cs["name"], cs["description"]
+    industry_lower = industry.lower()
+    challenge_lower = challenge.lower() if challenge else ""
 
-    # Industry-based selection
-    if industry in ["healthcare", "financial_services", "government"]:
-        # Security/compliance focused
-        cs = CASE_STUDIES["pqr"]
-        return cs["name"], cs["description"]
+    best_key = "smurfit_westrock"  # Default
+    best_score = -1
 
-    if industry in ["technology", "telecommunications"]:
-        # Scale/AI focused
-        cs = CASE_STUDIES["kt_cloud"]
-        return cs["name"], cs["description"]
+    for key, profile in case_study_profiles.items():
+        score = 0.0
 
-    if industry in ["manufacturing", "retail", "energy"]:
-        # Cost focused
-        cs = CASE_STUDIES["smurfit_westrock"]
-        return cs["name"], cs["description"]
+        # Industry match (40%)
+        if any(ind in industry_lower for ind in profile["industries"]):
+            score += 0.4
 
-    # Default based on stage
-    if stage == "Observer":
-        cs = CASE_STUDIES["smurfit_westrock"]
-    elif stage == "Challenger":
-        cs = CASE_STUDIES["kt_cloud"]
-    else:
-        cs = CASE_STUDIES["pqr"]
+        # Challenge match (25%)
+        if any(ch in challenge_lower for ch in profile["challenges"]):
+            score += 0.25
 
+        # Priority match (10% bonus)
+        if priority.lower().replace(" ", "_") in {p.replace(" ", "_") for p in profile["priorities"]}:
+            score += 0.1
+
+        # Stage match (10%)
+        if stage in profile["stages"]:
+            score += 0.1
+
+        # Size match (15%)
+        if employee_count:
+            if employee_count >= 1000 and profile["size"] == "large":
+                score += 0.15
+            elif 200 <= employee_count < 1000 and profile["size"] == "mid":
+                score += 0.15
+            elif employee_count < 200 and profile["size"] in ("mid", "large"):
+                score += 0.05
+
+        if score > best_score:
+            best_score = score
+            best_key = key
+
+    cs = CASE_STUDIES[best_key]
     return cs["name"], cs["description"]
 
 
@@ -504,6 +550,7 @@ class ExecutiveReviewService:
         stage: str,
         priority: str,
         challenge: str,
+        enrichment_context: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """
         Generate executive review content using few-shot prompting.
@@ -516,6 +563,7 @@ class ExecutiveReviewService:
             stage: Modernization stage (Observer/Challenger/Leader)
             priority: Business priority (display text)
             challenge: Challenge (display text)
+            enrichment_context: Optional enrichment data for richer personalization
 
         Returns:
             Dict with stage, advantages, risks, recommendations, case_study
@@ -537,7 +585,8 @@ class ExecutiveReviewService:
             stage=stage,
             priority=priority,
             challenge=challenge,
-            example=example
+            example=example,
+            enrichment_context=enrichment_context,
         )
 
         try:
@@ -645,6 +694,65 @@ STAGE-SPECIFIC FOCUS:
 OUTPUT FORMAT:
 Return valid JSON only, no markdown, no explanation. Match the exact structure shown in the example."""
 
+    def _build_enrichment_section(self, ctx: Dict[str, Any]) -> str:
+        """Build an enrichment context section for the prompt."""
+        if not ctx:
+            return ""
+
+        parts = ["\nCOMPANY INTELLIGENCE (use this to make content specific and relevant):"]
+
+        if ctx.get("employee_count"):
+            parts.append(f"- Employee count: ~{ctx['employee_count']:,}")
+        if ctx.get("founded_year"):
+            parts.append(f"- Founded: {ctx['founded_year']}")
+        if ctx.get("employee_growth_rate"):
+            rate = ctx["employee_growth_rate"]
+            if rate > 0.3:
+                parts.append(f"- Growth: Rapidly growing ({rate:.0%} employee growth)")
+            elif rate > 0:
+                parts.append(f"- Growth: Growing ({rate:.0%} employee growth)")
+            else:
+                parts.append(f"- Growth: Stable/contracting ({rate:.0%})")
+        if ctx.get("latest_funding_stage"):
+            parts.append(f"- Funding stage: {ctx['latest_funding_stage']}")
+        if ctx.get("total_funding"):
+            parts.append(f"- Total funding: ${ctx['total_funding']:,.0f}")
+        if ctx.get("company_summary"):
+            parts.append(f"- About: {ctx['company_summary'][:200]}")
+
+        # News context
+        news = ctx.get("recent_news", [])
+        if news:
+            parts.append("\nRECENT NEWS (reference specific headlines for relevance):")
+            for article in news[:3]:
+                if isinstance(article, dict):
+                    parts.append(f"  - {article.get('title', 'N/A')}")
+
+        themes = ctx.get("news_themes", [])
+        if themes:
+            parts.append(f"\nNEWS THEMES: {', '.join(themes[:5])}")
+
+        # News analysis
+        analysis = ctx.get("news_analysis", {})
+        if analysis:
+            sentiment = analysis.get("sentiment")
+            if sentiment and sentiment != "neutral":
+                parts.append(f"\nSENTIMENT: Company news is predominantly {sentiment}")
+            ai_stage = analysis.get("ai_readiness")
+            if ai_stage and ai_stage != "none":
+                parts.append(f"AI READINESS: Company appears to be {ai_stage} AI")
+            if analysis.get("crisis"):
+                parts.append("NOTE: Company may be facing challenges - use empathetic, solution-oriented framing")
+
+        # Title context
+        if ctx.get("title"):
+            parts.append(f"\nREADER'S TITLE: {ctx['title']}")
+
+        if len(parts) <= 1:
+            return ""
+
+        return "\n".join(parts)
+
     def _build_user_prompt(
         self,
         company_name: str,
@@ -654,14 +762,16 @@ Return valid JSON only, no markdown, no explanation. Match the exact structure s
         stage: str,
         priority: str,
         challenge: str,
-        example: dict
+        example: dict,
+        enrichment_context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Build the user prompt with few-shot example."""
-        # Get persona-specific language guidance
+        """Build the user prompt with few-shot example and enrichment context."""
         persona_guidance = {
             "ITDM": "Focus on infrastructure, systems, technical architecture, and IT operational efficiency.",
             "BDM": "Focus on business outcomes, revenue impact, competitive positioning, and operational results."
         }
+
+        enrichment_section = self._build_enrichment_section(enrichment_context or {})
 
         return f"""Generate an executive review for this profile:
 
@@ -672,6 +782,7 @@ Persona: {persona} - {persona_guidance.get(persona, persona_guidance["BDM"])}
 Stage: {stage}
 Business Priority: {priority}
 Challenge: {challenge}
+{enrichment_section}
 
 PERSONALIZATION CHECKLIST (you must address ALL of these):
 1. First advantage headline MUST relate to "{priority}"
@@ -679,6 +790,7 @@ PERSONALIZATION CHECKLIST (you must address ALL of these):
 3. Content MUST use {industry}-specific terminology and systems
 4. Language MUST be appropriate for a {persona} reader
 5. Recommendations MUST be {stage}-appropriate ({"foundational, cost-focused" if stage == "Observer" else "performance, integration-focused" if stage == "Challenger" else "optimization, AI-readiness focused"})
+6. If company intelligence is available above, reference SPECIFIC details (employee count, growth, news) in descriptions
 
 Here is an example of excellent output for a {stage} stage company:
 
@@ -689,6 +801,7 @@ OUTPUT:
 {json.dumps(example["output"], indent=2)}
 
 Now generate the executive review for {company_name}. The content must be clearly personalized to their specific industry ({industry}), priority ({priority}), and challenge ({challenge}).
+{"Reference specific company intelligence data points in your descriptions to demonstrate deep analysis." if enrichment_context else ""}
 
 Return ONLY valid JSON matching the output structure above."""
 
