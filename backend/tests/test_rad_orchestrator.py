@@ -98,7 +98,8 @@ class TestRADOrchestrator:
         # Fields should be resolved
         assert result.get("first_name") == "John"
         assert result.get("country") == "US"
-        assert result.get("industry") == "SaaS"
+        assert result.get("industry") == "technology"  # "SaaS" normalized to canonical form
+        assert result.get("industry_raw") == "SaaS"
         assert result.get("email_verified") is True
         assert result.get("email_score") == 95
 

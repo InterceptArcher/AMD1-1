@@ -363,6 +363,13 @@ Personalized AMD ebook generator for enterprise AI readiness. Users fill out a f
 - ✅ AMD-branded PDF template (dark theme, cyan accents)
 - ✅ Enrichment caching (skip re-enrichment with force_refresh param)
 - ✅ Email service built (needs API key: RESEND_API_KEY or SENDGRID_API_KEY)
+- ✅ Two-phase enrichment (Phase 1: parallel person+company APIs; Phase 2: GNews with resolved company name)
+- ✅ Industry normalization (40+ raw strings → 12 canonical categories)
+- ✅ News analysis in main enrichment (sentiment, AI readiness, crisis, entities)
+- ✅ Smart company name resolution (display_name preferred, 6-level fallback)
+- ✅ Tech stack extraction from company tags (cloud/AI/traditional/security/data)
+- ✅ Department-aware persona inference (Apollo departments disambiguate ITDM/BDM)
+- ✅ Enrichment completeness report (weighted scoring + actionable missing fields)
 
 ## Next Steps (Pending)
 1. **Email Delivery** - Add RESEND_API_KEY to Render env vars

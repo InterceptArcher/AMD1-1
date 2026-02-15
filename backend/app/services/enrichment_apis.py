@@ -649,6 +649,67 @@ class GNewsAPI(BaseEnrichmentAPI):
             "neutral": sum(1 for word in neutral if word in combined_text)
         }
 
+    async def enrich_with_name(
+        self,
+        email: str,
+        domain: Optional[str] = None,
+        company_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Search for company news using a pre-resolved company name.
+        Falls back to domain-based name extraction if company_name not provided.
+
+        Args:
+            email: Email address
+            domain: Company domain
+            company_name: Pre-resolved company name (from Phase 1 enrichment)
+
+        Returns:
+            News articles and company context
+        """
+        if not self.api_key:
+            return self._mock_response(email, domain)
+
+        domain = domain or email.split("@")[1]
+
+        # Use provided company name, or fall back to domain extraction
+        if not company_name:
+            company_name = domain.split(".")[0]
+
+        try:
+            all_articles = await self._fetch_multi_query_news(company_name)
+
+            # Deduplicate articles by URL
+            seen_urls = set()
+            unique_articles = []
+            for article in all_articles:
+                url = article.get("url")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_articles.append(article)
+
+            answer = self._build_news_summary(company_name, unique_articles)
+            categorized = self._categorize_articles(unique_articles)
+
+            return {
+                "domain": domain,
+                "company_name": company_name,
+                "answer": answer,
+                "results": unique_articles[:10],
+                "categorized": categorized,
+                "result_count": len(unique_articles),
+                "themes": self._extract_themes(unique_articles),
+                "sentiment_indicators": self._analyze_sentiment_keywords(unique_articles),
+                "fetched_at": datetime.utcnow().isoformat()
+            }
+
+        except httpx.TimeoutException:
+            logger.error(f"GNews API timeout for {company_name}")
+            raise EnrichmentAPIError(self.source_name, "Request timeout")
+        except httpx.RequestError as e:
+            logger.error(f"GNews API request error for {company_name}: {e}")
+            raise EnrichmentAPIError(self.source_name, str(e))
+
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
         domain = domain or email.split("@")[1]

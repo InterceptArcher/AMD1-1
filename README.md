@@ -478,7 +478,14 @@ pytest --cov=app      # With coverage
 - ✅ Supabase Edge Functions
 - ✅ Deployment scripts
 
-### Phase 2 - Beta
+### Phase 2 - Beta (Enrichment Improvements)
+- [x] **Two-Phase Enrichment** - Phase 1 runs person + company APIs in parallel, Phase 2 runs GNews with the resolved company name for better news search results (e.g., "JPMorgan Chase" instead of "jpmorgan")
+- [x] **Industry Normalization** - Maps 40+ raw industry strings from APIs to 12 canonical categories for consistent case study matching and context inference
+- [x] **News Analysis in Main Enrichment** - Sentiment, AI readiness stage, crisis detection, and entity extraction now run during regular enrichment (not just executive review)
+- [x] **Smart Company Name Resolution** - Prefers PDL `display_name` over legal entity name (e.g., "Google" instead of "Alphabet Inc."), with 6-level fallback chain
+- [x] **Tech Stack Extraction from Tags** - Categorizes PDL company tags into cloud/AI-ML/traditional/security/data signals for better IT environment inference
+- [x] **Department-Aware Persona Inference** - Uses Apollo departments data to disambiguate ITDM vs BDM when job title is ambiguous (e.g., "Director")
+- [x] **Enrichment Completeness Report** - Weighted scoring (critical 3x, important 2x, nice-to-have 1x) with actionable missing-field lists replaces the opaque quality score
 - [ ] Supabase Queues for durable jobs
 - [ ] Batch enrichment endpoint
 - [ ] Rate limiting + circuit breakers

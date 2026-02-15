@@ -107,6 +107,25 @@ async def enrich_profile(
         logger.info(f"[{job_id}] Data sources used: {orchestrator.data_sources}")
         logger.info(f"[{job_id}] Quality score: {finalized.get('data_quality_score', 0)}")
 
+        # Run news analysis on enriched articles
+        news_articles = finalized.get("recent_news", []) or []
+        news_analysis = analyze_news(news_articles)
+        finalized["news_analysis"] = {
+            "sentiment": news_analysis["sentiment"]["overall"],
+            "sentiment_detail": news_analysis["sentiment"],
+            "ai_readiness": news_analysis["ai_readiness"]["stage"],
+            "ai_readiness_detail": news_analysis["ai_readiness"],
+            "crisis": news_analysis["crisis"],
+            "entities": news_analysis["entities"],
+        }
+
+        if news_analysis["crisis"]["is_crisis"]:
+            logger.warning(
+                f"[{job_id}] Crisis detected for {email}: "
+                f"{news_analysis['crisis']['type']} - {news_analysis['crisis']['details']}"
+            )
+            finalized["tone_guidance"] = "empathetic"
+
         # Override enriched data with user-provided info (when available)
         if request.firstName:
             finalized["first_name"] = request.firstName
@@ -134,6 +153,7 @@ async def enrich_profile(
             "first_name": request.firstName or finalized.get("first_name"),
             "last_name": request.lastName or finalized.get("last_name"),
             "inferred_context": inferred,
+            "news_analysis": finalized.get("news_analysis"),
         }
 
         # Get company news from Tavily (if available in enrichment)
@@ -683,16 +703,63 @@ async def deliver_ebook(
         )
 
 
-def _infer_persona_from_title(title: str) -> str:
-    """Map an enriched job title to BDM or ITDM persona."""
+def _infer_persona_from_title(title: str, departments: Optional[list] = None) -> str:
+    """
+    Map an enriched job title to BDM or ITDM persona.
+    Uses departments from Apollo as disambiguation when title is ambiguous.
+    """
     if not title:
+        if departments:
+            return _persona_from_departments(departments)
         return "BDM"
+
     title_lower = title.lower()
-    itdm_signals = {"engineer", "developer", "architect", "cto", "cio", "ciso",
-                     "it ", "data", "security", "devops", "sre", "infrastructure",
-                     "platform", "cloud", "technical", "software", "systems"}
-    if any(s in title_lower for s in itdm_signals):
+
+    # Word-boundary signals (avoid "cto" matching inside "director")
+    import re
+    itdm_patterns = [
+        r"\bcto\b", r"\bcio\b", r"\bciso\b", r"\bcdo\b",
+        r"\bengineer", r"\bdeveloper", r"\barchitect",
+        r"\bchief technology", r"\bchief information", r"\bchief security",
+        r"\bchief data",
+        r"\bit\b", r"\bdata\b", r"\bsecurity\b", r"\bdevops\b", r"\bsre\b",
+        r"\binfrastructure", r"\bplatform\b", r"\bcloud\b", r"\btechnical",
+        r"\bsoftware", r"\bsystems\b",
+    ]
+    bdm_patterns = [
+        r"\bsales\b", r"\bmarketing\b", r"\brevenue\b", r"\bbusiness development",
+        r"\baccount", r"\bcustomer success", r"\bgrowth\b", r"\bcommercial\b",
+    ]
+
+    itdm_match = any(re.search(p, title_lower) for p in itdm_patterns)
+    bdm_match = any(re.search(p, title_lower) for p in bdm_patterns)
+
+    if itdm_match and not bdm_match:
         return "ITDM"
+    if bdm_match and not itdm_match:
+        return "BDM"
+
+    # Ambiguous title — use departments to disambiguate
+    if departments:
+        return _persona_from_departments(departments)
+
+    return "BDM"
+
+
+def _persona_from_departments(departments: list) -> str:
+    """Infer persona from Apollo departments array."""
+    if not departments:
+        return "BDM"
+
+    dept_text = " ".join(d.lower() for d in departments if d)
+    itdm_depts = {"engineering", "information_technology", "it", "data", "security", "operations"}
+    bdm_depts = {"sales", "marketing", "finance", "business_development", "management"}
+
+    if any(d in dept_text for d in itdm_depts):
+        return "ITDM"
+    if any(d in dept_text for d in bdm_depts):
+        return "BDM"
+
     return "BDM"
 
 
@@ -767,7 +834,8 @@ async def generate_executive_review(
         if request.persona:
             persona = map_role_to_persona(request.persona)
         else:
-            persona = _infer_persona_from_title(enriched_title)
+            departments = finalized.get("departments") or []
+            persona = _infer_persona_from_title(enriched_title, departments)
 
         # Stage, priority, challenge from context inference
         stage = map_it_environment_to_stage(inferred["it_environment"])

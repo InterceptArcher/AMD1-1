@@ -30,6 +30,68 @@ PILOT_KEYWORDS = {"pilot", "proof of concept", "poc", "testing", "trial", "proto
 DATA_AI_ROLE_KEYWORDS = {"data", "ai", "ml", "analytics", "machine learning", "artificial intelligence"}
 REGULATED_INDUSTRIES = {"healthcare", "financial_services", "government", "banking", "insurance", "pharma"}
 
+# Tech stack signal categories for tag analysis
+CLOUD_TAGS = {"cloud", "cloud computing", "aws", "azure", "gcp", "google cloud", "saas", "iaas", "paas"}
+AI_ML_TAGS = {"artificial intelligence", "machine learning", "deep learning", "data science", "neural network", "nlp", "computer vision", "generative ai"}
+TRADITIONAL_TAGS = {"mainframe", "on-premise", "on-premises", "legacy", "cobol", "erp"}
+SECURITY_TAGS = {"cybersecurity", "security", "information security", "compliance", "zero trust", "identity management"}
+DATA_TAGS = {"big data", "analytics", "data warehouse", "data lake", "business intelligence", "data engineering"}
+
+
+def extract_tech_signals_from_tags(tags: List[str]) -> Dict[str, Any]:
+    """
+    Categorize company tags into technology signal groups.
+
+    Args:
+        tags: List of company tags from PDL Company API
+
+    Returns:
+        Dict with categorized tech signals and maturity level
+    """
+    if not tags:
+        return {
+            "cloud": [],
+            "ai_ml": [],
+            "traditional": [],
+            "security": [],
+            "data": [],
+            "maturity": "unknown",
+        }
+
+    tags_lower = [t.lower().strip() for t in tags if t]
+
+    def _match_tag(tag: str, category: set) -> bool:
+        """Match a tag against a category using exact or word-boundary matching."""
+        if tag in category:
+            return True
+        # Only match multi-word keywords as substrings (avoid "erp" matching "enterprise")
+        return any(kw in tag for kw in category if len(kw) > 4)
+
+    cloud = [t for t in tags_lower if _match_tag(t, CLOUD_TAGS)]
+    ai_ml = [t for t in tags_lower if _match_tag(t, AI_ML_TAGS)]
+    traditional = [t for t in tags_lower if _match_tag(t, TRADITIONAL_TAGS)]
+    security = [t for t in tags_lower if _match_tag(t, SECURITY_TAGS)]
+    data = [t for t in tags_lower if _match_tag(t, DATA_TAGS)]
+
+    # Determine overall tech maturity
+    if ai_ml and cloud:
+        maturity = "advanced"
+    elif cloud or ai_ml:
+        maturity = "modern"
+    elif traditional:
+        maturity = "traditional"
+    else:
+        maturity = "mixed"
+
+    return {
+        "cloud": list(set(cloud)),
+        "ai_ml": list(set(ai_ml)),
+        "traditional": list(set(traditional)),
+        "security": list(set(security)),
+        "data": list(set(data)),
+        "maturity": maturity,
+    }
+
 
 def _search_text(text: str, keywords: set) -> bool:
     """Check if any keyword appears in text (case-insensitive)."""
@@ -75,11 +137,13 @@ def infer_it_environment(profile: Dict[str, Any]) -> str:
     Infer IT environment maturity from enrichment data.
 
     Signals for MODERN:
+    - Structured tech signals show advanced maturity (cloud + AI tags)
     - Company tags contain AI/cloud/SaaS
     - Founded after 2015 in tech industry
     - News themes show cloud-native or AI deployment
 
     Signals for TRADITIONAL:
+    - Structured tech signals show traditional maturity (mainframe/legacy tags)
     - Founded before 2000 in non-tech industry
     - No cloud/AI tags
 
@@ -90,7 +154,15 @@ def infer_it_environment(profile: Dict[str, Any]) -> str:
     industry = (profile.get("industry") or "").lower()
     founded = profile.get("founded_year")
 
-    # Modern signals
+    # Use structured tech signals if tags available
+    if tags:
+        tech_signals = extract_tech_signals_from_tags(tags)
+        if tech_signals["maturity"] == "advanced":
+            return "modern"
+        if tech_signals["maturity"] == "traditional":
+            return "traditional"
+
+    # Modern signals (keyword fallback)
     if _search_tags(tags, AI_CLOUD_KEYWORDS | MODERN_TECH_KEYWORDS):
         return "modern"
 
@@ -330,7 +402,7 @@ def infer_context(
         user_goal: User-provided journey stage (optional, takes priority)
 
     Returns:
-        Dict with inferred context fields and confidence score
+        Dict with inferred context fields, tech signals, and confidence score
     """
     it_env = infer_it_environment(profile)
     priority = infer_business_priority(profile)
@@ -353,6 +425,11 @@ def infer_context(
         "journey_stage": stage,
         "confidence_score": round(confidence, 2),
     }
+
+    # Include structured tech signals if company tags are available
+    tags = profile.get("company_tags", []) or []
+    if tags:
+        result["tech_signals"] = extract_tech_signals_from_tags(tags)
 
     logger.info(
         f"Context inferred: env={it_env}, priority={priority}, "

@@ -34,6 +34,82 @@ SOURCE_PRIORITY = {
     "gnews": 1
 }
 
+# Canonical industry normalization map
+# Keys are lowercase substrings to match; values are canonical industry names
+INDUSTRY_NORMALIZATION = {
+    # Technology
+    "information technology": "technology",
+    "software": "technology",
+    "internet": "technology",
+    "computer": "technology",
+    "saas": "technology",
+    "it services": "technology",
+    # Financial Services
+    "financial": "financial_services",
+    "banking": "financial_services",
+    "insurance": "financial_services",
+    "investment": "financial_services",
+    "capital markets": "financial_services",
+    "fintech": "financial_services",
+    # Healthcare
+    "healthcare": "healthcare",
+    "health care": "healthcare",
+    "hospital": "healthcare",
+    "medical": "healthcare",
+    "pharmaceutical": "healthcare",
+    "pharma": "healthcare",
+    "biotech": "healthcare",
+    "life science": "healthcare",
+    # Manufacturing
+    "manufacturing": "manufacturing",
+    "automotive": "manufacturing",
+    "industrial": "manufacturing",
+    "aerospace": "manufacturing",
+    # Retail
+    "retail": "retail",
+    "e-commerce": "retail",
+    "ecommerce": "retail",
+    "consumer goods": "retail",
+    # Energy
+    "energy": "energy",
+    "oil": "energy",
+    "utilities": "energy",
+    "renewable": "energy",
+    # Telecommunications
+    "telecom": "telecommunications",
+    "wireless": "telecommunications",
+    "communications": "telecommunications",
+    # Media
+    "media": "media",
+    "entertainment": "media",
+    "publishing": "media",
+    "broadcast": "media",
+    # Government
+    "government": "government",
+    "federal": "government",
+    "public sector": "government",
+    "defense": "government",
+    "military": "government",
+    # Education
+    "education": "education",
+    "university": "education",
+    "academic": "education",
+    "higher education": "education",
+    # Professional Services
+    "consulting": "professional_services",
+    "professional service": "professional_services",
+    "legal": "professional_services",
+    "accounting": "professional_services",
+}
+
+# Field importance tiers for completeness report
+CRITICAL_FIELDS = ["company_name", "industry", "title", "employee_count"]
+IMPORTANT_FIELDS = ["company_summary", "founded_year", "seniority", "recent_news"]
+NICE_TO_HAVE_FIELDS = [
+    "skills", "employee_growth_rate", "total_funding",
+    "latest_funding_stage", "company_tags", "news_themes",
+]
+
 
 class RADOrchestrator:
     """
@@ -104,6 +180,7 @@ class RADOrchestrator:
             normalized["resolved_at"] = datetime.utcnow().isoformat()
             normalized["data_sources"] = self.data_sources
             normalized["data_quality_score"] = self._calculate_quality_score(raw_data)
+            normalized["completeness_report"] = self._build_completeness_report(normalized)
 
             logger.info(f"Enrichment complete for {email}: {len(self.data_sources)} sources")
             return normalized
@@ -118,8 +195,12 @@ class RADOrchestrator:
         domain: str
     ) -> Dict[str, Dict[str, Any]]:
         """
-        Fetch data from all sources in parallel.
-        Enhanced to include PDL company enrichment for deeper company insights.
+        Fetch data from all sources in two phases.
+
+        Phase 1 (parallel): Apollo + PDL(person) + Hunter + ZoomInfo + PDL Company
+          - All only need email/domain, no interdependency
+        Phase 2: GNews using resolved company name from Phase 1
+          - Uses real company name for better search results
 
         Args:
             email: Email address
@@ -128,19 +209,19 @@ class RADOrchestrator:
         Returns:
             Dict mapping source name to response data
         """
-        # Phase 1: Fetch person data and news in parallel
-        person_tasks = [
+        # Phase 1: Person data + company data in parallel
+        phase1_tasks = [
             self._fetch_with_fallback("apollo", email, domain),
             self._fetch_with_fallback("pdl", email, domain),
             self._fetch_with_fallback("hunter", email, domain),
-            self._fetch_with_fallback("gnews", email, domain),
             self._fetch_with_fallback("zoominfo", email, domain),
+            self._fetch_pdl_company(domain),
         ]
 
-        results = await asyncio.gather(*person_tasks, return_exceptions=True)
+        results = await asyncio.gather(*phase1_tasks, return_exceptions=True)
 
         raw_data = {}
-        source_names = ["apollo", "pdl", "hunter", "gnews", "zoominfo"]
+        source_names = ["apollo", "pdl", "hunter", "zoominfo", "pdl_company"]
 
         for source_name, result in zip(source_names, results):
             if isinstance(result, Exception):
@@ -149,21 +230,87 @@ class RADOrchestrator:
             else:
                 raw_data[source_name] = result
 
-        # Phase 2: Fetch deep company data from PDL
-        # This provides much richer company context
+        # Phase 2: GNews with resolved company name from Phase 1
+        resolved_name = self._resolve_company_name(raw_data, domain)
+        logger.info(f"Resolved company name for GNews: '{resolved_name}' (domain: {domain})")
+        raw_data["gnews"] = await self._fetch_gnews_with_name(email, domain, resolved_name)
+
+        return raw_data
+
+    async def _fetch_pdl_company(self, domain: str) -> Dict[str, Any]:
+        """Fetch PDL Company data in Phase 1 (parallel with person APIs)."""
         try:
             pdl_api = self.apis.get("pdl")
             if pdl_api and hasattr(pdl_api, 'enrich_company'):
-                logger.info(f"Fetching deep company enrichment for {domain}")
-                company_data = await pdl_api.enrich_company(domain)
-                raw_data["pdl_company"] = company_data
-                if not company_data.get("_error"):
-                    self.data_sources.append("pdl_company")
+                return await pdl_api.enrich_company(domain)
+            return {"_error": "PDL company enrichment not available"}
         except Exception as e:
             logger.warning(f"PDL company enrichment failed: {e}")
-            raw_data["pdl_company"] = {"_error": str(e)}
+            return {"_error": str(e)}
 
-        return raw_data
+    def _resolve_company_name(
+        self,
+        raw_data: Dict[str, Dict[str, Any]],
+        domain: str
+    ) -> str:
+        """
+        Resolve the best company name from Phase 1 results.
+        Priority: PDL Company display_name > PDL Company name > Apollo >
+                  ZoomInfo > PDL person > domain fallback.
+        Skips mock data sources.
+        """
+        # Prefer display_name (human-readable, e.g., "Google" not "Alphabet Inc.")
+        pdl_company = raw_data.get("pdl_company", {})
+        if pdl_company and not pdl_company.get("_error") and not pdl_company.get("_mock"):
+            display = pdl_company.get("display_name")
+            if display:
+                return display
+            name = pdl_company.get("name")
+            if name:
+                return name
+
+        # Apollo
+        apollo = raw_data.get("apollo", {})
+        if apollo and not apollo.get("_error") and not apollo.get("_mock"):
+            name = apollo.get("company_name")
+            if name:
+                return name
+
+        # ZoomInfo
+        zoominfo = raw_data.get("zoominfo", {})
+        if zoominfo and not zoominfo.get("_error") and not zoominfo.get("_mock"):
+            name = zoominfo.get("company_name")
+            if name:
+                return name
+
+        # PDL person
+        pdl = raw_data.get("pdl", {})
+        if pdl and not pdl.get("_error") and not pdl.get("_mock"):
+            name = pdl.get("job_company_name")
+            if name:
+                return name
+
+        # Fallback: derive from domain with title case
+        return domain.split(".")[0].title()
+
+    async def _fetch_gnews_with_name(
+        self,
+        email: str,
+        domain: str,
+        company_name: str
+    ) -> Dict[str, Any]:
+        """Fetch GNews using the resolved company name instead of domain extraction."""
+        gnews_api = self.apis.get("gnews")
+        if not gnews_api:
+            return {"_error": "GNews API not available"}
+        try:
+            return await gnews_api.enrich_with_name(email, domain, company_name)
+        except EnrichmentAPIError as e:
+            logger.warning(f"GNews API error: {e}")
+            return {"_error": str(e)}
+        except Exception as e:
+            logger.error(f"GNews unexpected error: {e}")
+            return {"_error": str(e)}
 
     async def _fetch_with_fallback(
         self,
@@ -228,6 +375,11 @@ class RADOrchestrator:
             value = self._resolve_field(field, sources, raw_data)
             if value is not None:
                 normalized[field] = value
+
+        # Normalize industry to canonical form
+        if normalized.get("industry"):
+            normalized["industry_raw"] = normalized["industry"]
+            normalized["industry"] = self._normalize_industry(normalized["industry"])
 
         # Email verification from Hunter
         hunter_data = raw_data.get("hunter", {})
@@ -310,6 +462,7 @@ class RADOrchestrator:
                 ("pdl", "job_title"),
             ],
             "company_name": [
+                ("pdl_company", "display_name"),
                 ("pdl_company", "name"),
                 ("apollo", "company_name"),
                 ("zoominfo", "company_name"),
@@ -389,6 +542,9 @@ class RADOrchestrator:
             ],
             "sic_codes": [
                 ("pdl_company", "sic"),
+            ],
+            "departments": [
+                ("apollo", "departments"),
             ],
         }
 
@@ -518,6 +674,90 @@ class RADOrchestrator:
             return int(range_str)
         except ValueError:
             return None
+
+    def _normalize_industry(self, raw_industry: Optional[str]) -> Optional[str]:
+        """
+        Normalize raw industry strings from various APIs to canonical form.
+        Uses substring matching against INDUSTRY_NORMALIZATION map.
+
+        Args:
+            raw_industry: Raw industry string (e.g., "information technology and services")
+
+        Returns:
+            Canonical industry string (e.g., "technology") or lowercased original
+        """
+        if not raw_industry or not raw_industry.strip():
+            return None
+
+        raw_lower = raw_industry.lower().strip()
+
+        # Exact match first
+        if raw_lower in INDUSTRY_NORMALIZATION:
+            return INDUSTRY_NORMALIZATION[raw_lower]
+
+        # Substring match (longer patterns first for specificity)
+        sorted_keys = sorted(INDUSTRY_NORMALIZATION.keys(), key=len, reverse=True)
+        for pattern in sorted_keys:
+            if pattern in raw_lower:
+                return INDUSTRY_NORMALIZATION[pattern]
+
+        # No match — return cleaned original
+        return raw_lower.replace(" ", "_").replace("-", "_")
+
+    def _build_completeness_report(
+        self, normalized: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Build a structured completeness report for the enriched profile.
+        Weighted scoring: critical fields count 3x, important 2x, nice-to-have 1x.
+
+        Returns:
+            Dict with score, field lists, and coverage summary
+        """
+        present = []
+        missing_critical = []
+        missing_important = []
+        missing_nice = []
+
+        for field in CRITICAL_FIELDS:
+            val = normalized.get(field)
+            if val and val != "" and val != []:
+                present.append(field)
+            else:
+                missing_critical.append(field)
+
+        for field in IMPORTANT_FIELDS:
+            val = normalized.get(field)
+            if val and val != "" and val != []:
+                present.append(field)
+            else:
+                missing_important.append(field)
+
+        for field in NICE_TO_HAVE_FIELDS:
+            val = normalized.get(field)
+            if val and val != "" and val != []:
+                present.append(field)
+            else:
+                missing_nice.append(field)
+
+        total_fields = len(CRITICAL_FIELDS) + len(IMPORTANT_FIELDS) + len(NICE_TO_HAVE_FIELDS)
+        weighted_total = len(CRITICAL_FIELDS) * 3 + len(IMPORTANT_FIELDS) * 2 + len(NICE_TO_HAVE_FIELDS)
+        weighted_present = (
+            (len(CRITICAL_FIELDS) - len(missing_critical)) * 3
+            + (len(IMPORTANT_FIELDS) - len(missing_important)) * 2
+            + (len(NICE_TO_HAVE_FIELDS) - len(missing_nice))
+        )
+
+        score = round(weighted_present / weighted_total, 2) if weighted_total > 0 else 0
+
+        return {
+            "score": score,
+            "present": present,
+            "missing_critical": missing_critical,
+            "missing_important": missing_important,
+            "missing_nice": missing_nice,
+            "field_coverage": f"{len(present)}/{total_fields}",
+        }
 
     async def enrich_batch(
         self,
