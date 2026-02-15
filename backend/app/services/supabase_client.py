@@ -119,6 +119,117 @@ class SupabaseClient:
             return []
 
     # ========================================================================
+    # NEWS CACHE (Company-level, reuses raw_data table with source='gnews_cache')
+    # ========================================================================
+
+    def store_news_cache(
+        self,
+        domain: str,
+        payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Cache news results for a company domain.
+        Upserts into raw_data with source='gnews_cache' and email=domain.
+        10 employees from the same company reuse 1 GNews call.
+
+        Args:
+            domain: Company domain (used as key)
+            payload: News response to cache
+
+        Returns:
+            Stored record
+        """
+        data = {
+            "id": str(uuid.uuid4()),
+            "email": domain,  # Use email column to store domain as key
+            "source": "gnews_cache",
+            "payload": payload,
+            "fetched_at": datetime.utcnow().isoformat()
+        }
+
+        if self.mock_mode:
+            # Remove existing cache for this domain
+            self._mock_raw_data = [
+                r for r in self._mock_raw_data
+                if not (r.get("email") == domain and r.get("source") == "gnews_cache")
+            ]
+            self._mock_raw_data.append(data)
+            logger.info(f"[MOCK] Cached news for domain {domain}")
+            return data
+
+        try:
+            # Delete existing cache for this domain, then insert fresh
+            self.client.table("raw_data").delete().eq(
+                "email", domain
+            ).eq("source", "gnews_cache").execute()
+            result = self.client.table("raw_data").insert(data).execute()
+            logger.info(f"Cached news for domain {domain}")
+            return result.data[0] if result.data else data
+        except Exception as e:
+            logger.error(f"Error caching news for {domain}: {e}")
+            raise
+
+    def get_cached_news(
+        self,
+        domain: str,
+        max_age_hours: int = 24
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve cached news for a domain if fresh enough.
+
+        Args:
+            domain: Company domain
+            max_age_hours: Maximum cache age in hours (default 24)
+
+        Returns:
+            Cached record with 'payload' key, or None if stale/missing
+        """
+        if self.mock_mode:
+            records = [
+                r for r in self._mock_raw_data
+                if r.get("email") == domain and r.get("source") == "gnews_cache"
+            ]
+            if not records:
+                return None
+            record = records[-1]
+            # Check freshness
+            fetched_at = record.get("fetched_at", "")
+            if fetched_at:
+                try:
+                    fetched_time = datetime.fromisoformat(fetched_at)
+                    age = datetime.utcnow() - fetched_time
+                    if age.total_seconds() > max_age_hours * 3600:
+                        return None
+                except (ValueError, TypeError):
+                    pass
+            return record
+
+        try:
+            result = self.client.table("raw_data").select("*").eq(
+                "email", domain
+            ).eq("source", "gnews_cache").order(
+                "fetched_at", desc=True
+            ).limit(1).execute()
+
+            if not result.data:
+                return None
+
+            record = result.data[0]
+            fetched_at = record.get("fetched_at", "")
+            if fetched_at:
+                try:
+                    fetched_time = datetime.fromisoformat(fetched_at)
+                    age = datetime.utcnow() - fetched_time
+                    if age.total_seconds() > max_age_hours * 3600:
+                        return None
+                except (ValueError, TypeError):
+                    pass
+            return record
+        except Exception as e:
+            logger.error(f"Error fetching cached news for {domain}: {e}")
+            return None
+
+    # ========================================================================
     # STAGING_NORMALIZED TABLE (Resolution in progress)
     # ========================================================================
 

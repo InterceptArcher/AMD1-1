@@ -1,4 +1,4 @@
-code# AMD1-1_Alpha: Personalization Pipeline
+# AMD1-1 Beta: Personalization Pipeline
 
 **A production-ready post-click personalization system for LinkedIn ebooks.**
 
@@ -171,15 +171,16 @@ curl -X POST http://localhost:8000/rad/enrich \
 
 ## Features
 
-### Enrichment Sources (5 APIs)
+### Enrichment Sources (5 APIs + RSS fallback)
 
 | Source | Data Type | Priority |
 |--------|-----------|----------|
 | **Apollo** | People: name, title, company, LinkedIn | 5 (highest) |
 | **ZoomInfo** | Company: size, revenue, industry, tech stack | 4 |
-| **PDL** | People: skills, experience, location | 3 |
+| **PDL** | People + Company: skills, experience, funding, growth | 3-4 |
 | **Hunter** | Email: verification, deliverability | 2 |
-| **Tavily** | Context: company news, search results | 1 |
+| **GNews** | Company news: articles, themes, sentiment | 1 |
+| **Google News RSS** | Fallback news (free, no API key) | 1 (fallback) |
 
 ### LLM Personalization
 
@@ -486,6 +487,10 @@ pytest --cov=app      # With coverage
 - [x] **Tech Stack Extraction from Tags** - Categorizes PDL company tags into cloud/AI-ML/traditional/security/data signals for better IT environment inference
 - [x] **Department-Aware Persona Inference** - Uses Apollo departments data to disambiguate ITDM vs BDM when job title is ambiguous (e.g., "Director")
 - [x] **Enrichment Completeness Report** - Weighted scoring (critical 3x, important 2x, nice-to-have 1x) with actionable missing-field lists replaces the opaque quality score
+- [x] **GNews Quota Conservation** - Reduced search queries from 5 to 2 per enrichment (exact match + AI-focused), cutting API quota burn by 60% (50 enrichments/day vs 20 on GNews free tier). Non-200 HTTP responses are now logged with status codes, and 403 quota exhaustion is flagged in response metadata.
+- [x] **Company-Level News Caching** - News results are cached per domain in the existing `raw_data` table (24-hour freshness window). 10 employees from the same company reuse a single GNews API call, dramatically reducing quota consumption.
+- [x] **Google News RSS Fallback** - When GNews API quota is exhausted or returns zero articles, the system automatically falls back to Google News RSS (free, no API key, no rate limits). Output format matches GNewsAPI for seamless integration. Uses stdlib `xml.etree.ElementTree` — no new dependencies.
+- [x] **Derived Intelligence for No-News Scenarios** - When all news sources fail, the LLM prompt now receives a structured DERIVED INTELLIGENCE section built from PDL company data (employee count, growth rate, funding stage, company summary, tech tags) instead of the generic "use industry trends" fallback. The LLM is explicitly instructed to reference specific company data points rather than generating generic content.
 - [ ] Supabase Queues for durable jobs
 - [ ] Batch enrichment endpoint
 - [ ] Rate limiting + circuit breakers

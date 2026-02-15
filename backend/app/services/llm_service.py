@@ -1001,7 +1001,60 @@ Output ONLY valid JSON:
                             parts.append(f"     Summary: {content}...")
 
         if not recent_news and not company_news:
-            parts.append("No recent news found - use industry trends instead")
+            # === DERIVED INTELLIGENCE (substitute for missing news) ===
+            parts.append("\n=== DERIVED INTELLIGENCE (no news available — use these signals instead) ===")
+            parts.append("NOTE: No recent news articles were found. DO NOT fall back to generic industry messaging.")
+            parts.append(f"Instead, use the following company-specific data points about {company_name}:\n")
+
+            has_signals = False
+
+            if profile.get('company_summary'):
+                parts.append(f"COMPANY OVERVIEW: {profile.get('company_summary')[:400]}")
+                has_signals = True
+
+            if profile.get('employee_count'):
+                emp = profile.get('employee_count')
+                emp_str = f"{emp:,}" if isinstance(emp, int) else str(emp)
+                parts.append(f"SCALE SIGNAL: {company_name} has {emp_str} employees — reference their organizational scale and infrastructure complexity")
+                has_signals = True
+
+            if profile.get('employee_growth_rate') and isinstance(profile.get('employee_growth_rate'), (int, float)):
+                growth = profile.get('employee_growth_rate')
+                if growth > 0.2:
+                    parts.append(f"GROWTH SIGNAL: {growth:.0%} employee growth — this is RAPID growth, reference scaling challenges")
+                elif growth > 0:
+                    parts.append(f"GROWTH SIGNAL: {growth:.0%} employee growth — steady growth, reference evolving infrastructure needs")
+                else:
+                    parts.append(f"GROWTH SIGNAL: {growth:.0%} employee change — focus on optimization and efficiency")
+                has_signals = True
+
+            if profile.get('total_funding') and profile.get('total_funding') > 0:
+                funding = profile.get('total_funding')
+                parts.append(f"FUNDING SIGNAL: ${funding:,.0f} total funding raised — reference investment capacity and growth ambitions")
+                has_signals = True
+
+            if profile.get('latest_funding_stage'):
+                parts.append(f"MATURITY SIGNAL: {profile.get('latest_funding_stage')} stage — tailor infrastructure recommendations to this maturity level")
+                has_signals = True
+
+            if profile.get('company_tags') and isinstance(profile.get('company_tags'), list):
+                tags = profile.get('company_tags', [])
+                if tags:
+                    parts.append(f"TECH SIGNALS: Company is associated with: {', '.join(tags[:10])}")
+                    ai_tags = [t for t in tags if t and any(k in t.lower() for k in ['ai', 'machine learning', 'cloud', 'data', 'analytics'])]
+                    if ai_tags:
+                        parts.append(f"AI READINESS: Already engaged with {', '.join(ai_tags)} — reference their existing AI/cloud journey")
+                    has_signals = True
+
+            if profile.get('founded_year'):
+                years = 2026 - int(profile.get('founded_year'))
+                parts.append(f"MATURITY: Founded {profile.get('founded_year')} ({years} years old) — reference institutional experience and legacy considerations")
+                has_signals = True
+
+            if not has_signals:
+                parts.append(f"Limited data available. Use {company_name}'s name and industry ({profile.get('industry', 'technology')}) to create specific content.")
+
+            parts.append(f"\nMANDATORY: Reference {company_name} by name, use their employee count, growth rate, or company summary in your hook. DO NOT use generic phrases.")
 
         # === CASE STUDY SELECTION ===
         parts.append("\n=== CASE STUDY TO HIGHLIGHT ===")

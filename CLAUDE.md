@@ -313,8 +313,8 @@ FOR EVERY FEATURE AND CODE GENERATED, edit README.md file in root directory to i
 Personalized AMD ebook generator for enterprise AI readiness. Users fill out a form, we enrich their data via APIs, generate personalized content with LLM, and deliver a branded PDF.
 
 ## Architecture
-- **Frontend**: Next.js 14 on Vercel (https://amd1-1-alpha.vercel.app)
-- **Backend**: FastAPI on Render (https://amd1-1-backend.onrender.com)
+- **Frontend**: Next.js 14 on Vercel (https://amd1-1-beta.vercel.app)
+- **Backend**: FastAPI on Render (https://amd1-1-backend-beta.onrender.com)
 - **Database**: Supabase (stores enrichment data + PDFs)
 - **PDF**: WeasyPrint (HTML → PDF)
 
@@ -357,7 +357,7 @@ Personalized AMD ebook generator for enterprise AI readiness. Users fill out a f
 ## Features Implemented
 - ✅ Multi-field form with industry/role/stage dropdowns
 - ✅ PDL person + company enrichment (separate API calls)
-- ✅ GNews multi-query search (5 queries, theme extraction, sentiment)
+- ✅ GNews optimized search (2 queries, theme extraction, sentiment, error logging)
 - ✅ Case study selection based on user-selected industry
 - ✅ LLM prompt with mandatory data references
 - ✅ AMD-branded PDF template (dark theme, cyan accents)
@@ -370,6 +370,10 @@ Personalized AMD ebook generator for enterprise AI readiness. Users fill out a f
 - ✅ Tech stack extraction from company tags (cloud/AI/traditional/security/data)
 - ✅ Department-aware persona inference (Apollo departments disambiguate ITDM/BDM)
 - ✅ Enrichment completeness report (weighted scoring + actionable missing fields)
+- ✅ GNews quota conservation (5→2 queries, 60% savings, HTTP error logging + 403 detection)
+- ✅ Company-level news caching (domain-keyed, 24h TTL, reuses raw_data table)
+- ✅ Google News RSS fallback (free, no API key, auto-triggers on GNews quota exhaustion)
+- ✅ Derived intelligence fallback (PDL company data substitutes for news in LLM prompts)
 
 ## Next Steps (Pending)
 1. **Email Delivery** - Add RESEND_API_KEY to Render env vars

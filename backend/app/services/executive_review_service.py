@@ -728,21 +728,38 @@ Return valid JSON only, no markdown, no explanation. Match the exact structure s
                 if isinstance(article, dict):
                     parts.append(f"  - {article.get('title', 'N/A')}")
 
-        themes = ctx.get("news_themes", [])
-        if themes:
-            parts.append(f"\nNEWS THEMES: {', '.join(themes[:5])}")
+            themes = ctx.get("news_themes", [])
+            if themes:
+                parts.append(f"\nNEWS THEMES: {', '.join(themes[:5])}")
 
-        # News analysis
-        analysis = ctx.get("news_analysis", {})
-        if analysis:
-            sentiment = analysis.get("sentiment")
-            if sentiment and sentiment != "neutral":
-                parts.append(f"\nSENTIMENT: Company news is predominantly {sentiment}")
-            ai_stage = analysis.get("ai_readiness")
-            if ai_stage and ai_stage != "none":
-                parts.append(f"AI READINESS: Company appears to be {ai_stage} AI")
-            if analysis.get("crisis"):
-                parts.append("NOTE: Company may be facing challenges - use empathetic, solution-oriented framing")
+            # News analysis
+            analysis = ctx.get("news_analysis", {})
+            if analysis:
+                sentiment = analysis.get("sentiment")
+                if sentiment and sentiment != "neutral":
+                    parts.append(f"\nSENTIMENT: Company news is predominantly {sentiment}")
+                ai_stage = analysis.get("ai_readiness")
+                if ai_stage and ai_stage != "none":
+                    parts.append(f"AI READINESS: Company appears to be {ai_stage} AI")
+                if analysis.get("crisis"):
+                    parts.append("NOTE: Company may be facing challenges - use empathetic, solution-oriented framing")
+        else:
+            # No news available — add company intelligence as substitute
+            has_company_data = False
+            if ctx.get("company_summary"):
+                parts.append(f"\nCOMPANY PROFILE: {ctx['company_summary'][:300]}")
+                has_company_data = True
+            if ctx.get("employee_count"):
+                emp = ctx["employee_count"]
+                emp_str = f"{emp:,}" if isinstance(emp, int) else str(emp)
+                parts.append(f"- Scale: {emp_str} employees")
+                has_company_data = True
+            if ctx.get("employee_growth_rate") and isinstance(ctx.get("employee_growth_rate"), (int, float)):
+                rate = ctx["employee_growth_rate"]
+                parts.append(f"- Growth trajectory: {rate:.0%} employee growth")
+                has_company_data = True
+            if has_company_data:
+                parts.append("(Use these company signals in place of news for personalization)")
 
         # Title context
         if ctx.get("title"):

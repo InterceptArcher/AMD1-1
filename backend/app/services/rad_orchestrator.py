@@ -19,7 +19,8 @@ from app.services.enrichment_apis import (
     PDLAPI,
     HunterAPI,
     GNewsAPI,
-    ZoomInfoAPI
+    ZoomInfoAPI,
+    GoogleNewsRSSFetcher,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ class RADOrchestrator:
         self.supabase = supabase_client
         self.data_sources: List[str] = []
         self.apis = get_enrichment_apis()
+        self.rss_fetcher = GoogleNewsRSSFetcher()
 
     async def enrich(
         self,
@@ -299,18 +301,70 @@ class RADOrchestrator:
         domain: str,
         company_name: str
     ) -> Dict[str, Any]:
-        """Fetch GNews using the resolved company name instead of domain extraction."""
+        """
+        Fetch company news with multi-layer strategy:
+        1. Check domain-level cache (avoids redundant calls)
+        2. Try GNews API
+        3. Fall back to Google News RSS (free, no API key) if GNews fails
+        Cache results from any source.
+        """
+        # Layer 1: Check cache
+        cached = self.supabase.get_cached_news(domain)
+        if cached and cached.get("payload"):
+            logger.info(f"News cache HIT for {domain} — skipping API calls")
+            return cached["payload"]
+
+        # Layer 2: Try GNews API
+        result = None
         gnews_api = self.apis.get("gnews")
-        if not gnews_api:
-            return {"_error": "GNews API not available"}
-        try:
-            return await gnews_api.enrich_with_name(email, domain, company_name)
-        except EnrichmentAPIError as e:
-            logger.warning(f"GNews API error: {e}")
-            return {"_error": str(e)}
-        except Exception as e:
-            logger.error(f"GNews unexpected error: {e}")
-            return {"_error": str(e)}
+        if gnews_api:
+            try:
+                result = await gnews_api.enrich_with_name(email, domain, company_name)
+            except EnrichmentAPIError as e:
+                logger.warning(f"GNews API error: {e}")
+                result = {"_error": str(e)}
+            except Exception as e:
+                logger.error(f"GNews unexpected error: {e}")
+                result = {"_error": str(e)}
+
+        # Layer 3: RSS fallback if GNews returned 0 articles or quota exhausted
+        gnews_empty = (
+            not result
+            or result.get("_error")
+            or result.get("result_count", 0) == 0
+            or result.get("_quota_exhausted")
+        )
+
+        if gnews_empty:
+            logger.info(
+                f"GNews returned no articles for {company_name} "
+                f"(quota_exhausted={result.get('_quota_exhausted') if result else 'N/A'}) "
+                f"— trying Google News RSS fallback"
+            )
+            try:
+                rss_result = await self.rss_fetcher.fetch_news(company_name, domain)
+                if rss_result.get("result_count", 0) > 0:
+                    logger.info(
+                        f"RSS fallback found {rss_result['result_count']} articles for {company_name}"
+                    )
+                    result = rss_result
+                else:
+                    logger.info(f"RSS fallback also returned 0 articles for {company_name}")
+                    # Keep original GNews result (has _query_stats metadata)
+                    if not result or result.get("_error"):
+                        result = rss_result
+            except Exception as rss_err:
+                logger.warning(f"RSS fallback failed for {company_name}: {rss_err}")
+
+        # Cache the result (even empty results avoid re-querying)
+        if result and not result.get("_error"):
+            try:
+                self.supabase.store_news_cache(domain, result)
+                logger.info(f"News result cached for {domain}")
+            except Exception as cache_err:
+                logger.warning(f"Failed to cache news result for {domain}: {cache_err}")
+
+        return result or {"_error": "All news sources failed"}
 
     async def _fetch_with_fallback(
         self,

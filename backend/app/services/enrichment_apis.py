@@ -6,8 +6,10 @@ All API keys loaded from environment variables.
 
 import logging
 import asyncio
+import xml.etree.ElementTree as ET
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+from urllib.parse import quote
 import httpx
 from abc import ABC, abstractmethod
 
@@ -20,6 +22,56 @@ DEFAULT_TIMEOUT = 45.0
 
 # Extended timeout for deep enrichment queries
 DEEP_ENRICHMENT_TIMEOUT = 60.0
+
+
+# ============================================================================
+# Module-level news analysis functions (shared by GNewsAPI and RSS fetcher)
+# ============================================================================
+
+def extract_themes(articles: List[Dict]) -> List[str]:
+    """Extract key themes from article titles and content."""
+    themes = set()
+    theme_keywords = {
+        "AI adoption": ["ai", "artificial intelligence", "machine learning", "ml"],
+        "Cloud transformation": ["cloud", "aws", "azure", "gcp", "saas"],
+        "Digital transformation": ["digital", "transformation", "modernization"],
+        "Data strategy": ["data", "analytics", "insights", "big data"],
+        "Growth & expansion": ["growth", "expansion", "revenue", "market"],
+        "Partnership": ["partnership", "collaboration", "joint venture"],
+        "Innovation": ["innovation", "r&d", "research", "breakthrough"],
+        "Sustainability": ["sustainability", "esg", "green", "carbon"],
+        "Security": ["security", "cybersecurity", "privacy", "compliance"],
+        "Workforce": ["hiring", "workforce", "talent", "employees"]
+    }
+
+    combined_text = " ".join([
+        (a.get("title", "") + " " + a.get("content", "")).lower()
+        for a in articles
+    ])
+
+    for theme, keywords in theme_keywords.items():
+        if any(kw in combined_text for kw in keywords):
+            themes.add(theme)
+
+    return list(themes)[:5]
+
+
+def analyze_sentiment_keywords(articles: List[Dict]) -> Dict[str, int]:
+    """Analyze sentiment indicators from articles."""
+    positive = ["growth", "success", "expansion", "innovation", "award", "leading", "record"]
+    negative = ["layoff", "decline", "lawsuit", "investigation", "loss", "struggling"]
+    neutral = ["announce", "report", "update", "release", "partner"]
+
+    combined_text = " ".join([
+        (a.get("title", "") + " " + a.get("content", "")).lower()
+        for a in articles
+    ])
+
+    return {
+        "positive": sum(1 for word in positive if word in combined_text),
+        "negative": sum(1 for word in negative if word in combined_text),
+        "neutral": sum(1 for word in neutral if word in combined_text)
+    }
 
 
 class EnrichmentAPIError(Exception):
@@ -469,17 +521,21 @@ class GNewsAPI(BaseEnrichmentAPI):
             # Categorize articles
             categorized = self._categorize_articles(unique_articles)
 
-            return {
+            result = {
                 "domain": domain,
                 "company_name": company_name,
                 "answer": answer,
                 "results": unique_articles[:10],  # Top 10 unique articles
                 "categorized": categorized,
                 "result_count": len(unique_articles),
-                "themes": self._extract_themes(unique_articles),
-                "sentiment_indicators": self._analyze_sentiment_keywords(unique_articles),
-                "fetched_at": datetime.utcnow().isoformat()
+                "themes": extract_themes(unique_articles),
+                "sentiment_indicators": analyze_sentiment_keywords(unique_articles),
+                "fetched_at": datetime.utcnow().isoformat(),
+                "_query_stats": getattr(self, "_last_query_stats", {}),
+                "_quota_exhausted": getattr(self, "_last_quota_exhausted", False),
             }
+
+            return result
 
         except httpx.TimeoutException:
             logger.error(f"GNews API timeout for {domain}")
@@ -491,6 +547,8 @@ class GNewsAPI(BaseEnrichmentAPI):
     async def _fetch_multi_query_news(self, company_name: str) -> List[Dict[str, Any]]:
         """
         Fetch news from multiple search queries in parallel.
+        Uses 2 queries (down from 5) to conserve GNews free tier quota
+        (100 req/day → 50 enrichments/day instead of 20).
 
         Args:
             company_name: Company name to search for
@@ -500,11 +558,11 @@ class GNewsAPI(BaseEnrichmentAPI):
         """
         search_queries = [
             f'"{company_name}"',  # Exact company name match
-            f"{company_name} AI artificial intelligence",
-            f"{company_name} technology innovation",
-            f"{company_name} strategy leadership CEO",
-            f"{company_name} expansion growth partnership",
+            f"{company_name} AI artificial intelligence technology",  # AI + tech combined
         ]
+
+        self._last_query_stats = {"total": len(search_queries), "succeeded": 0, "failed": 0}
+        self._last_quota_exhausted = False
 
         async with httpx.AsyncClient(timeout=DEEP_ENRICHMENT_TIMEOUT) as client:
             tasks = []
@@ -528,11 +586,13 @@ class GNewsAPI(BaseEnrichmentAPI):
             for i, response in enumerate(responses):
                 if isinstance(response, Exception):
                     logger.warning(f"GNews query {i} failed: {response}")
+                    self._last_query_stats["failed"] += 1
                     continue
                 try:
                     if response.status_code == 200:
                         data = response.json()
                         articles = data.get("articles", [])
+                        self._last_query_stats["succeeded"] += 1
                         for article in articles:
                             all_articles.append({
                                 "title": article.get("title"),
@@ -545,7 +605,20 @@ class GNewsAPI(BaseEnrichmentAPI):
                                 "image": article.get("image"),
                                 "query_category": self._get_query_category(i)
                             })
+                    else:
+                        self._last_query_stats["failed"] += 1
+                        logger.warning(
+                            f"GNews query {i} returned HTTP {response.status_code}: "
+                            f"{response.text[:200]}"
+                        )
+                        if response.status_code == 403:
+                            self._last_quota_exhausted = True
+                            logger.error(
+                                "GNews API quota exhausted (403 Forbidden). "
+                                "Free tier limit is 100 requests/day."
+                            )
                 except Exception as e:
+                    self._last_query_stats["failed"] += 1
                     logger.warning(f"Failed to parse GNews response {i}: {e}")
 
             return all_articles
@@ -555,9 +628,6 @@ class GNewsAPI(BaseEnrichmentAPI):
         categories = [
             "general",
             "ai_technology",
-            "innovation",
-            "leadership",
-            "growth"
         ]
         return categories[query_index] if query_index < len(categories) else "other"
 
@@ -607,47 +677,11 @@ class GNewsAPI(BaseEnrichmentAPI):
 
     def _extract_themes(self, articles: List[Dict]) -> List[str]:
         """Extract key themes from article titles and content."""
-        themes = set()
-        theme_keywords = {
-            "AI adoption": ["ai", "artificial intelligence", "machine learning", "ml"],
-            "Cloud transformation": ["cloud", "aws", "azure", "gcp", "saas"],
-            "Digital transformation": ["digital", "transformation", "modernization"],
-            "Data strategy": ["data", "analytics", "insights", "big data"],
-            "Growth & expansion": ["growth", "expansion", "revenue", "market"],
-            "Partnership": ["partnership", "collaboration", "joint venture"],
-            "Innovation": ["innovation", "r&d", "research", "breakthrough"],
-            "Sustainability": ["sustainability", "esg", "green", "carbon"],
-            "Security": ["security", "cybersecurity", "privacy", "compliance"],
-            "Workforce": ["hiring", "workforce", "talent", "employees"]
-        }
-
-        combined_text = " ".join([
-            (a.get("title", "") + " " + a.get("content", "")).lower()
-            for a in articles
-        ])
-
-        for theme, keywords in theme_keywords.items():
-            if any(kw in combined_text for kw in keywords):
-                themes.add(theme)
-
-        return list(themes)[:5]
+        return extract_themes(articles)
 
     def _analyze_sentiment_keywords(self, articles: List[Dict]) -> Dict[str, int]:
         """Analyze sentiment indicators from articles."""
-        positive = ["growth", "success", "expansion", "innovation", "award", "leading", "record"]
-        negative = ["layoff", "decline", "lawsuit", "investigation", "loss", "struggling"]
-        neutral = ["announce", "report", "update", "release", "partner"]
-
-        combined_text = " ".join([
-            (a.get("title", "") + " " + a.get("content", "")).lower()
-            for a in articles
-        ])
-
-        return {
-            "positive": sum(1 for word in positive if word in combined_text),
-            "negative": sum(1 for word in negative if word in combined_text),
-            "neutral": sum(1 for word in neutral if word in combined_text)
-        }
+        return analyze_sentiment_keywords(articles)
 
     async def enrich_with_name(
         self,
@@ -698,9 +732,11 @@ class GNewsAPI(BaseEnrichmentAPI):
                 "results": unique_articles[:10],
                 "categorized": categorized,
                 "result_count": len(unique_articles),
-                "themes": self._extract_themes(unique_articles),
-                "sentiment_indicators": self._analyze_sentiment_keywords(unique_articles),
-                "fetched_at": datetime.utcnow().isoformat()
+                "themes": extract_themes(unique_articles),
+                "sentiment_indicators": analyze_sentiment_keywords(unique_articles),
+                "fetched_at": datetime.utcnow().isoformat(),
+                "_query_stats": getattr(self, "_last_query_stats", {}),
+                "_quota_exhausted": getattr(self, "_last_quota_exhausted", False),
             }
 
         except httpx.TimeoutException:
@@ -838,6 +874,123 @@ class ZoomInfoAPI(BaseEnrichmentAPI):
             "country": "United States",
             "fetched_at": datetime.utcnow().isoformat(),
             "_mock": True
+        }
+
+
+class GoogleNewsRSSFetcher:
+    """
+    Free fallback news source using Google News RSS feed.
+    No API key required. Output format matches GNewsAPI for drop-in compatibility.
+    Uses stdlib xml.etree.ElementTree (no new dependencies).
+    """
+
+    RSS_URL = "https://news.google.com/rss/search"
+
+    async def fetch_news(
+        self,
+        company_name: str,
+        domain: Optional[str] = None,
+        max_articles: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Fetch company news from Google News RSS.
+
+        Args:
+            company_name: Company name to search for
+            domain: Company domain (for metadata)
+            max_articles: Maximum articles to return
+
+        Returns:
+            Dict matching GNewsAPI output format
+        """
+        domain = domain or ""
+        query = quote(f'"{company_name}"')
+        url = f"{self.RSS_URL}?q={query}&hl=en-US&gl=US&ceid=US:en"
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url)
+
+                if response.status_code != 200:
+                    logger.warning(
+                        f"Google News RSS returned HTTP {response.status_code} for '{company_name}'"
+                    )
+                    return self._empty_result(company_name, domain)
+
+                articles = self._parse_rss(response.text, company_name)
+
+        except Exception as e:
+            logger.warning(f"Google News RSS fetch failed for '{company_name}': {e}")
+            return self._empty_result(company_name, domain)
+
+        unique_articles = articles[:max_articles]
+
+        answer = (
+            f"Recent news coverage for {company_name} (via Google News RSS)."
+            if unique_articles
+            else f"No recent news found for {company_name}."
+        )
+
+        return {
+            "domain": domain,
+            "company_name": company_name,
+            "answer": answer,
+            "results": unique_articles,
+            "result_count": len(unique_articles),
+            "themes": extract_themes(unique_articles),
+            "sentiment_indicators": analyze_sentiment_keywords(unique_articles),
+            "fetched_at": datetime.utcnow().isoformat(),
+            "_source": "google_news_rss",
+        }
+
+    def _parse_rss(self, xml_text: str, company_name: str) -> List[Dict[str, Any]]:
+        """Parse RSS XML into article dicts matching GNewsAPI format."""
+        articles = []
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError as e:
+            logger.warning(f"Failed to parse Google News RSS XML: {e}")
+            return []
+
+        channel = root.find("channel")
+        if channel is None:
+            return []
+
+        for item in channel.findall("item"):
+            title = item.findtext("title", "")
+            link = item.findtext("link", "")
+            description = item.findtext("description", "")
+            pub_date = item.findtext("pubDate", "")
+
+            source_el = item.find("source")
+            source_name = source_el.text if source_el is not None else ""
+            source_url = source_el.get("url", "") if source_el is not None else ""
+
+            if title:
+                articles.append({
+                    "title": title,
+                    "url": link,
+                    "content": description[:800],
+                    "published_at": pub_date,
+                    "source": source_name,
+                    "source_url": source_url,
+                    "query_category": "general",
+                })
+
+        return articles
+
+    def _empty_result(self, company_name: str, domain: str) -> Dict[str, Any]:
+        """Return empty result structure."""
+        return {
+            "domain": domain,
+            "company_name": company_name,
+            "answer": f"No recent news found for {company_name}.",
+            "results": [],
+            "result_count": 0,
+            "themes": [],
+            "sentiment_indicators": {"positive": 0, "negative": 0, "neutral": 0},
+            "fetched_at": datetime.utcnow().isoformat(),
+            "_source": "google_news_rss",
         }
 
 
