@@ -79,9 +79,18 @@ This system transforms visitor emails into personalized ebook experiences throug
 │   │   │   ├── globals.css     # Tailwind styles
 │   │   │   └── page.tsx        # Landing page with polling
 │   │   └── components/
-│   │       ├── EmailConsentForm.tsx
+│   │       ├── EmailConsentForm.tsx  # Wizard orchestrator
 │   │       ├── LoadingSpinner.tsx
-│   │       └── PersonalizedContent.tsx
+│   │       ├── PersonalizedContent.tsx
+│   │       └── wizard/
+│   │           ├── wizardTypes.ts        # Types, constants, validators
+│   │           ├── SelectionCard.tsx     # Reusable card primitive
+│   │           ├── WizardProgressDots.tsx
+│   │           ├── StepContainer.tsx     # Animated step wrapper
+│   │           └── steps/
+│   │               ├── StepAboutYou.tsx  # Step 1
+│   │               ├── StepCompany.tsx   # Step 2
+│   │               └── StepRole.tsx      # Step 3
 │   └── __tests__/              # Jest tests (33 tests)
 │
 ├── backend/                     # FastAPI application
@@ -192,15 +201,40 @@ curl -X POST http://localhost:8000/rad/enrich \
 
 **Auto-correction:** Removes terms or falls back to safe copy.
 
-### User Input Collection
+### Multi-Step Wizard UX
 
-The landing page collects key context for better personalization:
-- **Name**: First and last name for personalized greetings
-- **Goal**: What brings them here (exploring, evaluating, learning, building case)
-- **Persona**: Role type (executive, IT, security, data/AI, sales, HR)
-- **Industry**: Vertical market (healthcare, financial services, tech, gaming, manufacturing, retail, government, energy, telecom)
+Replaced the original single-page dropdown form with a 4-step guided card-based wizard. Same data collected, entirely different experience.
 
-These inputs directly influence the LLM-generated content.
+**Rationale:** Stakeholders found the original 11-field form ("a wall of dropdowns") unintuitive. The wizard breaks the experience into focused steps with visual card selections, progress dots, and slide transitions. Questions are framed as relatable scenarios rather than survey-style categories — users describe their situation rather than filling in database fields.
+
+**The 4 Steps:**
+| Step | Title | What it collects |
+|------|-------|-----------------|
+| 1 | "Let's get started" | First name, last name, work email |
+| 2 | "About your company" | Company name, size (3 cards), industry (12 tiles) |
+| 3 | "What's your role?" | Role group (8 cards, auto-advances) |
+| 4 | "Your situation" | IT environment + priority + challenge + consent |
+
+**UX Enhancements:**
+- **Auto-advance** on single-select steps (Role) — click a card, see it glow, auto-transition to next step
+- **Thinking micro-moments** — contextual messages ("Tailoring for your role...") shown between step transitions with spinner animation
+- **Email domain company extraction** — typing `john@stripe.com` auto-fills "Stripe" as company name, with a "Detected from your email" banner on Step 2
+- **Social proof lines** — after each card selection, contextual validation appears ("58% of companies are actively in this stage")
+- **Assessment preview** — before submit, a summary card shows the deduced profile ("Tech Executive at Stripe — Challenger Stage — Focus: Free up budget")
+- **Adaptive challenge filtering** — if user selects "Modern" IT environment, "Legacy systems" challenge is hidden (contradicts their situation)
+- **Scenario-style framing** — "Which sounds most like your day-to-day?" instead of "Select your IT environment"
+
+**Architecture:** Zero backend changes. Same `UserInputs` interface and `onSubmit` contract. All card values map to existing backend mapping functions. Components organized under `frontend/src/components/wizard/`.
+
+**Key files:**
+- `wizard/wizardTypes.ts` — types, card option constants, validators, social proof messages, helpers
+- `wizard/SelectionCard.tsx` — reusable clickable card (sm/md/lg sizes, selected state with cyan glow)
+- `wizard/WizardProgressDots.tsx` — progress indicator with connecting lines
+- `wizard/StepContainer.tsx` — animated wrapper (slide-right forward, slide-left back)
+- `wizard/steps/StepAboutYou.tsx` — Step 1 with email domain extraction
+- `wizard/steps/StepCompany.tsx` — Step 2 with "detected from email" banner
+- `wizard/steps/StepRole.tsx` — Step 3 with auto-advance callback
+- `EmailConsentForm.tsx` — wizard orchestrator with Steps 4 inline, thinking moments, social proof, assessment preview
 
 ### PDF Generation & Delivery
 

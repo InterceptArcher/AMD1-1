@@ -516,6 +516,99 @@ h1, h2, h3, h4, h5, h6 {
   color: white;
 }
 
+/* Wizard step slide animations */
+@keyframes wizardSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes wizardSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.wizard-slide-right {
+  animation: wizardSlideInRight 350ms ease-out;
+}
+
+.wizard-slide-left {
+  animation: wizardSlideInLeft 350ms ease-out;
+}
+
+/* Selection card selected state */
+.selection-card-selected {
+  border-color: var(--amd-cyan) !important;
+  background: rgba(0, 200, 170, 0.08) !important;
+  box-shadow: 0 0 20px rgba(0, 200, 170, 0.15), 0 0 0 1px rgba(0, 200, 170, 0.3);
+}
+
+/* Thinking overlay between wizard steps */
+@keyframes thinkingFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes thinkingPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.thinking-overlay {
+  animation: thinkingFadeIn 250ms ease-out;
+}
+
+.thinking-text {
+  animation: thinkingPulse 1.2s ease-in-out infinite;
+}
+
+/* Social proof fade-in */
+@keyframes socialProofIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.social-proof-enter {
+  animation: socialProofIn 300ms ease-out forwards;
+}
+
+/* Auto-advance pulse on selected card */
+@keyframes cardSelectedPulse {
+  0% { box-shadow: 0 0 20px rgba(0, 200, 170, 0.15), 0 0 0 1px rgba(0, 200, 170, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(0, 200, 170, 0.3), 0 0 0 2px rgba(0, 200, 170, 0.5); }
+  100% { box-shadow: 0 0 20px rgba(0, 200, 170, 0.15), 0 0 0 1px rgba(0, 200, 170, 0.3); }
+}
+
+.selection-card-pulse {
+  animation: cardSelectedPulse 600ms ease-in-out;
+}
+
+/* Assessment preview card gradient border */
+.assessment-preview {
+  background: linear-gradient(135deg, rgba(0, 200, 170, 0.08) 0%, rgba(0, 200, 170, 0.02) 100%);
+}
+
+/* Company detected banner */
+@keyframes companyDetectedIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.company-detected {
+  animation: companyDetectedIn 400ms ease-out;
+}
+
 /* Reduce motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,
