@@ -4,17 +4,43 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import EmailConsentForm, { UserInputs } from '@/components/EmailConsentForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import PersonalizedContent from '@/components/PersonalizedContent';
 import ExecutiveReviewDisplay from '@/components/ExecutiveReviewDisplay';
+
+interface PersonalizationData {
+  intro_hook: string;
+  cta: string;
+  first_name?: string;
+  company?: string;
+  title?: string;
+  email?: string;
+  // Enhanced enrichment data for display
+  employee_count?: number;
+  funding_stage?: string;
+  recent_news?: Array<{ title: string; source?: string }>;
+  skills?: string[];
+  news_themes?: string[];
+}
+
+interface UserContext {
+  firstName?: string;
+  company?: string;
+  industry?: string;
+  persona?: string;
+}
 
 interface ExecutiveReviewData {
   company_name: string;
   stage: string;
   stage_sidebar: string;
+  stage_identification_text?: string;
   advantages: Array<{ headline: string; description: string }>;
   risks: Array<{ headline: string; description: string }>;
   recommendations: Array<{ title: string; description: string }>;
   case_study: string;
   case_study_description: string;
+  case_study_link?: string;
+  case_study_relevance?: string;
 }
 
 interface ExecutiveReviewInputs {
@@ -26,42 +52,11 @@ interface ExecutiveReviewInputs {
   challenge: string;
 }
 
-interface EnrichmentData {
-  first_name?: string;
-  last_name?: string;
-  title?: string;
-  company_name?: string;
-  employee_count?: number;
-  founded_year?: number;
-  industry?: string;
-  data_quality_score?: number;
-  news_themes?: string[];
-  recent_news?: Array<{ title: string }>;
-}
-
 interface ExecutiveReviewResponse {
   success: boolean;
   company_name: string;
   inputs: ExecutiveReviewInputs;
   executive_review: ExecutiveReviewData;
-  enrichment?: EnrichmentData;
-  inferred_context?: {
-    it_environment: string;
-    business_priority: string;
-    primary_challenge: string;
-    urgency_level: string;
-    journey_stage: string;
-    confidence_score: number;
-  };
-  news_analysis?: {
-    sentiment: string;
-    ai_readiness: string;
-    crisis: boolean;
-  };
-}
-
-interface UserContext {
-  company?: string;
 }
 
 function HomeContent() {
@@ -70,10 +65,12 @@ function HomeContent() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
+  const [personalizationData, setPersonalizationData] = useState<PersonalizationData | null>(null);
   const [executiveReview, setExecutiveReview] = useState<ExecutiveReviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleReset = () => {
+    setPersonalizationData(null);
     setExecutiveReview(null);
     setUserContext(null);
     setError(null);
@@ -87,14 +84,16 @@ function HomeContent() {
     setIsLoading(true);
     setError(null);
 
-    // Extract company hint from email domain for loading display
-    const domain = inputs.email.split('@')[1] || '';
-    const companyHint = domain.split('.')[0];
     setUserContext({
-      company: companyHint.charAt(0).toUpperCase() + companyHint.slice(1),
+      firstName: inputs.firstName,
+      company: inputs.company,
+      industry: inputs.industry,
+      persona: inputs.persona,
     });
 
-    // Minimum loading time for personalized loading experience
+    // Minimum loading time to show personalized loading experience
+    // Can be disabled via env var for testing (NEXT_PUBLIC_SKIP_LOADING_DELAY=true)
+    // 22 seconds at 2s per step = ~11 steps shown
     const skipDelay = process.env.NEXT_PUBLIC_SKIP_LOADING_DELAY === 'true';
     const minLoadingMs = skipDelay ? 0 : 22000;
     const minLoadingTime = new Promise(resolve => setTimeout(resolve, minLoadingMs));
@@ -102,7 +101,9 @@ function HomeContent() {
     try {
       const apiUrl = getApiUrl();
 
+      // Run API calls and minimum loading time in parallel
       const apiCall = async () => {
+        // Call the executive review endpoint
         const response = await fetch(`${apiUrl}/rad/executive-review`, {
           method: 'POST',
           headers: {
@@ -110,27 +111,33 @@ function HomeContent() {
           },
           body: JSON.stringify({
             email: inputs.email,
-            goal: inputs.goal || undefined,
+            firstName: inputs.firstName,
+            lastName: inputs.lastName,
+            company: inputs.company,
+            companySize: inputs.companySize,
+            goal: inputs.goal,
+            persona: inputs.persona,
+            industry: inputs.industry,
             cta: cta || 'default',
+            // Fields for executive review generation
+            itEnvironment: inputs.itEnvironment,
+            businessPriority: inputs.businessPriority,
+            challenge: inputs.challenge,
           }),
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Failed to generate assessment: ${response.status} - ${errorText}`);
+          throw new Error(`Failed to generate executive review: ${response.status} - ${errorText}`);
         }
 
         return response.json();
       };
 
+      // Wait for both API and minimum loading time
       const [reviewData] = await Promise.all([apiCall(), minLoadingTime]);
 
-      // Update company context with enriched data
-      const enrichedCompany = (reviewData as ExecutiveReviewResponse).enrichment?.company_name;
-      if (enrichedCompany) {
-        setUserContext({ company: enrichedCompany });
-      }
-
+      // Store the executive review response
       setExecutiveReview(reviewData as ExecutiveReviewResponse);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -143,9 +150,13 @@ function HomeContent() {
     <main className="min-h-screen relative overflow-hidden">
       {/* Enhanced Background Effects */}
       <div className="absolute inset-0 pointer-events-none">
+        {/* Primary glow - top right */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#00c8aa]/[0.07] rounded-full blur-[150px] translate-x-1/3 -translate-y-1/3" />
+        {/* Secondary glow - bottom left */}
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#00c8aa]/[0.04] rounded-full blur-[120px] -translate-x-1/3 translate-y-1/3" />
+        {/* Accent glow - center */}
         <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-blue-500/[0.03] rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+        {/* Subtle grid overlay */}
         <div className="absolute inset-0 amd-grid-pattern opacity-30" />
       </div>
 
@@ -169,30 +180,34 @@ function HomeContent() {
         {/* Main Content */}
         <div className="flex-1 flex items-center justify-center px-6 py-8 lg:py-12 lg:px-12">
           <div className="w-full max-w-6xl">
-            {!executiveReview && !isLoading && !error && (
+            {!personalizationData && !executiveReview && !isLoading && (
               <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
                 {/* Left Side - Hero */}
                 <div className="animate-fade-in-left">
+                  {/* Badge */}
                   <div className="amd-badge mb-8">
                     <span className="w-2 h-2 rounded-full bg-[#00c8aa] animate-pulse" />
-                    <span>Free Personalized Assessment</span>
+                    <span>Free Personalized Ebook</span>
                   </div>
 
+                  {/* Eyebrow */}
                   <p className="text-[#00c8aa] font-bold uppercase tracking-[0.2em] text-sm mb-4 animate-fade-in-up stagger-1">
                     From Observers to Leaders
                   </p>
 
+                  {/* Main Headline */}
                   <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] mb-6 text-white animate-fade-in-up stagger-2">
-                    Your Enterprise<br />
+                    An Enterprise<br />
                     <span className="amd-text-gradient-animated">AI Readiness</span><br />
-                    Assessment
+                    Framework
                   </h1>
 
+                  {/* Subheadline */}
                   <p className="text-lg sm:text-xl text-white/70 leading-relaxed mb-10 max-w-lg animate-fade-in-up stagger-3">
-                    Just enter your work email. We&apos;ll analyze your company and deliver a personalized modernization assessment in seconds.
+                    Discover where your organization stands on the modernization curve and get a personalized roadmap to AI leadership.
                   </p>
 
-                  {/* Stats */}
+                  {/* Stats with enhanced styling */}
                   <div className="grid grid-cols-3 gap-6 sm:gap-8 animate-fade-in-up stagger-4">
                     <div className="amd-stat group cursor-default">
                       <div className="text-3xl sm:text-4xl font-bold text-[#00c8aa] transition-transform group-hover:scale-105">33%</div>
@@ -215,19 +230,19 @@ function HomeContent() {
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
-                        <span>Just one field required</span>
+                        <span>Personalized to your role</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
-                        <span>AI-enriched company insights</span>
+                        <span>Industry-specific insights</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
-                        <span>Industry-specific recommendations</span>
+                        <span>Instant PDF download</span>
                       </div>
                     </div>
                   </div>
@@ -236,6 +251,7 @@ function HomeContent() {
                 {/* Right Side - Form Card */}
                 <div className="animate-fade-in-right stagger-2">
                   <div className="amd-card-premium p-8 lg:p-10 amd-glow-intense">
+                    {/* Form Header */}
                     <div className="mb-8">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-[#00c8aa]/15 flex items-center justify-center">
@@ -244,17 +260,19 @@ function HomeContent() {
                           </svg>
                         </div>
                         <div>
-                          <h2 className="text-xl sm:text-2xl font-bold text-white">Get Your Assessment</h2>
-                          <p className="text-white/50 text-sm">Takes 5 seconds</p>
+                          <h2 className="text-xl sm:text-2xl font-bold text-white">Get Your Guide</h2>
+                          <p className="text-white/50 text-sm">Takes 30 seconds</p>
                         </div>
                       </div>
                       <p className="text-white/60 text-base">
-                        Enter your work email and we&apos;ll analyze your company to create a personalized modernization assessment.
+                        Get a personalized AI readiness snapshot based on your industry, role, and IT environment.
                       </p>
                     </div>
 
+                    {/* Form Component */}
                     <EmailConsentForm onSubmit={handleSubmit} isLoading={isLoading} />
 
+                    {/* Privacy note */}
                     <div className="mt-6 flex items-start gap-2 text-xs text-white/40">
                       <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -282,7 +300,13 @@ function HomeContent() {
               </div>
             )}
 
-            {error && !executiveReview && !isLoading && (
+            {personalizationData && !executiveReview && (
+              <div className="max-w-2xl mx-auto animate-fade-in-scale">
+                <PersonalizedContent data={personalizationData} error={error} onReset={handleReset} />
+              </div>
+            )}
+
+            {error && !personalizationData && !executiveReview && !isLoading && (
               <div className="max-w-md mx-auto amd-card p-8 border-red-500/30 bg-red-500/5 animate-fade-in-up">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
@@ -311,7 +335,7 @@ function HomeContent() {
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/40">
             <div className="flex items-center gap-2">
               <img src="/amd-logo.svg" alt="AMD" className="h-4 w-auto opacity-50" />
-              <span>&copy; 2026 Advanced Micro Devices, Inc.</span>
+              <span>© 2026 Advanced Micro Devices, Inc.</span>
             </div>
             <div className="flex items-center gap-8">
               <span className="hover:text-white/60 cursor-pointer transition-colors">Privacy</span>

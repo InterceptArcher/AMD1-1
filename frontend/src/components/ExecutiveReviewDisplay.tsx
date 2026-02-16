@@ -19,11 +19,14 @@ interface ExecutiveReviewData {
   company_name: string;
   stage: string;
   stage_sidebar: string;
+  stage_identification_text?: string;
   advantages: Advantage[];
   risks: Risk[];
   recommendations: Recommendation[];
   case_study: string;
   case_study_description: string;
+  case_study_link?: string;
+  case_study_relevance?: string;
 }
 
 interface ExecutiveReviewInputs {
@@ -88,6 +91,9 @@ export default function ExecutiveReviewDisplay({ data, inputs, onReset }: Execut
             <div className="flex items-center gap-3 mb-3">
               <span className={`text-2xl font-bold ${colors.text}`}>{data.stage}</span>
             </div>
+            {data.stage_identification_text && (
+              <p className="text-sm text-white/80 mb-2">{data.stage_identification_text}</p>
+            )}
             <p className={`text-sm ${colors.text}`}>{data.stage_sidebar}</p>
           </div>
         </section>
@@ -162,25 +168,24 @@ export default function ExecutiveReviewDisplay({ data, inputs, onReset }: Execut
           <div className="rounded-xl bg-gradient-to-r from-[#00c8aa]/10 via-[#00c8aa]/5 to-transparent border border-[#00c8aa]/20 p-6">
             <h3 className="font-semibold text-[#00c8aa] mb-2">{data.case_study}</h3>
             <p className="text-sm text-white/70 leading-relaxed">{data.case_study_description}</p>
-            <button className="mt-4 text-sm text-[#00c8aa] font-medium hover:underline">
-              Read the case study &rarr;
-            </button>
+            {data.case_study_relevance && (
+              <p className="text-sm text-white/50 italic mt-2">{data.case_study_relevance}</p>
+            )}
+            {data.case_study_link ? (
+              <a
+                href={data.case_study_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block text-sm text-[#00c8aa] font-medium hover:underline"
+              >
+                Read the case study &rarr;
+              </a>
+            ) : (
+              <span className="mt-4 inline-block text-sm text-[#00c8aa]/50 font-medium">
+                Read the case study &rarr;
+              </span>
+            )}
           </div>
-        </section>
-
-        {/* JSON Preview (for review) */}
-        <section className="pt-6 border-t border-white/10">
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-white/40 hover:text-white/60 flex items-center gap-2">
-              <svg className="w-4 h-4 transform group-open:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              View Raw JSON (for review)
-            </summary>
-            <pre className="mt-4 p-4 rounded-lg bg-black/50 text-xs text-white/60 overflow-x-auto">
-              {JSON.stringify({ inputs, executive_review: data }, null, 2)}
-            </pre>
-          </details>
         </section>
 
         {/* Reset Button */}

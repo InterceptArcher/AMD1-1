@@ -3,7 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 
 interface UserContext {
+  firstName?: string;
   company?: string;
+  industry?: string;
+  persona?: string;
 }
 
 interface LoadingSpinnerProps {
@@ -11,55 +14,163 @@ interface LoadingSpinnerProps {
   userContext?: UserContext;
 }
 
+// Industry-specific loading messages
+const INDUSTRY_MESSAGES: Record<string, string[]> = {
+  technology: [
+    'Analyzing tech industry trends...',
+    'Finding relevant SaaS case studies...',
+    'Tailoring content for software leaders...',
+  ],
+  financial_services: [
+    'Reviewing financial services benchmarks...',
+    'Adding compliance considerations...',
+    'Customizing for banking & insurance...',
+  ],
+  healthcare: [
+    'Incorporating healthcare regulations...',
+    'Finding life sciences case studies...',
+    'Tailoring for patient data requirements...',
+  ],
+  retail_ecommerce: [
+    'Analyzing retail transformation trends...',
+    'Adding e-commerce scalability insights...',
+    'Customizing for customer experience...',
+  ],
+  manufacturing: [
+    'Reviewing industrial automation trends...',
+    'Adding supply chain considerations...',
+    'Tailoring for operational efficiency...',
+  ],
+  telecommunications: [
+    'Analyzing network infrastructure trends...',
+    'Adding media delivery insights...',
+    'Customizing for 5G readiness...',
+  ],
+  energy_utilities: [
+    'Reviewing grid modernization trends...',
+    'Adding sustainability considerations...',
+    'Tailoring for energy efficiency...',
+  ],
+  government: [
+    'Incorporating compliance requirements...',
+    'Adding security frameworks...',
+    'Customizing for public sector needs...',
+  ],
+  education: [
+    'Analyzing education technology trends...',
+    'Adding research computing insights...',
+    'Tailoring for academic institutions...',
+  ],
+  professional_services: [
+    'Reviewing consulting best practices...',
+    'Adding client delivery insights...',
+    'Customizing for service organizations...',
+  ],
+};
+
+// Role-specific messages (keys match form persona values)
+const PERSONA_MESSAGES: Record<string, string> = {
+  cto: 'Preparing technical infrastructure insights...',
+  cio: 'Curating IT strategy recommendations...',
+  ciso: 'Adding security and compliance frameworks...',
+  cdo: 'Incorporating data strategy considerations...',
+  ceo: 'Preparing executive-level business insights...',
+  coo: 'Adding operational efficiency analysis...',
+  cfo: 'Including cost optimization frameworks...',
+  vp_engineering: 'Adding engineering leadership perspectives...',
+  vp_it: 'Curating IT infrastructure recommendations...',
+  vp_data: 'Incorporating data and analytics insights...',
+  vp_security: 'Adding security posture analysis...',
+  vp_operations: 'Preparing operational strategy insights...',
+  eng_manager: 'Including technical implementation details...',
+  it_manager: 'Adding infrastructure management insights...',
+  data_manager: 'Incorporating data platform analysis...',
+  security_manager: 'Adding security framework details...',
+  sr_engineer: 'Including technical architecture details...',
+  engineer: 'Adding implementation considerations...',
+  sysadmin: 'Including systems administration insights...',
+  ops_manager: 'Preparing operational workflow analysis...',
+  procurement: 'Including vendor evaluation criteria...',
+};
+
 export default function LoadingSpinner({ message, userContext }: LoadingSpinnerProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [displayMessage, setDisplayMessage] = useState(message || 'Personalizing your content...');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const companyName = userContext?.company || 'your company';
-
-  // Generate loading steps focused on enrichment process
+  // Generate personalized loading steps - memoized to prevent recreation
   const steps = useMemo(() => {
-    return [
-      `Analyzing ${companyName}...`,
-      'Looking up company data...',
-      'Gathering company intelligence...',
-      'Searching recent news and announcements...',
-      'Analyzing industry trends...',
-      'Identifying business priorities...',
-      'Detecting modernization stage...',
-      'Selecting relevant case studies...',
-      'Generating personalized insights with AI...',
-      'Building your executive assessment...',
-      'Finalizing your personalized content...',
-    ];
-  }, [companyName]);
+    const result: string[] = [];
 
-  // Initialize on first render
+    if (userContext?.firstName && userContext?.company) {
+      result.push(`Hi ${userContext.firstName}, generating your AI readiness snapshot for ${userContext.company}...`);
+    } else if (userContext?.firstName) {
+      result.push(`Hi ${userContext.firstName}, creating your AI readiness assessment...`);
+    } else {
+      result.push('Creating your AI readiness assessment...');
+    }
+
+    // Analysis steps
+    result.push('Analyzing your IT environment and priorities...');
+    result.push('Loading AMD reference data...');
+
+    // Add industry-specific messages
+    if (userContext?.industry && INDUSTRY_MESSAGES[userContext.industry]) {
+      result.push(...INDUSTRY_MESSAGES[userContext.industry]);
+    }
+
+    // Add persona-specific message
+    if (userContext?.persona && PERSONA_MESSAGES[userContext.persona]) {
+      result.push(PERSONA_MESSAGES[userContext.persona]);
+    }
+
+    // Final steps
+    result.push('Identifying advantages and risks...');
+    result.push('Selecting relevant case studies...');
+    result.push('Generating personalized recommendations...');
+    result.push('Finalizing your executive review...');
+
+    return result;
+  }, [userContext?.firstName, userContext?.company, userContext?.industry, userContext?.persona]);
+
+  // Initialize on first render with userContext
   useEffect(() => {
+    if (!userContext) {
+      setDisplayMessage(message || 'Loading...');
+      return;
+    }
+
+    // Only initialize once
     if (!isInitialized) {
       setDisplayMessage(steps[0]);
       setCurrentStep(0);
       setIsInitialized(true);
     }
-  }, [steps, isInitialized]);
+  }, [userContext, steps, message, isInitialized]);
 
-  // Cycle through messages
+  // Separate effect for the interval - only runs after initialization
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!userContext || !isInitialized) {
+      return;
+    }
 
+    // Cycle through personalized messages (pace to show most steps within loading time)
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
         const next = prev + 1;
-        if (next >= steps.length) return prev;
+        // Stop at last step instead of looping
+        if (next >= steps.length) {
+          return prev;
+        }
         setDisplayMessage(steps[next]);
         return next;
       });
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isInitialized, steps]);
+  }, [userContext, isInitialized, steps]);
 
+  // Calculate progress percentage - start at 8% minimum so bar is visible
   const progress = Math.max(8, Math.min(((currentStep + 1) / steps.length) * 100, 95));
 
   return (
@@ -68,22 +179,36 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
       aria-label="Loading"
       className="flex flex-col items-center justify-center space-y-8 py-12 animate-fade-in-up"
     >
-      {/* Header */}
+      {/* AMD Branded Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-3">
-          Analyzing <span className="text-[#00c8aa]">{companyName}</span>
-        </h2>
-        <p className="text-white/70 text-base">
-          Building your personalized assessment
-        </p>
+        {userContext?.firstName ? (
+          <>
+            <h2 className="text-2xl font-bold text-white mb-3">
+              Almost there, <span className="text-[#00c8aa]">{userContext.firstName}</span>!
+            </h2>
+            {userContext.company && (
+              <p className="text-white/70 text-base">
+                Customizing insights for <span className="text-white font-medium">{userContext.company}</span>
+              </p>
+            )}
+          </>
+        ) : (
+          <h2 className="text-2xl font-bold text-white">Generating Your Assessment</h2>
+        )}
       </div>
 
-      {/* Animated spinner */}
+      {/* Animated AMD Logo/Icon */}
       <div className="relative">
+        {/* Outer glow ring */}
         <div className="absolute inset-0 rounded-full bg-[#00c8aa]/20 blur-xl animate-pulse" />
+
+        {/* Main spinner container */}
         <div className="relative w-24 h-24 rounded-full border-2 border-white/20 flex items-center justify-center">
+          {/* Rotating arc */}
           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00c8aa] animate-spin" />
           <div className="absolute inset-2 rounded-full border-2 border-transparent border-r-[#00c8aa]/50 animate-spin [animation-duration:1.5s]" />
+
+          {/* Center icon */}
           <div className="relative z-10 w-12 h-12 rounded-full bg-[#00c8aa]/10 flex items-center justify-center">
             <svg className="w-6 h-6 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -95,6 +220,7 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
       {/* Progress card */}
       <div className="w-full max-w-md amd-card p-6">
         <div className="space-y-5">
+          {/* Current step indicator */}
           <div className="flex items-center gap-4">
             <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center">
               <span className="text-[#00c8aa] font-bold text-sm">{currentStep + 1}</span>
@@ -103,7 +229,7 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
               <p className="font-medium text-white transition-all duration-500 truncate">
                 {displayMessage}
               </p>
-              <p className="text-sm text-white/60 mt-1">Enriching from multiple data sources...</p>
+              <p className="text-sm text-white/60 mt-1">Processing your personalization...</p>
             </div>
           </div>
 
@@ -113,49 +239,78 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
               className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#00c8aa] via-[#00d4b4] to-[#00e0be] transition-all duration-700 ease-out shadow-[0_0_10px_rgba(0,200,170,0.5)]"
               style={{ width: `${progress}%` }}
             >
+              {/* Animated shine effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_ease-in-out_infinite]" />
             </div>
           </div>
 
+          {/* Step counter */}
           <div className="flex items-center justify-between text-sm text-white/50">
             <span>Step {currentStep + 1} of {steps.length}</span>
             <span className="font-medium">{Math.round(progress)}% complete</span>
           </div>
+
+          {/* Context tags */}
+          {userContext && (
+            <div className="pt-5 border-t border-white/10">
+              <p className="text-sm text-white/50 mb-3">Personalizing for:</p>
+              <div className="flex flex-wrap gap-2">
+                {userContext.industry && (
+                  <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#00c8aa]/15 text-[#00c8aa] text-sm font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00c8aa]" />
+                    {userContext.industry.replace('_', ' ')}
+                  </span>
+                )}
+                {userContext.persona && (
+                  <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white/80 text-sm font-medium">
+                    {userContext.persona.replace('_', ' ')}
+                  </span>
+                )}
+                {userContext.company && (
+                  <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white/80 text-sm font-medium">
+                    {userContext.company}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Preview section */}
-      <div className="w-full max-w-md space-y-4 animate-fade-in-up stagger-2">
-        <p className="text-sm font-semibold text-white/60 text-center uppercase tracking-wider">
-          Your assessment will include
-        </p>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="amd-card p-4 text-center amd-card-hover">
-            <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
+      {userContext && (
+        <div className="w-full max-w-md space-y-4 animate-fade-in-up stagger-2">
+          <p className="text-sm font-semibold text-white/60 text-center uppercase tracking-wider">
+            Your assessment will include
+          </p>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="amd-card p-4 text-center amd-card-hover">
+              <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <p className="text-sm text-white/70 font-medium">Industry Insights</p>
             </div>
-            <p className="text-sm text-white/70 font-medium">Strategic Advantages</p>
-          </div>
-          <div className="amd-card p-4 text-center amd-card-hover">
-            <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+            <div className="amd-card p-4 text-center amd-card-hover">
+              <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <p className="text-sm text-white/70 font-medium">Best Practices</p>
             </div>
-            <p className="text-sm text-white/70 font-medium">Risk Analysis</p>
-          </div>
-          <div className="amd-card p-4 text-center amd-card-hover">
-            <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
+            <div className="amd-card p-4 text-center amd-card-hover">
+              <div className="w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <p className="text-sm text-white/70 font-medium">Case Studies</p>
             </div>
-            <p className="text-sm text-white/70 font-medium">Next Steps</p>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

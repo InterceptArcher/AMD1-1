@@ -118,11 +118,14 @@ class ExecutiveReviewContent(BaseModel):
     company_name: str
     stage: str = Field(..., description="Observer, Challenger, or Leader")
     stage_sidebar: str = Field(..., description="Stage-specific statistic")
+    stage_identification_text: str = Field(..., description="Stage identification sentence for the company")
     advantages: list[ExecutiveReviewAdvantage] = Field(..., min_length=2, max_length=2)
     risks: list[ExecutiveReviewRisk] = Field(..., min_length=2, max_length=2)
     recommendations: list[ExecutiveReviewRecommendation] = Field(..., min_length=3, max_length=3)
     case_study: str = Field(..., description="Selected case study: KT Cloud, Smurfit Westrock, or PQR")
     case_study_description: str = Field(..., description="One-line case study description")
+    case_study_link: str = Field(..., description="URL to the full case study")
+    case_study_relevance: str = Field("", description="LLM-generated sentence explaining why this case study is relevant to the company")
 
 
 class ProfileResponse(BaseModel):
