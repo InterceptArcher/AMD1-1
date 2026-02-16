@@ -22,24 +22,24 @@ from app.services.executive_review_service import (
 
 # Expected field specs - the implementation must match these
 HEADLINE_MIN_CHARS = 20
-HEADLINE_MAX_CHARS = 65
+HEADLINE_MAX_CHARS = 80
 HEADLINE_MIN_WORDS = 4
-HEADLINE_MAX_WORDS = 10
+HEADLINE_MAX_WORDS = 12
 
-DESCRIPTION_MIN_CHARS = 80
-DESCRIPTION_MAX_CHARS = 220
-DESCRIPTION_MIN_WORDS = 13
-DESCRIPTION_MAX_WORDS = 35
+DESCRIPTION_MIN_CHARS = 150
+DESCRIPTION_MAX_CHARS = 400
+DESCRIPTION_MIN_WORDS = 25
+DESCRIPTION_MAX_WORDS = 65
 
 TITLE_MIN_CHARS = 20
-TITLE_MAX_CHARS = 65
+TITLE_MAX_CHARS = 80
 TITLE_MIN_WORDS = 4
-TITLE_MAX_WORDS = 10
+TITLE_MAX_WORDS = 12
 
-REC_DESC_MIN_CHARS = 80
-REC_DESC_MAX_CHARS = 220
-REC_DESC_MIN_WORDS = 13
-REC_DESC_MAX_WORDS = 35
+REC_DESC_MIN_CHARS = 150
+REC_DESC_MAX_CHARS = 400
+REC_DESC_MIN_WORDS = 25
+REC_DESC_MAX_WORDS = 65
 
 
 # =============================================================================
@@ -101,36 +101,36 @@ class TestContentValidator:
         valid_content = {
             "advantages": [
                 {
-                    "headline": "Cost savings from reducing legacy overhead",
-                    "description": "Retiring aging on-prem systems lowers operating costs and reduces the maintenance burden across globally distributed project teams."
+                    "headline": "Cost savings from reducing legacy system overhead",
+                    "description": "Retiring aging on-prem systems lowers operating costs and reduces the maintenance burden across globally distributed project teams. By consolidating redundant infrastructure, IT can redirect budget toward modernization priorities while reducing the maintenance hours spent on end-of-life hardware and software licensing."
                 },
                 {
-                    "headline": "Efficiency gains through basic standardization",
-                    "description": "Unifying fragmented data environments creates quick workflow efficiencies without requiring major architectural change across departments."
+                    "headline": "Efficiency gains through standardizing project data environments",
+                    "description": "Unifying fragmented data environments across regions creates quick workflow efficiencies without requiring major architectural change across departments. Standardized environments reduce onboarding time for distributed teams and eliminate the duplicated tooling costs from each site running its own infrastructure stack."
                 }
             ],
             "risks": [
                 {
-                    "headline": "High total cost from legacy infrastructure",
-                    "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals."
+                    "headline": "High total cost of ownership from legacy infrastructure",
+                    "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance."
                 },
                 {
-                    "headline": "Integration gaps that add avoidable costs",
-                    "description": "Siloed tools and limited interoperability across field design and systems increase rework risk and make secure integration harder overall."
+                    "headline": "Integration gaps that add avoidable project costs",
+                    "description": "Siloed tools and limited interoperability across field design and systems increase rework risk and make secure integration harder overall. Each manual data handoff between disconnected platforms introduces errors that compound across the global project portfolio, increasing operational overhead."
                 }
             ],
             "recommendations": [
                 {
-                    "title": "Modernize high-impact legacy workloads first",
-                    "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed project teams across regions."
+                    "title": "Modernize the highest-cost legacy workloads first",
+                    "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed project teams across regions. Focus on the workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend."
                 },
                 {
-                    "title": "Standardize core infrastructure to reduce fragmentation",
-                    "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites."
+                    "title": "Standardize core infrastructure to reduce regional fragmentation",
+                    "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."
                 },
                 {
-                    "title": "Build a scalable foundation for future workloads",
-                    "description": "Upgrade underlying compute and storage so the organization can support emerging AI-driven design and planning tools without incurring higher costs."
+                    "title": "Build a scalable foundation for future AI-driven workloads",
+                    "description": "Upgrade underlying compute and storage so the organization can support emerging AI-driven design and planning tools without incurring higher costs. Investing in scalable architecture now prevents the costly cycle of repeated rework when new capabilities are layered onto infrastructure that cannot handle additional demand."
                 }
             ]
         }
@@ -145,17 +145,17 @@ class TestContentValidator:
 
         content = {
             "advantages": [
-                {"headline": "Too short", "description": "A valid description that is long enough to meet the minimum character count for this field type."},
-                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field."}
+                {"headline": "Too short", "description": "A valid description that is long enough to meet the minimum character count for this field type. It includes additional context about infrastructure modernization and operational efficiency improvements that help demonstrate compliance with the expanded content requirements for executive review descriptions."},
+                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field. This expanded content provides sufficient detail about modernization approaches and system improvements to pass the updated character and word count validation thresholds."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 
@@ -169,17 +169,17 @@ class TestContentValidator:
 
         content = {
             "advantages": [
-                {"headline": "This is a very long headline that exceeds the maximum character limit set for headlines in the spec", "description": "A valid description that meets the minimum character and word count requirements for the description field type."},
-                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field."}
+                {"headline": "This is a very long headline that exceeds the maximum character limit set for headlines in the spec", "description": "A valid description that meets the minimum character and word count requirements for the description field type. It includes sufficient detail about infrastructure systems and operational processes to satisfy the expanded content validation rules for executive review output sections."},
+                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field. This expanded content provides sufficient detail about modernization approaches and system improvements to pass the updated character and word count validation thresholds."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 
@@ -197,13 +197,13 @@ class TestContentValidator:
                 {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for this field."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 
@@ -216,17 +216,17 @@ class TestContentValidator:
 
         content = {
             "advantages": [
-                {"headline": "Revolutionary gains in today's landscape", "description": "A valid description that meets the minimum character and word count requirements for the description field type."},
-                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field."}
+                {"headline": "Revolutionary gains in today's landscape", "description": "A valid description that meets the minimum character and word count requirements for the description field type. It includes sufficient detail about infrastructure systems and operational processes to satisfy the expanded content validation rules for executive review output sections."},
+                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field. This expanded content provides sufficient detail about modernization approaches and system improvements to pass the updated character and word count validation thresholds."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 
@@ -240,17 +240,17 @@ class TestContentValidator:
 
         content = {
             "advantages": [
-                {"headline": "Cost savings from reducing legacy overhead", "description": "Retiring aging systems \u2014 including on-prem servers \u2014 lowers operating costs and reduces the maintenance burden across distributed teams significantly."},
-                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field."}
+                {"headline": "Cost savings from reducing legacy overhead", "description": "Retiring aging systems \u2014 including on-prem servers \u2014 lowers operating costs and reduces the maintenance burden across distributed teams significantly. This consolidation eliminates redundant licensing and support contracts while freeing budget for modernization priorities that deliver measurable operational improvements."},
+                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field. This expanded content provides sufficient detail about modernization approaches and system improvements to pass the updated character and word count validation thresholds."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 
@@ -483,17 +483,17 @@ class TestBannedPhrases:
 
         content = {
             "advantages": [
-                {"headline": "Amazing cost savings await you!", "description": "A valid description that meets the minimum character and word count requirements for the description field type."},
-                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field."}
+                {"headline": "Amazing cost savings await you!", "description": "A valid description that meets the minimum character and word count requirements for the description field type. It includes sufficient detail about infrastructure systems and operational processes to satisfy the expanded content validation rules for executive review output sections."},
+                {"headline": "Efficiency gains through basic standardization", "description": "A valid description that meets the minimum character and word count requirements for the description field. This expanded content provides sufficient detail about modernization approaches and system improvements to pass the updated character and word count validation thresholds."}
             ],
             "risks": [
-                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising costs that conflict with reduction goals across the organization."},
-                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business."}
+                {"headline": "High total cost from legacy infrastructure", "description": "Running large outdated systems at enterprise scale drives rising support licensing and hardware costs that conflict with cost reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance across the organization."},
+                {"headline": "Integration gaps that add avoidable costs", "description": "Siloed tools and limited interoperability increase rework risk and make secure integration harder for teams across the business. Each manual data handoff between disconnected platforms introduces errors that compound across the project portfolio, increasing operational overhead and slowing delivery timelines for critical modernization initiatives."}
             ],
             "recommendations": [
-                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive systems to reduce maintenance overhead and improve stability for distributed teams across regions."},
-                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards to lower integration effort and eliminate duplicated spend across project sites."},
-                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work."}
+                {"title": "Modernize high-impact legacy workloads first", "description": "Target the most cost-intensive on-prem systems to reduce maintenance overhead and improve stability for distributed teams across regions. Focus on workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving system reliability."},
+                {"title": "Standardize core infrastructure to reduce fragmentation", "description": "Adopt consistent tooling and platform standards across regions to lower integration effort and eliminate duplicated spend across project sites. This creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding across the organization."},
+                {"title": "Build a scalable foundation for future workloads", "description": "Upgrade underlying compute and storage to support emerging design and planning tools without incurring higher costs from repeated work. Investing in scalable architecture now prevents the costly cycle of rework when new capabilities are layered onto infrastructure that cannot handle additional workload demands."}
             ]
         }
 

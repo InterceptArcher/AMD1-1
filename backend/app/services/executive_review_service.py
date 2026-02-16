@@ -29,31 +29,52 @@ logger = logging.getLogger(__name__)
 FIELD_SPECS = {
     "headline": {
         "min_chars": 20,
-        "max_chars": 65,
+        "max_chars": 80,
         "min_words": 4,
-        "max_words": 10,
+        "max_words": 12,
         "description": "Advantage/Risk headline",
     },
     "description": {
-        "min_chars": 80,
-        "max_chars": 220,
-        "min_words": 13,
-        "max_words": 35,
-        "description": "Advantage/Risk description (one sentence)",
+        "min_chars": 150,
+        "max_chars": 400,
+        "min_words": 25,
+        "max_words": 65,
+        "description": "Advantage/Risk description (2-3 sentences)",
     },
     "rec_title": {
         "min_chars": 20,
-        "max_chars": 65,
+        "max_chars": 80,
         "min_words": 4,
-        "max_words": 10,
+        "max_words": 12,
         "description": "Recommendation title",
     },
     "rec_description": {
-        "min_chars": 80,
-        "max_chars": 220,
-        "min_words": 13,
-        "max_words": 35,
-        "description": "Recommendation description (one sentence)",
+        "min_chars": 150,
+        "max_chars": 400,
+        "min_words": 25,
+        "max_words": 65,
+        "description": "Recommendation description (2-3 sentences)",
+    },
+    "executive_summary": {
+        "min_chars": 200,
+        "max_chars": 600,
+        "min_words": 35,
+        "max_words": 90,
+        "description": "Executive summary paragraph",
+    },
+    "roadmap_phase": {
+        "min_chars": 100,
+        "max_chars": 350,
+        "min_words": 18,
+        "max_words": 55,
+        "description": "Roadmap phase description",
+    },
+    "case_study_relevance": {
+        "min_chars": 150,
+        "max_chars": 500,
+        "min_words": 25,
+        "max_words": 80,
+        "description": "Case study relevance explanation (2-4 sentences)",
     },
 }
 
@@ -125,10 +146,16 @@ BANNED_IN_HEADLINES = [
 
 EXECUTIVE_REVIEW_TOOL_SCHEMA = {
     "name": "generate_executive_review",
-    "description": "Generate a personalized executive review with advantages, risks, and recommendations. Each field has strict character limits.",
+    "description": "Generate a personalized executive review with executive summary, advantages, risks, recommendations, implementation roadmap, and case study relevance. Each field has strict character limits.",
     "input_schema": {
         "type": "object",
         "properties": {
+            "executive_summary": {
+                "type": "string",
+                "description": "2-3 sentence personalized opening paragraph (35-90 words, 200-600 characters). Frame the assessment for the specific company, industry, and stage. Must mention the company name and their primary priority.",
+                "minLength": 200,
+                "maxLength": 600,
+            },
             "advantages": {
                 "type": "array",
                 "description": "Exactly 2 advantages. First must relate to stated business priority.",
@@ -137,15 +164,15 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                     "properties": {
                         "headline": {
                             "type": "string",
-                            "description": "4-10 words, benefit-driven, no colons. 20-65 characters.",
+                            "description": "4-12 words, benefit-driven, no colons. 20-80 characters.",
                             "minLength": 20,
-                            "maxLength": 65,
+                            "maxLength": 80,
                         },
                         "description": {
                             "type": "string",
-                            "description": "Single sentence, 13-35 words, professional tone. 80-220 characters.",
-                            "minLength": 80,
-                            "maxLength": 220,
+                            "description": "2-3 sentences, 25-65 words, professional tone. 150-400 characters. Include specific systems, metrics, or outcomes relevant to the industry.",
+                            "minLength": 150,
+                            "maxLength": 400,
                         },
                     },
                     "required": ["headline", "description"],
@@ -161,15 +188,15 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                     "properties": {
                         "headline": {
                             "type": "string",
-                            "description": "4-10 words, consequence-focused, no colons. 20-65 characters.",
+                            "description": "4-12 words, consequence-focused, no colons. 20-80 characters.",
                             "minLength": 20,
-                            "maxLength": 65,
+                            "maxLength": 80,
                         },
                         "description": {
                             "type": "string",
-                            "description": "Single sentence, 13-35 words, professional tone. 80-220 characters.",
-                            "minLength": 80,
-                            "maxLength": 220,
+                            "description": "2-3 sentences, 25-65 words, professional tone. 150-400 characters. Describe specific operational or business consequences.",
+                            "minLength": 150,
+                            "maxLength": 400,
                         },
                     },
                     "required": ["headline", "description"],
@@ -185,15 +212,15 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                     "properties": {
                         "title": {
                             "type": "string",
-                            "description": "4-10 words, imperative form, no colons. 20-65 characters.",
+                            "description": "4-12 words, imperative form, no colons. 20-80 characters.",
                             "minLength": 20,
-                            "maxLength": 65,
+                            "maxLength": 80,
                         },
                         "description": {
                             "type": "string",
-                            "description": "Single sentence, 13-35 words, professional tone. 80-220 characters.",
-                            "minLength": 80,
-                            "maxLength": 220,
+                            "description": "2-3 sentences, 25-65 words, professional tone. 150-400 characters. Include actionable steps and expected outcomes.",
+                            "minLength": 150,
+                            "maxLength": 400,
                         },
                     },
                     "required": ["title", "description"],
@@ -201,14 +228,42 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                 "minItems": 3,
                 "maxItems": 3,
             },
+            "roadmap": {
+                "type": "array",
+                "description": "Exactly 3 implementation phases. Phase 1 = 0-90 days (quick wins), Phase 2 = 3-6 months (build foundation), Phase 3 = 6-12 months (scale and optimize).",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "phase": {
+                            "type": "string",
+                            "description": "Phase label, e.g. 'Phase 1 (0-90 days)' or 'Phase 2 (3-6 months)' or 'Phase 3 (6-12 months)'.",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "4-10 words, imperative form. 20-65 characters.",
+                            "minLength": 20,
+                            "maxLength": 65,
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "1-2 sentences, 18-55 words. 100-350 characters. Concrete actions for this phase.",
+                            "minLength": 100,
+                            "maxLength": 350,
+                        },
+                    },
+                    "required": ["phase", "title", "description"],
+                },
+                "minItems": 3,
+                "maxItems": 3,
+            },
             "case_study_relevance": {
                 "type": "string",
-                "description": "One sentence (15-30 words) explaining why the selected case study is relevant to this company's specific situation, industry, and challenge.",
-                "minLength": 60,
-                "maxLength": 200,
+                "description": "2-4 sentences (25-80 words, 150-500 characters) explaining how the case study maps to this company's specific situation, industry challenges, and stated priorities.",
+                "minLength": 150,
+                "maxLength": 500,
             },
         },
-        "required": ["advantages", "risks", "recommendations", "case_study_relevance"],
+        "required": ["executive_summary", "advantages", "risks", "recommendations", "roadmap", "case_study_relevance"],
     },
 }
 
@@ -217,10 +272,21 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
 # CONTENT VALIDATOR
 # =============================================================================
 
-def validate_executive_review_content(content: dict) -> dict:
+def validate_executive_review_content(
+    content: dict,
+    priority: str = "",
+    challenge: str = "",
+    industry: str = "",
+) -> dict:
     """
     Validate executive review content against field specs, banned phrases,
-    and AMD content rules.
+    AMD content rules, and personalization requirements.
+
+    Args:
+        content: The generated executive review content dict
+        priority: Business priority (e.g. "Reducing cost") — used for personalization check
+        challenge: Challenge (e.g. "Legacy systems") — used for personalization check
+        industry: Industry (e.g. "Healthcare") — used for relevance check
 
     Returns:
         {
@@ -229,6 +295,16 @@ def validate_executive_review_content(content: dict) -> dict:
         }
     """
     failures = []
+
+    # Validate executive summary
+    exec_summary = content.get("executive_summary", "")
+    if exec_summary:
+        _validate_field(
+            exec_summary,
+            "executive_summary",
+            FIELD_SPECS["executive_summary"],
+            failures,
+        )
 
     # Validate advantages
     for i, adv in enumerate(content.get("advantages", [])):
@@ -278,27 +354,107 @@ def validate_executive_review_content(content: dict) -> dict:
             failures,
         )
 
-    # Validate company name repetition (max once per section)
+    # Validate roadmap
+    for i, phase in enumerate(content.get("roadmap", [])):
+        _validate_field(
+            phase.get("description", ""),
+            f"roadmap[{i}].description",
+            FIELD_SPECS["roadmap_phase"],
+            failures,
+        )
+
+    # Validate case_study_relevance with expanded spec
+    relevance_text = content.get("case_study_relevance", "")
+    if relevance_text:
+        _validate_field(
+            relevance_text,
+            "case_study_relevance",
+            FIELD_SPECS["case_study_relevance"],
+            failures,
+        )
+
+    # Validate company name — must only appear in FIRST item of each section
     company_name = content.get("company_name", "")
     if company_name and len(company_name) > 2:
+        cn_lower = company_name.lower()
         for section_key in ["advantages", "risks", "recommendations"]:
             items = content.get(section_key, [])
-            name_count = 0
-            for item in items:
+            for idx, item in enumerate(items):
+                if idx == 0:
+                    continue  # First item is allowed to have company name
                 for field_val in item.values():
-                    if isinstance(field_val, str) and company_name.lower() in field_val.lower():
-                        name_count += 1
-            if name_count > 2:
+                    if isinstance(field_val, str) and cn_lower in field_val.lower():
+                        failures.append({
+                            "field": f"{section_key}[{idx}]",
+                            "reason": f"Company name '{company_name}' appears in non-first item of {section_key} (only allowed in first item)",
+                            "value": field_val[:80],
+                        })
+                        break  # One failure per item is enough
+
+    # BLOCKING personalization: advantage[0] must reference priority
+    if priority:
+        advantages = content.get("advantages", [])
+        if len(advantages) >= 1:
+            adv0_text = (
+                advantages[0].get("headline", "") + " " + advantages[0].get("description", "")
+            ).lower()
+            priority_keywords = _extract_keywords(priority)
+            if not any(kw in adv0_text for kw in priority_keywords):
                 failures.append({
-                    "field": section_key,
-                    "reason": f"Company name '{company_name}' appears {name_count} times in {section_key} (max 2 — once in headline, once in description of first item)",
-                    "value": f"{name_count} occurrences",
+                    "field": "advantages[0]",
+                    "reason": f"First advantage does not reference the stated priority '{priority}'. Must contain at least one keyword: {priority_keywords}",
+                    "value": advantages[0].get("headline", ""),
+                })
+
+    # BLOCKING personalization: risk[0] must reference challenge
+    if challenge:
+        risks = content.get("risks", [])
+        if len(risks) >= 1:
+            risk0_text = (
+                risks[0].get("headline", "") + " " + risks[0].get("description", "")
+            ).lower()
+            challenge_keywords = _extract_keywords(challenge)
+            if not any(kw in risk0_text for kw in challenge_keywords):
+                failures.append({
+                    "field": "risks[0]",
+                    "reason": f"First risk does not reference the stated challenge '{challenge}'. Must contain at least one keyword: {challenge_keywords}",
+                    "value": risks[0].get("headline", ""),
+                })
+
+    # BLOCKING: case_study_relevance must mention industry or challenge
+    if industry or challenge:
+        relevance = content.get("case_study_relevance", "")
+        if relevance:
+            relevance_lower = relevance.lower()
+            industry_keywords = _extract_keywords(industry) if industry else []
+            challenge_keywords = _extract_keywords(challenge) if challenge else []
+            all_relevance_keywords = industry_keywords + challenge_keywords
+            if all_relevance_keywords and not any(kw in relevance_lower for kw in all_relevance_keywords):
+                failures.append({
+                    "field": "case_study_relevance",
+                    "reason": f"Case study relevance does not mention the user's industry ('{industry}') or challenge ('{challenge}')",
+                    "value": relevance[:80],
                 })
 
     return {
         "passed": len(failures) == 0,
         "failures": failures,
     }
+
+
+def _extract_keywords(phrase: str) -> list:
+    """Extract meaningful keywords from a priority/challenge/industry phrase.
+
+    E.g. 'Reducing cost' -> ['reducing', 'cost']
+         'Legacy systems' -> ['legacy', 'systems']
+         'Integration friction' -> ['integration', 'friction']
+         'Healthcare' -> ['healthcare']
+    """
+    if not phrase:
+        return []
+    stopwords = {"the", "a", "an", "of", "for", "and", "or", "in", "to", "is", "at", "by", "on"}
+    words = phrase.lower().split()
+    return [w for w in words if w not in stopwords and len(w) > 2]
 
 
 def _validate_field(
@@ -556,6 +712,10 @@ def fallback_to_example(
     def _swap_name(text: str) -> str:
         return text.replace(original_company, company_name)
 
+    # Swap company name in executive summary
+    if output.get("executive_summary"):
+        output["executive_summary"] = _swap_name(output["executive_summary"])
+
     if output.get("advantages"):
         output["advantages"][0]["headline"] = _swap_name(output["advantages"][0]["headline"])
         output["advantages"][0]["description"] = _swap_name(output["advantages"][0]["description"])
@@ -566,6 +726,10 @@ def fallback_to_example(
 
     if output.get("recommendations"):
         output["recommendations"][0]["description"] = _swap_name(output["recommendations"][0]["description"])
+
+    # Swap in case_study_relevance
+    if output.get("case_study_relevance"):
+        output["case_study_relevance"] = _swap_name(output["case_study_relevance"])
 
     return output
 
@@ -760,40 +924,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Legacy systems"
             },
             "output": {
+                "executive_summary": "AECOM's infrastructure portfolio spans thousands of project sites running legacy BIM, CAD, and ERP systems that drive escalating maintenance costs. This assessment identifies where targeted modernization of high-cost legacy workloads can deliver measurable savings while building a foundation for future capabilities.",
                 "advantages": [
                     {
                         "headline": "Cost savings from reducing legacy system overhead",
-                        "description": "Retiring aging on-prem systems lowers operating costs and reduces the maintenance burden across AECOM's globally distributed project teams."
+                        "description": "Retiring aging on-prem storage and compute tied to BIM and CAD workflows lowers operating costs across AECOM's globally distributed project teams. By consolidating redundant infrastructure, IT can redirect budget toward modernization priorities while reducing the maintenance hours spent on end-of-life hardware and software licensing."
                     },
                     {
-                        "headline": "Efficiency gains through basic standardization",
-                        "description": "Unifying fragmented BIM, CAD, and project data environments creates quick workflow efficiencies without requiring major architectural change."
+                        "headline": "Efficiency gains through standardizing project data environments",
+                        "description": "Unifying fragmented BIM, CAD, and project data platforms across regions creates immediate workflow efficiencies without requiring major architectural change. Standardized environments reduce onboarding time for distributed teams and eliminate the duplicated tooling costs that come from each project site running its own infrastructure stack."
                     }
                 ],
                 "risks": [
                     {
                         "headline": "High total cost of ownership from legacy infrastructure",
-                        "description": "Running large, outdated systems at enterprise scale drives rising support, licensing, and hardware costs that conflict with cost-reduction goals."
+                        "description": "Running large, outdated on-prem systems at enterprise scale drives rising support, licensing, and hardware refresh costs that directly conflict with cost-reduction goals. Without a clear modernization path, these legacy systems will consume an increasing share of IT budget while delivering diminishing returns on reliability and performance."
                     },
                     {
                         "headline": "Integration gaps that add avoidable project costs",
-                        "description": "Siloed tools and limited interoperability across field, design, and ERP systems increase rework risk and make secure integration harder for IT."
+                        "description": "Siloed tools and limited interoperability across field, design, and ERP systems increase rework risk on major construction projects. Each manual data handoff between disconnected platforms introduces errors that compound across AECOM's global project portfolio, making secure integration harder for IT teams to manage."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Modernize high-impact legacy workloads first",
-                        "description": "Target the most cost-intensive on-prem systems, such as storage and compute tied to BIM and CAD, to reduce maintenance overhead and improve stability for distributed project teams."
+                        "title": "Modernize the highest-cost legacy workloads first",
+                        "description": "Target the most cost-intensive on-prem systems, starting with storage and compute tied to BIM and CAD workflows. Focus on the workloads where maintenance contracts are expiring or hardware refresh cycles are imminent, as these represent the clearest opportunities to reduce spend while improving stability for distributed project teams."
                     },
                     {
-                        "title": "Standardize core infrastructure to reduce fragmentation",
-                        "description": "Adopt consistent tooling and platform standards across regions to lower integration effort for ITDM teams and eliminate duplicated spend across project sites."
+                        "title": "Standardize core infrastructure to reduce regional fragmentation",
+                        "description": "Adopt consistent tooling and platform standards across AECOM's regional offices to lower integration effort for ITDM teams. This eliminates duplicated licensing spend across project sites and creates a unified environment that simplifies support, reduces training overhead, and accelerates new project onboarding."
                     },
                     {
-                        "title": "Build a scalable foundation for future AI workloads",
-                        "description": "Upgrade underlying compute and storage so AECOM can support emerging AI-driven design and planning tools without incurring higher costs from repeated rework."
+                        "title": "Build a scalable foundation for future AI-driven design tools",
+                        "description": "Upgrade underlying compute and storage infrastructure to support emerging AI-driven design, planning, and project management tools. Investing in scalable architecture now prevents the costly cycle of repeated rework that occurs when new capabilities are layered onto infrastructure that cannot handle the additional workload."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Audit and prioritize legacy system costs",
+                        "description": "Catalog all on-prem BIM, CAD, and ERP systems with their maintenance costs, licensing expirations, and hardware refresh timelines. Identify the top five highest-cost workloads and develop business cases for migration or consolidation."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Migrate high-cost workloads to modern platforms",
+                        "description": "Execute migration of the prioritized legacy workloads to standardized infrastructure. Begin with non-critical project data environments to validate the approach, then move production BIM and CAD systems with rollback plans in place."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Unify regional infrastructure and enable AI readiness",
+                        "description": "Roll out the standardized platform across remaining regional offices and project sites. Establish compute and storage capacity targets that will support AI-driven design tools as they mature, ensuring AECOM avoids another cycle of infrastructure debt."
+                    }
+                ],
+                "case_study_relevance": "Smurfit Westrock's 25% infrastructure cost reduction demonstrates what enterprise-scale legacy modernization delivers when executed with clear prioritization. Like AECOM, they operated distributed facilities with aging on-prem systems driving escalating maintenance costs. Their phased approach to consolidation and standardization mirrors the path AECOM can follow to reduce technical debt across its global project portfolio.",
                 "case_study": "Smurfit Westrock"
             }
         },
@@ -808,40 +991,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Resource constraints"
             },
             "output": {
+                "executive_summary": "Allbirds operates with lean teams supporting a growing mix of ecommerce, retail, and supply chain systems that are becoming harder to maintain cost-effectively. This assessment identifies where simplifying and modernizing core platforms can reduce operational spend while freeing limited resources to focus on growth priorities.",
                 "advantages": [
                     {
                         "headline": "Lower operating costs by modernizing high-expense systems",
-                        "description": "Replacing or consolidating aging infrastructure reduces ongoing maintenance spend and helps Allbirds stretch limited resources further across its growing digital and retail operations."
+                        "description": "Replacing or consolidating aging ecommerce and inventory infrastructure reduces ongoing maintenance spend and helps Allbirds stretch limited resources further. By targeting the platforms with the highest licensing and support costs first, the business can see measurable savings within the first quarter while improving system reliability for daily retail operations."
                     },
                     {
                         "headline": "Quick efficiency gains from simplifying fragmented environments",
-                        "description": "Streamlining ecommerce, inventory, and operations systems cuts redundant work and reduces the burden on Allbirds' lean teams."
+                        "description": "Streamlining the disconnected systems behind ecommerce, inventory, and fulfillment operations cuts redundant manual work and reduces the burden on lean teams. Fewer platforms to manage means less context-switching for staff and faster resolution when issues arise, freeing capacity for growth-focused initiatives."
                     }
                 ],
                 "risks": [
                     {
-                        "headline": "Rising costs from continuing to maintain outdated systems",
-                        "description": "Legacy platforms require increasing support and licensing effort, making it harder for Allbirds to manage expenses with limited staffing capacity."
+                        "headline": "Rising costs from continuing to maintain outdated platforms",
+                        "description": "Legacy ecommerce and operations platforms require increasing support effort and licensing spend as they age. For a lean organization like Allbirds, these rising costs consume budget that could otherwise fund modernization, creating a cycle where resource constraints make it harder to address the root cause of the spending."
                     },
                     {
                         "headline": "Resource constraints slow progress on foundational modernization",
-                        "description": "Without added support or simplification, Allbirds may struggle to execute essential upgrades that reduce cost and improve efficiency."
+                        "description": "Without additional support or simplification of the current technology stack, the organization may struggle to execute the upgrades needed to reduce cost and improve efficiency. Delayed modernization compounds the maintenance burden on already stretched teams, making each quarter harder than the last."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Modernize the systems that drive the highest operational costs",
-                        "description": "Update or consolidate the platforms behind ecommerce, inventory, and fulfillment to reduce maintenance spend and improve day-to-day efficiency."
+                        "title": "Modernize the systems driving the highest operational costs",
+                        "description": "Update or consolidate the platforms behind Allbirds' ecommerce, inventory, and fulfillment operations to reduce maintenance spend. Prioritize the systems with the most expensive support contracts or the highest manual intervention requirements, as these deliver the fastest return on modernization investment."
                     },
                     {
                         "title": "Simplify the tech stack to reduce workload on lean teams",
-                        "description": "Standardize tools and remove redundant systems so Allbirds' resources can focus on the core platforms that support growth."
+                        "description": "Standardize tools and remove redundant systems so limited staff can focus on the core platforms that directly support growth. A simpler stack reduces training requirements for new hires and makes it easier to maintain operational continuity when team members are unavailable."
                     },
                     {
                         "title": "Adopt solutions that deliver quick, low-effort efficiency gains",
-                        "description": "Choose modernization steps with clear savings and minimal lift so Allbirds can reduce cost without straining its small IT and operations teams."
+                        "description": "Choose modernization steps with clear cost savings and minimal implementation lift so the organization can reduce spend without straining its small IT and operations teams. Quick wins build internal confidence and create budget headroom for larger modernization investments down the road."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Map spending and identify consolidation targets",
+                        "description": "Audit current technology spending across ecommerce, inventory, and operations platforms. Identify which systems have overlapping functionality, the highest support costs, or upcoming renewal deadlines that create natural decision points for consolidation."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Consolidate the highest-cost redundant platforms",
+                        "description": "Migrate workloads from the most expensive redundant systems onto consolidated platforms. Start with back-office operations that have lower business continuity risk, then address customer-facing ecommerce systems with a tested migration playbook."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Optimize the simplified stack for growth readiness",
+                        "description": "With fewer platforms to manage, reallocate the freed budget and team capacity toward performance improvements and growth-enabling features. Establish monitoring and cost tracking to ensure the streamlined environment continues delivering efficiency gains as business volume increases."
+                    }
+                ],
+                "case_study_relevance": "Smurfit Westrock achieved a 25% reduction in infrastructure costs through strategic consolidation of fragmented systems across distributed operations. Like Allbirds, they faced rising maintenance costs from a complex technology landscape that was absorbing resources needed for growth. Their approach of targeting the highest-cost platforms first and building momentum from early wins is directly applicable to a lean organization working with limited IT staff.",
                 "case_study": "Smurfit Westrock"
             }
         }
@@ -858,40 +1060,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Integration friction"
             },
             "output": {
+                "executive_summary": "Target's retail infrastructure handles massive transaction volumes across POS, ecommerce, and supply chain systems that must perform consistently during peak demand periods. This assessment focuses on where improving workload performance and reducing integration friction across core retail platforms can strengthen customer experience and protect revenue.",
                 "advantages": [
                     {
-                        "headline": "Performance gains from upgrading core systems",
-                        "description": "Modernizing high-volume retail workloads improves responsiveness across POS, ecommerce, and supply chain operations."
+                        "headline": "Performance gains from upgrading core retail transaction systems",
+                        "description": "Modernizing the compute infrastructure behind Target's highest-volume POS, ecommerce, and inventory workloads improves responsiveness during peak shopping periods. Faster transaction processing reduces checkout abandonment rates and enables real-time inventory visibility that prevents the stockout and overstock conditions that directly impact revenue."
                     },
                     {
-                        "headline": "Faster throughput by reducing integration friction",
-                        "description": "Improving data flow between merchandising, inventory, and digital platforms enables more consistent performance for customer-facing processes."
+                        "headline": "Faster throughput by eliminating integration bottlenecks",
+                        "description": "Improving data flow between merchandising, inventory, and digital platforms enables more consistent performance for customer-facing processes. When pricing updates, promotions, and inventory changes propagate in near-real-time across all channels, the organization can execute omnichannel retail strategies without the delays that frustrate customers and erode margins."
                     }
                 ],
                 "risks": [
                     {
-                        "headline": "Persistent slowdowns from legacy system connections",
-                        "description": "If integration issues remain unresolved, performance bottlenecks will continue to affect revenue, customer experience, and store operations."
+                        "headline": "Persistent slowdowns from fragmented system integrations",
+                        "description": "If integration friction between POS, ecommerce, and supply chain systems remains unresolved, performance bottlenecks will continue to surface during high-traffic periods. These slowdowns directly affect revenue during critical shopping events and degrade the customer experience that Target has invested heavily in building across its omnichannel retail presence."
                     },
                     {
                         "headline": "Competitors advance with more unified retail platforms",
-                        "description": "Delays in improving system performance allow faster, better-integrated retailers to gain an advantage in speed and reliability."
+                        "description": "Retailers who have already consolidated their commerce platforms can push promotions, adjust pricing, and fulfill orders faster than organizations still managing fragmented integrations. Each quarter of delay in improving system performance widens the gap in operational speed and customer responsiveness that defines competitive positioning in retail."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Prioritize performance upgrades for high-volume retail systems",
-                        "description": "Focus modernization on the transactional workloads that power POS, ecommerce, and inventory to improve speed and reduce friction during peak demand."
+                        "title": "Prioritize performance upgrades for high-volume retail workloads",
+                        "description": "Focus modernization on the transactional systems that power POS, ecommerce, and inventory management during peak demand periods. Benchmark current response times against Target's peak traffic volumes and set measurable performance targets that align with revenue-critical shopping events like back-to-school, holiday, and promotional campaigns."
                     },
                     {
-                        "title": "Strengthen integration across core retail platforms",
-                        "description": "Improve data consistency and flow between store, digital, and supply chain systems to eliminate performance delays that impact customer experience and revenue."
+                        "title": "Strengthen integration across core retail and supply chain platforms",
+                        "description": "Improve data consistency and flow between store systems, digital platforms, and supply chain management to eliminate the performance delays that impact customer experience. Prioritize the integration points where data latency causes the most visible customer-facing issues, such as inventory availability and order fulfillment accuracy."
                     },
                     {
-                        "title": "Adopt scalable infrastructure to support unified commerce",
-                        "description": "Move toward more flexible compute and storage environments so Target can handle growing performance demands across omnichannel operations without added complexity."
+                        "title": "Adopt scalable infrastructure to support unified commerce operations",
+                        "description": "Move toward flexible compute and storage environments that can scale dynamically with Target's seasonal demand patterns. Infrastructure that auto-scales during peak traffic prevents the performance degradation that occurs when fixed-capacity systems are pushed beyond their design limits during critical revenue periods."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Benchmark performance and map integration bottlenecks",
+                        "description": "Measure current response times across POS, ecommerce, and inventory systems under peak load conditions. Document the specific integration points where data latency or synchronization failures create customer-visible performance issues."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Upgrade the highest-impact transaction processing systems",
+                        "description": "Modernize compute infrastructure for the workloads with the worst performance-to-revenue impact ratio. Implement improved integration middleware for the top three bottleneck points identified in Phase 1, with validation against peak traffic benchmarks."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Deploy auto-scaling infrastructure across all commerce channels",
+                        "description": "Roll out dynamic scaling capabilities across all customer-facing retail systems to handle seasonal demand spikes without performance degradation. Establish continuous performance monitoring with automated alerting so integration issues are caught before they impact customers."
+                    }
+                ],
+                "case_study_relevance": "KT Cloud's infrastructure modernization demonstrates how large-scale organizations achieve measurable performance improvements across high-volume transaction systems. Like Target, they needed to handle massive throughput demands while maintaining consistent responsiveness. Their approach to upgrading core compute and streamlining platform integrations parallels Target's need to improve POS and ecommerce performance while reducing retail supply chain friction.",
                 "case_study": "KT Cloud"
             }
         },
@@ -906,40 +1127,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Skills gap"
             },
             "output": {
+                "executive_summary": "Caterpillar's manufacturing operations depend on complex OT and IT systems that support equipment monitoring, production analytics, and global supply chain coordination. This assessment identifies where improving workload performance and addressing skills gaps can strengthen operational reliability and competitive positioning across global manufacturing sites.",
                 "advantages": [
                     {
                         "headline": "Performance gains from modernizing critical industrial workloads",
-                        "description": "Upgrading compute environments that support equipment monitoring and production systems improves reliability and throughput across global manufacturing operations."
+                        "description": "Upgrading compute environments that support Caterpillar's equipment monitoring and production analytics improves reliability across global manufacturing operations. Faster data processing from plant-floor sensors and OT systems enables earlier detection of equipment issues, reducing unplanned downtime that costs millions in lost production capacity annually."
                     },
                     {
                         "headline": "Fewer delays by reducing friction between OT and IT systems",
-                        "description": "Improving integration across factory equipment, ERP, and analytics platforms enables more consistent performance and faster issue resolution for production teams."
+                        "description": "Improving integration across factory equipment, ERP, and analytics platforms enables more consistent performance and faster issue resolution for production teams. When OT data flows reliably into IT analytics systems, manufacturing managers can make decisions based on current production conditions rather than waiting for batch reports that may already be outdated."
                     }
                 ],
                 "risks": [
                     {
-                        "headline": "Operational slowdowns if legacy OT connections remain in place",
-                        "description": "If outdated interfaces are not modernized, performance issues will continue to impact production output, equipment uptime, and downstream supply chain operations."
+                        "headline": "Operational slowdowns if legacy OT connections remain unaddressed",
+                        "description": "If outdated interfaces between plant-floor equipment and enterprise IT systems are not modernized, performance issues will continue to impact production output, equipment uptime, and downstream supply chain operations. These slowdowns compound across Caterpillar's global manufacturing footprint, where minutes of unplanned downtime on critical production lines translate directly to revenue loss."
                     },
                     {
-                        "headline": "Skills gaps can limit the impact of modernization efforts",
-                        "description": "Without enough talent to support new tools and integrated OT-IT workflows, performance improvements may stall or fail to scale across manufacturing sites."
+                        "headline": "Skills gaps limiting the impact of modernization investments",
+                        "description": "Without enough talent experienced in both OT and IT systems, performance improvements may stall at individual sites rather than scaling across the enterprise. Manufacturing organizations that invest in infrastructure modernization without simultaneously building internal capabilities often see adoption bottlenecks that prevent the full return on their technology investments."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Prioritize modernization of core production systems",
-                        "description": "Focus upgrades on equipment monitoring, analytics, and plant-floor workloads that have the greatest impact on performance and uptime."
+                        "title": "Prioritize modernization of core production monitoring systems",
+                        "description": "Focus upgrades on the equipment monitoring, analytics, and plant-floor workloads that have the greatest impact on Caterpillar's production uptime and output quality. Start with the manufacturing sites that have the highest downtime costs, as these provide the clearest business case and fastest payback on infrastructure modernization investment."
                     },
                     {
                         "title": "Strengthen integration across OT and IT environments",
-                        "description": "Standardize platforms and improve data flow between factory equipment, ERP, and analytics tools to reduce delays and improve operational reliability."
+                        "description": "Standardize data platforms and improve the flow between factory equipment, ERP, and analytics tools to reduce the delays that undermine operational reliability. Prioritize the OT-IT integration points where data latency or format inconsistencies create the most significant production planning blind spots across manufacturing sites."
                     },
                     {
-                        "title": "Invest in capabilities that close critical skills gaps",
-                        "description": "Expand training and bring in specialized expertise so modernization work can scale across manufacturing sites and support more reliable, integrated operations."
+                        "title": "Invest in training programs that close critical OT-IT skills gaps",
+                        "description": "Expand internal training programs and bring in specialized expertise so modernization work can scale across manufacturing sites and support integrated OT-IT operations. Partner with equipment vendors and technology providers to create role-specific certification paths that build the skills needed to maintain modernized infrastructure independently."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Assess OT-IT integration gaps and skills inventory",
+                        "description": "Document the current state of OT-IT connectivity at the top five highest-output manufacturing sites. Conduct a skills assessment across operations and IT teams to identify the specific capability gaps that will limit modernization adoption."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Upgrade production systems at priority manufacturing sites",
+                        "description": "Deploy modernized compute and integration infrastructure at the sites with the highest downtime costs. Launch targeted training programs for the OT-IT skills identified as most critical during Phase 1, with hands-on certification tied to the new platforms."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Scale modernization across global manufacturing operations",
+                        "description": "Extend the validated infrastructure and integration improvements to remaining manufacturing sites using the playbook developed at priority locations. Establish centers of excellence that maintain skills development and support continuous improvement across the global production network."
+                    }
+                ],
+                "case_study_relevance": "PQR's infrastructure modernization in an industrial environment demonstrates how manufacturing organizations can improve system performance while managing the skills challenges that come with OT-IT convergence. Their phased approach to upgrading production-critical systems while building internal capabilities mirrors the path Caterpillar needs to follow to scale performance improvements across a global manufacturing footprint without creating dependency on external consultants.",
                 "case_study": "PQR"
             }
         }
@@ -956,40 +1196,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Data governance and compliance"
             },
             "output": {
+                "executive_summary": "HCA Healthcare's IT infrastructure is well-positioned for AI adoption, with modern compute environments and established data governance across EHR, imaging, and clinical systems. This assessment identifies where strengthening data foundations and expanding governance frameworks can accelerate the safe deployment of clinical AI at enterprise scale while maintaining HIPAA compliance.",
                 "advantages": [
                     {
-                        "headline": "Stronger readiness for advanced AI workloads",
-                        "description": "HCA's modern, scalable infrastructure gives IT teams the foundation to support clinical AI models that require high performance and reliable data access at enterprise scale."
+                        "headline": "Strong infrastructure readiness for advanced clinical AI workloads",
+                        "description": "HCA's modern, scalable compute environment gives IT teams the foundation to support clinical AI models requiring high-performance processing and reliable patient data access at enterprise scale. The existing infrastructure handles GPU-intensive diagnostic imaging AI and predictive analytics without the costly rearchitecture that organizations at earlier stages must undertake first."
                     },
                     {
-                        "headline": "Tighter governance accelerates compliant AI adoption",
-                        "description": "With established data controls across EHR, imaging, and operational systems, the organization can evaluate and deploy AI use cases confidently within strict regulatory boundaries."
+                        "headline": "Tighter governance accelerates HIPAA-compliant AI deployment",
+                        "description": "With established data controls across EHR, PACS imaging, and operational systems, the organization can evaluate and deploy AI use cases confidently within strict HIPAA boundaries. This governance maturity means HCA can move from AI pilots to production deployment faster than competitors still building the data quality and audit infrastructure that regulators require."
                     }
                 ],
                 "risks": [
                     {
-                        "headline": "Data governance gaps threaten AI accuracy and safety",
-                        "description": "If interoperability or data quality issues persist across clinical and administrative systems, AI models may underperform or increase compliance risk for IT."
+                        "headline": "Data governance gaps threaten AI accuracy and patient safety",
+                        "description": "If interoperability or data quality issues persist across clinical and administrative systems, AI models may produce unreliable outputs that increase compliance risk. In healthcare, inaccurate AI-driven insights can affect patient care decisions, making data governance not just a technical requirement but a patient safety imperative that regulators scrutinize closely."
                     },
                     {
-                        "headline": "Regulatory complexity can slow enterprise AI deployment",
-                        "description": "Highly regulated environments like healthcare require rigorous validation and documentation, which may extend timelines to operationalize AI at scale."
+                        "headline": "Regulatory complexity can slow enterprise-scale AI deployment",
+                        "description": "Healthcare's regulatory environment requires rigorous validation, documentation, and ongoing monitoring for every AI system that touches patient data. This compliance overhead may extend timelines for operationalizing AI at scale, particularly when different clinical departments have varying data standards and governance practices that must be harmonized."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Strengthen data foundations for clinical AI",
-                        "description": "Improve data quality and interoperability across EHR, imaging, and operational systems to ensure AI models are accurate, reliable, and compliant."
+                        "title": "Strengthen data foundations for clinical AI across EHR systems",
+                        "description": "Improve data quality, standardization, and interoperability across EHR, PACS imaging, and operational systems to ensure AI models receive consistent, accurate inputs. Prioritize the HL7 FHIR integration points that connect clinical data sources, as these determine whether AI tools can access the comprehensive patient records needed for reliable diagnostic and predictive outputs."
                     },
                     {
-                        "title": "Expand governance frameworks for safe AI use",
-                        "description": "Enhance validation, documentation, and audit controls so IT teams can deploy AI tools that meet strict healthcare regulatory requirements."
+                        "title": "Expand governance frameworks for safe clinical AI deployment",
+                        "description": "Enhance validation, documentation, and audit controls so HCA's IT teams can deploy AI tools that meet HIPAA and FDA requirements for clinical decision support. Build governance templates that can be replicated across departments and facilities, reducing the time and effort needed to bring each new AI use case through the regulatory approval process."
                     },
                     {
-                        "title": "Scale infrastructure for high-performance AI workloads",
-                        "description": "Increase compute and storage capacity to run demanding AI models consistently across clinical and administrative environments."
+                        "title": "Scale high-performance infrastructure for GPU-intensive AI models",
+                        "description": "Increase GPU compute and storage capacity to run demanding clinical AI models for diagnostic imaging, patient risk scoring, and operational optimization. Right-size infrastructure investments to the specific AI workloads that HCA is prioritizing, avoiding over-provisioning while ensuring enough capacity to support concurrent model training and inference across facilities."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Audit data quality and governance across clinical systems",
+                        "description": "Assess data completeness, consistency, and interoperability across EHR, PACS, and administrative systems at pilot facilities. Identify the specific data governance gaps that would prevent AI models from meeting HIPAA and FDA validation requirements."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Deploy AI pilots with validated governance controls",
+                        "description": "Launch clinical AI pilots in the departments with the strongest data foundations, using the governance templates developed in Phase 1. Validate that AI outputs meet accuracy and safety thresholds before expanding to additional clinical use cases or facilities."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Scale validated AI models across the enterprise network",
+                        "description": "Extend proven AI use cases to additional HCA facilities using the governance playbook and infrastructure standards validated during pilot deployment. Establish continuous monitoring for model performance, data quality, and regulatory compliance across all production AI systems."
+                    }
+                ],
+                "case_study_relevance": "PQR's healthcare infrastructure modernization demonstrates how large health systems build the data foundations and governance controls needed for compliant AI adoption at scale. Like HCA, they needed to ensure that clinical AI systems met strict HIPAA requirements while delivering reliable outputs across EHR and imaging systems. Their phased approach to strengthening data quality before scaling AI deployment directly parallels HCA's path to enterprise-wide clinical AI readiness.",
                 "case_study": "PQR"
             }
         },
@@ -1004,40 +1263,59 @@ FEW_SHOT_EXAMPLES_POOL = {
                 "challenge": "Data governance and compliance"
             },
             "output": {
+                "executive_summary": "JPMorgan Chase operates at the frontier of financial technology, where milliseconds of latency in trading systems and transaction processing directly translate to competitive advantage or lost revenue. This assessment identifies where optimizing workload performance and streamlining governance can strengthen market positioning while maintaining the regulatory compliance that protects the institution's reputation.",
                 "advantages": [
                     {
-                        "headline": "Performance optimization drives competitive trading advantages",
-                        "description": "JPMorgan Chase can leverage optimized infrastructure to execute transactions faster and more reliably than competitors in latency-sensitive markets."
+                        "headline": "Performance optimization drives measurable competitive trading advantages",
+                        "description": "JPMorgan Chase can leverage optimized compute infrastructure to execute transactions faster and more reliably than competitors in latency-sensitive markets. In high-frequency trading environments, infrastructure performance improvements measured in microseconds can translate to millions in additional revenue capture, making compute optimization one of the highest-ROI investments available."
                     },
                     {
-                        "headline": "Strong governance enables compliant innovation at scale",
-                        "description": "Mature data controls and audit capabilities allow the organization to deploy new trading and analytics systems while maintaining regulatory compliance."
+                        "headline": "Strong governance enables compliant innovation at enterprise scale",
+                        "description": "Mature data controls and automated audit capabilities allow the organization to deploy new trading algorithms and analytics systems while maintaining compliance with SEC, FINRA, and global regulatory requirements. This governance maturity means the institution can innovate faster than competitors who must build compliance infrastructure from scratch for each new system or product launch."
                     }
                 ],
                 "risks": [
                     {
-                        "headline": "Compliance overhead may constrain performance gains",
-                        "description": "If governance requirements add latency or complexity to critical trading systems, the company may not fully realize performance optimization benefits."
+                        "headline": "Compliance overhead may constrain trading performance gains",
+                        "description": "If governance requirements add latency or complexity to critical trading and risk management systems, the institution may not fully realize performance benefits of infrastructure modernization. Maintaining the audit trail, data lineage, and regulatory reporting that regulators demand without introducing processing overhead that erodes competitive advantage remains an ongoing challenge."
                     },
                     {
-                        "headline": "Fintech competitors move faster with fewer constraints",
-                        "description": "Newer financial technology firms with lighter regulatory burdens can iterate and deploy performance improvements more rapidly than established institutions."
+                        "headline": "Fintech competitors move faster with lighter regulatory burdens",
+                        "description": "Newer financial technology firms with simpler regulatory obligations can iterate on performance improvements and deploy new capabilities more rapidly. While compliance protects JPMorgan Chase's market position, the operational overhead of maintaining it across thousands of systems creates a speed disadvantage that compounds with each new regulatory requirement."
                     }
                 ],
                 "recommendations": [
                     {
-                        "title": "Optimize high-frequency trading infrastructure",
-                        "description": "Focus performance improvements on the systems that directly impact revenue generation and competitive positioning in time-sensitive financial markets."
+                        "title": "Optimize infrastructure for latency-sensitive trading workloads",
+                        "description": "Focus performance improvements on the compute and networking systems that directly impact execution speed in JPMorgan Chase's highest-revenue trading operations. Benchmark current latency against tier-one competitors and set measurable performance targets that translate directly to quantifiable revenue impact in high-frequency and algorithmic trading."
                     },
                     {
-                        "title": "Streamline compliance without sacrificing controls",
-                        "description": "Implement automated governance and audit capabilities that maintain regulatory compliance while reducing the performance overhead of manual processes."
+                        "title": "Streamline regulatory compliance without sacrificing audit controls",
+                        "description": "Implement automated governance and real-time audit capabilities that maintain SEC, FINRA, and global regulatory compliance while reducing the manual processing overhead that adds latency to critical systems. Modernize compliance infrastructure so that regulatory requirements are met through efficient automation rather than performance-constraining manual processes."
                     },
                     {
-                        "title": "Deploy AI for real-time risk and fraud detection",
-                        "description": "Leverage optimized compute infrastructure to run advanced AI models that improve risk management and fraud prevention without adding transaction latency."
+                        "title": "Deploy AI for real-time risk assessment and fraud prevention",
+                        "description": "Leverage optimized compute infrastructure to run advanced AI models that improve risk management and fraud detection accuracy without adding transaction processing latency. Position these AI capabilities as competitive differentiators that simultaneously strengthen compliance posture and improve the speed and accuracy of critical financial decisions."
                     }
                 ],
+                "roadmap": [
+                    {
+                        "phase": "Phase 1 (0-90 days)",
+                        "title": "Benchmark trading system latency and compliance overhead",
+                        "description": "Measure current performance metrics across high-frequency trading, risk management, and transaction processing systems. Quantify the latency impact of existing compliance processes to identify where automation can reduce overhead without weakening regulatory controls."
+                    },
+                    {
+                        "phase": "Phase 2 (3-6 months)",
+                        "title": "Upgrade compute infrastructure for priority trading systems",
+                        "description": "Deploy optimized hardware and networking for the trading workloads with the highest revenue-to-latency sensitivity. Simultaneously implement automated compliance monitoring for these systems to ensure performance gains do not come at the expense of regulatory coverage."
+                    },
+                    {
+                        "phase": "Phase 3 (6-12 months)",
+                        "title": "Scale AI-driven risk and compliance automation enterprise-wide",
+                        "description": "Extend AI-powered risk assessment and automated compliance capabilities across all major trading and transaction processing systems. Establish continuous performance monitoring that tracks both execution speed and regulatory compliance metrics to ensure optimization gains are sustained as market conditions and regulatory requirements evolve."
+                    }
+                ],
+                "case_study_relevance": "PQR's approach to modernizing performance-critical infrastructure while maintaining strict regulatory compliance demonstrates the path large financial institutions must follow. Like JPMorgan Chase, they needed to improve system performance where every change requires regulatory validation. Their success in automating compliance controls while delivering measurable performance improvements provides a proven framework for balancing speed and governance.",
                 "case_study": "PQR"
             }
         }
@@ -1071,6 +1349,7 @@ class ExecutiveReviewService:
         stage: str,
         priority: str,
         challenge: str,
+        enrichment_context: dict | None = None,
     ) -> dict:
         """
         Generate executive review content using few-shot prompting.
@@ -1138,18 +1417,21 @@ class ExecutiveReviewService:
                 "stage": stage,
                 "stage_sidebar": get_stage_sidebar(stage),
                 "stage_identification_text": build_stage_identification_text(company_name, stage),
+                "executive_summary": result_data.get("executive_summary", ""),
                 "advantages": result_data.get("advantages", []),
                 "risks": result_data.get("risks", []),
                 "recommendations": result_data.get("recommendations", []),
+                "roadmap": result_data.get("roadmap", []),
                 "case_study": case_study_name,
                 "case_study_description": case_study_desc,
                 "case_study_link": case_study_link,
                 "case_study_relevance": result_data.get("case_study_relevance", ""),
             }
 
-            # Run content validation
-            self._validate_personalization(result, industry, priority, challenge)
-            validation = validate_executive_review_content(result)
+            # Run content validation (personalization checks are now blocking)
+            validation = validate_executive_review_content(
+                result, priority=priority, challenge=challenge, industry=industry
+            )
             if not validation["passed"]:
                 logger.warning(f"Content validation failed ({len(validation['failures'])} issues): {validation['failures']}")
                 # Attempt targeted retry for failing fields
@@ -1257,7 +1539,7 @@ class ExecutiveReviewService:
 
 Please regenerate ONLY the sections that contain failures: {', '.join(failing_sections)}.
 Keep the same personalization (industry={industry}, priority={priority}, challenge={challenge}, stage={stage}).
-Headlines must be 4-10 words (20-65 characters). Descriptions must be 13-35 words (80-220 characters).
+Headlines must be 4-12 words (20-80 characters). Descriptions must be 25-65 words (150-400 characters), 2-3 sentences each.
 No colons in headlines, no em dashes, no exclamation marks, no banned filler phrases."""
 
             try:
@@ -1332,22 +1614,24 @@ No colons in headlines, no em dashes, no exclamation marks, no banned filler phr
 Your output must follow these strict rules:
 
 CONTENT STRUCTURE:
-- Headlines: 4-10 words, imperative or benefit-driven, no colons
-- Descriptions: One single sentence, 13-35 words, human and professional tone
+- Executive Summary: 2-3 sentences (35-90 words) framing the assessment for this specific company
+- Headlines: 4-12 words, imperative or benefit-driven, no colons
+- Descriptions: 2-3 sentences, 25-65 words, human and professional tone with specific systems and outcomes
+- Roadmap: 3 implementation phases (0-90 days, 3-6 months, 6-12 months) with concrete actions
+- Case Study Relevance: 2-4 sentences explaining how the case study maps to the company's situation
 - No jargon, buzzwords, hype, or filler phrases like "in today's landscape"
 - No em dashes, no exclamation marks, no emojis
 
 COMPANY NAME RULES:
-- Use the company name exactly ONCE in each section (advantages, risks, recommendations)
-- The name should appear in the FIRST item of each section
-- After first mention, use pronouns: "their environment", "the company", "the organization", "their teams"
+- Use the company name in the executive summary and FIRST item of each section (advantages, risks, recommendations)
+- After first mention in each section, use pronouns: "their environment", "the company", "the organization", "their teams"
 - Never repeat the company name across every line (this is an AI tell)
 
 PERSONALIZATION REQUIREMENTS (CRITICAL):
 You MUST incorporate ALL of these inputs into the content:
 - INDUSTRY: Reference industry-specific workloads, systems, and use cases using the terminology table below
 - PERSONA: Tailor language for the reader (ITDM = technical infrastructure focus, BDM = business outcomes focus)
-- PRIORITY: The first advantage and first recommendation MUST directly address the stated priority
+- PRIORITY: The executive summary, first advantage, and first recommendation MUST directly address the stated priority
 - CHALLENGE: The first risk MUST directly reference the stated challenge and its consequences
 
 INDUSTRY TERMINOLOGY (use these terms in your output):
@@ -1415,11 +1699,14 @@ Business Priority: {priority}
 Challenge: {challenge}
 {amd_context_block}
 PERSONALIZATION CHECKLIST (you must address ALL of these):
-1. First advantage headline MUST relate to "{priority}"
-2. First risk headline MUST reference consequences of "{challenge}"
-3. Content MUST use {industry}-specific terminology and systems
-4. Language MUST be appropriate for a {persona} reader
-5. Recommendations MUST be {stage}-appropriate ({"foundational, cost-focused" if stage == "Observer" else "performance, integration-focused" if stage == "Challenger" else "optimization, AI-readiness focused"})
+1. Executive summary MUST mention {company_name} and frame around "{priority}"
+2. First advantage headline MUST relate to "{priority}"
+3. First risk headline MUST reference consequences of "{challenge}"
+4. Content MUST use {industry}-specific terminology and systems
+5. Language MUST be appropriate for a {persona} reader
+6. Recommendations MUST be {stage}-appropriate ({"foundational, cost-focused" if stage == "Observer" else "performance, integration-focused" if stage == "Challenger" else "optimization, AI-readiness focused"})
+7. Roadmap MUST have 3 phases with concrete, time-bound actions specific to {industry}
+8. Case study relevance MUST explain the connection to {company_name}'s specific {industry} challenges
 
 Here is an example of excellent output for a {stage} stage company:
 
@@ -1456,16 +1743,17 @@ Use the generate_executive_review tool to return your response."""
                 "stage": stage,
                 "stage_sidebar": get_stage_sidebar(stage),
                 "stage_identification_text": build_stage_identification_text(company_name, stage),
+                "executive_summary": data.get("executive_summary", ""),
                 "advantages": data.get("advantages", []),
                 "risks": data.get("risks", []),
                 "recommendations": data.get("recommendations", []),
+                "roadmap": data.get("roadmap", []),
                 "case_study": case_study_name,
                 "case_study_description": case_study_desc,
                 "case_study_link": case_study_link,
                 "case_study_relevance": data.get("case_study_relevance", ""),
             }
 
-            self._validate_personalization(result, industry, priority, challenge)
             return result
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse executive review JSON: {e}")
@@ -1481,24 +1769,93 @@ Use the generate_executive_review tool to return your response."""
             "stage": stage,
             "stage_sidebar": get_stage_sidebar(stage),
             "stage_identification_text": build_stage_identification_text(company_name, stage),
+            "executive_summary": example["output"].get("executive_summary", f"This assessment evaluates {company_name}'s current infrastructure position and identifies opportunities for modernization aligned with their {priority.lower()} goals."),
             "advantages": example["output"]["advantages"],
             "risks": example["output"]["risks"],
             "recommendations": example["output"]["recommendations"],
+            "roadmap": example["output"].get("roadmap", []),
             "case_study": case_study_name,
             "case_study_description": case_study_desc,
             "case_study_link": case_study_link,
-            "case_study_relevance": f"This case study demonstrates how organizations in {industry} can address {challenge.lower()} through data center modernization.",
+            "case_study_relevance": example["output"].get("case_study_relevance", f"This case study demonstrates how organizations in {industry} can address {challenge.lower()} through data center modernization, following a phased approach that delivers measurable results while managing the operational risks of infrastructure change."),
         }
 
-    def _validate_personalization(self, result: dict, industry: str, priority: str, challenge: str) -> None:
-        """Non-blocking validation that logs warnings for weak personalization."""
-        advantages = result.get("advantages", [])
-        risks = result.get("risks", [])
-        recommendations = result.get("recommendations", [])
+    async def judge_content_specificity(
+        self,
+        content: dict,
+        industry: str,
+        persona: str,
+    ) -> dict:
+        """
+        LLM-as-judge: score whether the generated content is specific to the
+        stated industry and persona, or if it reads as generic filler.
 
-        if len(advantages) < 2:
-            logger.warning("Executive review has fewer than 2 advantages")
-        if len(risks) < 2:
-            logger.warning("Executive review has fewer than 2 risks")
-        if len(recommendations) < 3:
-            logger.warning("Executive review has fewer than 3 recommendations")
+        Uses a fast model (Haiku) for speed. Returns:
+            {"is_specific": bool, "score": int (1-5), "reason": str}
+        """
+        if not self.client:
+            # No API key — assume specific (skip judge in mock mode)
+            return {"is_specific": True, "score": 5, "reason": "Skipped (no API client)"}
+
+        # Build a concise representation of the content for judging
+        text_parts = []
+        for adv in content.get("advantages", []):
+            text_parts.append(f"Advantage: {adv.get('headline', '')} — {adv.get('description', '')}")
+        for risk in content.get("risks", []):
+            text_parts.append(f"Risk: {risk.get('headline', '')} — {risk.get('description', '')}")
+        for rec in content.get("recommendations", []):
+            text_parts.append(f"Recommendation: {rec.get('title', '')} — {rec.get('description', '')}")
+        content_text = "\n".join(text_parts)
+
+        judge_prompt = f"""You are a content quality judge. Score the following executive review content on INDUSTRY SPECIFICITY.
+
+Industry: {industry}
+Persona: {persona}
+
+Content:
+{content_text}
+
+Score 1-5:
+1 = Completely generic, could apply to any industry
+2 = Mostly generic with one vague reference
+3 = Some industry references but still broadly applicable
+4 = Clearly tailored to the industry with specific terminology
+5 = Highly specific with industry jargon, systems, and use cases
+
+Respond with ONLY a JSON object: {{"score": <int>, "reason": "<one sentence>"}}"""
+
+        try:
+            response = await self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=150,
+                messages=[{"role": "user", "content": judge_prompt}],
+            )
+
+            response_text = response.content[0].text.strip()
+            # Parse JSON from response — handle markdown fencing
+            import json as json_mod
+            json_text = response_text
+            if "```" in json_text:
+                # Extract JSON from markdown code block
+                json_match = re.search(r'\{[^}]+\}', json_text)
+                if json_match:
+                    json_text = json_match.group()
+            elif not json_text.startswith("{"):
+                # Try to find JSON object in response
+                json_match = re.search(r'\{[^}]+\}', json_text)
+                if json_match:
+                    json_text = json_match.group()
+            judge_result = json_mod.loads(json_text)
+            score = int(judge_result.get("score", 3))
+            reason = judge_result.get("reason", "")
+
+            is_specific = score >= 3
+            if not is_specific:
+                logger.warning(f"LLM judge flagged content as generic (score={score}): {reason}")
+
+            return {"is_specific": is_specific, "score": score, "reason": reason}
+
+        except Exception as e:
+            logger.error(f"LLM judge failed: {e}")
+            # On judge failure, don't block — assume specific
+            return {"is_specific": True, "score": 3, "reason": f"Judge error: {e}"}
