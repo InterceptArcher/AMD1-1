@@ -1,6 +1,26 @@
 'use client';
 
-import { useState, FormEvent, ChangeEvent } from 'react';
+import { useState, FormEvent, useCallback } from 'react';
+import WizardProgressDots from './wizard/WizardProgressDots';
+import StepContainer from './wizard/StepContainer';
+import SelectionCard from './wizard/SelectionCard';
+import StepAboutYou from './wizard/steps/StepAboutYou';
+import StepCompany from './wizard/steps/StepCompany';
+import StepRole from './wizard/steps/StepRole';
+import {
+  WizardData,
+  INITIAL_WIZARD_DATA,
+  STEP_VALIDATORS,
+  TOTAL_STEPS,
+  TRANSITION_MESSAGES,
+  SOCIAL_PROOF,
+  STAGE_LABELS,
+  IT_ENVIRONMENT_OPTIONS,
+  BUSINESS_PRIORITY_OPTIONS,
+  ROLE_OPTIONS,
+  INDUSTRY_OPTIONS,
+  getFilteredChallenges,
+} from './wizard/wizardTypes';
 
 export interface UserInputs {
   email: string;
@@ -11,8 +31,7 @@ export interface UserInputs {
   goal: string;
   persona: string;
   industry: string;
-  // New fields for executive review
-  itEnvironment: string;  // Maps to Stage (Observer/Challenger/Leader)
+  itEnvironment: string;
   businessPriority: string;
   challenge: string;
 }
@@ -22,441 +41,284 @@ interface EmailConsentFormProps {
   isLoading?: boolean;
 }
 
-// Buying stage options
-// IT Environment options (maps to Modernization Stage)
-const IT_ENVIRONMENT_OPTIONS = [
-  { value: '', label: 'Select your IT environment...' },
-  { value: 'traditional', label: 'Traditional and legacy-heavy' },
-  { value: 'modernizing', label: 'Actively modernizing' },
-  { value: 'modern', label: 'Already modern and scalable' },
-];
-
-// Business Priority options
-const BUSINESS_PRIORITY_OPTIONS = [
-  { value: '', label: 'Select your main priority...' },
-  { value: 'reducing_cost', label: 'Reducing cost' },
-  { value: 'improving_performance', label: 'Improving workload performance' },
-  { value: 'preparing_ai', label: 'Preparing for AI adoption' },
-];
-
-// Challenge options
-const CHALLENGE_OPTIONS = [
-  { value: '', label: 'Select your biggest challenge...' },
-  { value: 'legacy_systems', label: 'Legacy systems' },
-  { value: 'integration_friction', label: 'Integration friction' },
-  { value: 'resource_constraints', label: 'Resource constraints' },
-  { value: 'skills_gap', label: 'Skills gap' },
-  { value: 'data_governance', label: 'Data governance and compliance' },
-];
-
-// Grouped role options - Technical vs Business, then by seniority
-const ROLE_GROUPS = [
-  {
-    label: 'Technical Executive',
-    options: [
-      { value: 'cto', label: 'CTO' },
-      { value: 'cio', label: 'CIO' },
-      { value: 'ciso', label: 'CISO' },
-      { value: 'cdo', label: 'Chief Data Officer' },
-    ],
-  },
-  {
-    label: 'Business Executive',
-    options: [
-      { value: 'ceo', label: 'CEO' },
-      { value: 'coo', label: 'COO' },
-      { value: 'cfo', label: 'CFO' },
-      { value: 'c_suite_other', label: 'Other C-Suite' },
-    ],
-  },
-  {
-    label: 'Technical Leadership',
-    options: [
-      { value: 'vp_engineering', label: 'VP Engineering' },
-      { value: 'vp_it', label: 'VP IT' },
-      { value: 'vp_data', label: 'VP Data or AI' },
-      { value: 'vp_security', label: 'VP Security' },
-    ],
-  },
-  {
-    label: 'Business Leadership',
-    options: [
-      { value: 'vp_ops', label: 'VP Operations' },
-      { value: 'vp_finance', label: 'VP Finance' },
-    ],
-  },
-  {
-    label: 'Technical Manager',
-    options: [
-      { value: 'eng_manager', label: 'Engineering Manager' },
-      { value: 'it_manager', label: 'IT Manager' },
-      { value: 'data_manager', label: 'Data Science Manager' },
-      { value: 'security_manager', label: 'Security Manager' },
-    ],
-  },
-  {
-    label: 'Technical Individual',
-    options: [
-      { value: 'senior_engineer', label: 'Senior Engineer or Architect' },
-      { value: 'engineer', label: 'Engineer' },
-      { value: 'sysadmin', label: 'Systems Administrator' },
-    ],
-  },
-  {
-    label: 'Business Role',
-    options: [
-      { value: 'ops_manager', label: 'Operations Manager' },
-      { value: 'finance_manager', label: 'Finance Manager' },
-      { value: 'procurement', label: 'Procurement' },
-    ],
-  },
-  {
-    label: 'Other',
-    options: [
-      { value: 'other', label: 'Other' },
-    ],
-  },
-];
-
-// Company size options
-const COMPANY_SIZE_OPTIONS = [
-  { value: '', label: 'Select company size...' },
-  { value: 'startup', label: 'Startup (1-50 employees)' },
-  { value: 'small', label: 'Small Business (51-200)' },
-  { value: 'midmarket', label: 'Mid-Market (201-1,000)' },
-  { value: 'enterprise', label: 'Enterprise (1,001-10,000)' },
-  { value: 'large_enterprise', label: 'Large Enterprise (10,000+)' },
-];
-
-// Industry options aligned with case study mapping
-const INDUSTRY_OPTIONS = [
-  { value: '', label: 'Select your industry...' },
-  { value: 'technology', label: 'Technology' },
-  { value: 'financial_services', label: 'Financial Services' },
-  { value: 'healthcare', label: 'Healthcare' },
-  { value: 'manufacturing', label: 'Manufacturing' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'energy', label: 'Energy' },
-  { value: 'telecommunications', label: 'Telecommunications' },
-  { value: 'media', label: 'Media' },
-  { value: 'government', label: 'Government' },
-  { value: 'education', label: 'Education' },
-  { value: 'professional_services', label: 'Professional Services' },
-  { value: 'other', label: 'Other' },
-];
-
 export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailConsentFormProps) {
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [company, setCompany] = useState('');
-  const [companySize, setCompanySize] = useState('');
-  // goal removed from form per stakeholder feedback (too obvious mapping)
-  // defaulting to 'consideration' for API compatibility
-  const [persona, setPersona] = useState('');
-  const [industry, setIndustry] = useState('');
-  // New fields for executive review
-  const [itEnvironment, setItEnvironment] = useState('');
-  const [businessPriority, setBusinessPriority] = useState('');
-  const [challenge, setChallenge] = useState('');
-  const [consent, setConsent] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [touched, setTouched] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
+  const [data, setData] = useState<WizardData>(INITIAL_WIZARD_DATA);
+  const [wizardState, setWizardState] = useState<'idle' | 'thinking'>('idle');
+  const [transitionMessage, setTransitionMessage] = useState('');
+  const [companyAutoFilled, setCompanyAutoFilled] = useState(false);
 
-  const validateEmail = (value: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value);
+  const updateData = (updates: Partial<WizardData>) => {
+    setData((prev) => ({ ...prev, ...updates }));
   };
 
-  const handleEmailChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setEmail(value);
-    if (touched && value && !validateEmail(value)) {
-      setEmailError('Please enter a valid email address');
-    } else {
-      setEmailError(null);
+  const isCurrentStepValid = STEP_VALIDATORS[currentStep](data);
+
+  // Transition with thinking moment
+  const startTransition = useCallback((fromStep: number, nextStep: number) => {
+    setTransitionMessage(TRANSITION_MESSAGES[fromStep] || 'Processing...');
+    setWizardState('thinking');
+    setTimeout(() => {
+      setWizardState('idle');
+      setDirection('forward');
+      setCurrentStep(nextStep);
+    }, 900);
+  }, []);
+
+  const goNext = () => {
+    if (currentStep < TOTAL_STEPS - 1 && isCurrentStepValid) {
+      startTransition(currentStep, currentStep + 1);
     }
   };
 
-  const handleEmailBlur = () => {
-    setTouched(true);
-    if (email && !validateEmail(email)) {
-      setEmailError('Please enter a valid email address');
+  const goBack = () => {
+    if (currentStep > 0) {
+      setDirection('back');
+      setCurrentStep((s) => s - 1);
     }
   };
+
+  // Auto-advance for single-select steps (Role)
+  const handleAutoAdvance = useCallback(() => {
+    startTransition(2, 3); // Step 3 (role) → Step 4 (situation)
+  }, [startTransition]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (isFormValid) {
+    if (isCurrentStepValid) {
       onSubmit({
-        email, firstName, lastName, company, companySize, goal: 'consideration', persona, industry,
-        itEnvironment, businessPriority, challenge
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        company: data.company,
+        companySize: data.companySize,
+        goal: 'consideration',
+        persona: data.persona,
+        industry: data.industry,
+        itEnvironment: data.itEnvironment,
+        businessPriority: data.businessPriority,
+        challenge: data.challenge,
       });
     }
   };
 
-  const isEmailValid = email.length > 0 && validateEmail(email);
-  const isNameValid = firstName.length > 0 && lastName.length > 0;
-  const isCompanyValid = company.length > 0;
-  const isFormValid = isEmailValid && isNameValid && isCompanyValid && companySize && consent && persona && industry && itEnvironment && businessPriority && challenge;
-
-  // Get display label for selected role
-  const getSelectedRoleLabel = () => {
-    for (const group of ROLE_GROUPS) {
-      const found = group.options.find(opt => opt.value === persona);
-      if (found) return found.label.split(' / ')[0];
-    }
-    return 'your role';
+  // Social proof helper
+  const getSocialProof = (field: string, value: string): string | null => {
+    return SOCIAL_PROOF[`${field}:${value}`] || null;
   };
 
+  // Display label helpers for assessment preview
+  const getRoleLabel = () => ROLE_OPTIONS.find((r) => r.value === data.persona)?.label || 'your role';
+  const getIndustryLabel = () => INDUSTRY_OPTIONS.find((i) => i.value === data.industry)?.label || 'your industry';
+  const getStageLabel = () => STAGE_LABELS[data.itEnvironment] || '';
+  const getPriorityLabel = () => BUSINESS_PRIORITY_OPTIONS.find((p) => p.value === data.businessPriority)?.label || '';
+
+  const isLastStep = currentStep === TOTAL_STEPS - 1;
+  const filteredChallenges = getFilteredChallenges(data.itEnvironment);
+
+  // Assessment preview is shown when enough fields are filled on step 4
+  const showPreview = currentStep === 3 && data.itEnvironment && data.businessPriority && data.challenge;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Name Inputs */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="firstName" className="amd-label">
-            First Name
-          </label>
-          <input
-            type="text"
-            id="firstName"
-            name="firstName"
-            placeholder="John"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            disabled={isLoading}
-            maxLength={50}
-            className="amd-input"
-          />
+    <form onSubmit={handleSubmit}>
+      <WizardProgressDots currentStep={currentStep} />
+
+      {/* Thinking overlay between steps */}
+      {wizardState === 'thinking' ? (
+        <div className="thinking-overlay flex flex-col items-center justify-center py-16">
+          <div className="w-8 h-8 border-2 border-[#00c8aa] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="thinking-text text-white/50 text-sm font-medium">{transitionMessage}</p>
         </div>
-        <div>
-          <label htmlFor="lastName" className="amd-label">
-            Last Name
-          </label>
-          <input
-            type="text"
-            id="lastName"
-            name="lastName"
-            placeholder="Smith"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            disabled={isLoading}
-            maxLength={50}
-            className="amd-input"
-          />
+      ) : (
+        <StepContainer direction={direction} stepKey={currentStep}>
+          {/* Step 1: About You */}
+          {currentStep === 0 && (
+            <StepAboutYou
+              data={data}
+              onChange={updateData}
+              onCompanySuggested={() => setCompanyAutoFilled(true)}
+              disabled={isLoading}
+            />
+          )}
+
+          {/* Step 2: Company */}
+          {currentStep === 1 && (
+            <StepCompany
+              data={data}
+              onChange={updateData}
+              companyAutoFilled={companyAutoFilled}
+              disabled={isLoading}
+            />
+          )}
+
+          {/* Step 3: Role (auto-advances) */}
+          {currentStep === 2 && (
+            <StepRole
+              data={data}
+              onChange={updateData}
+              onAutoAdvance={handleAutoAdvance}
+              disabled={isLoading}
+            />
+          )}
+
+          {/* Step 4: Your Situation */}
+          {currentStep === 3 && (
+            <div className="space-y-5">
+              {/* IT Environment */}
+              <div>
+                <label className="amd-label">Which sounds most like your day-to-day?</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {IT_ENVIRONMENT_OPTIONS.map((opt) => (
+                    <SelectionCard
+                      key={opt.value}
+                      label={opt.label}
+                      description={opt.description}
+                      selected={data.itEnvironment === opt.value}
+                      onClick={() => updateData({ itEnvironment: opt.value, challenge: data.itEnvironment !== opt.value ? '' : data.challenge })}
+                      disabled={isLoading}
+                      size="lg"
+                    />
+                  ))}
+                </div>
+                {data.itEnvironment && (
+                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
+                    {getSocialProof('itEnvironment', data.itEnvironment)}
+                  </p>
+                )}
+              </div>
+
+              {/* Business Priority */}
+              <div>
+                <label className="amd-label">If you could change one thing tomorrow...</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {BUSINESS_PRIORITY_OPTIONS.map((opt) => (
+                    <SelectionCard
+                      key={opt.value}
+                      label={opt.label}
+                      description={opt.description}
+                      selected={data.businessPriority === opt.value}
+                      onClick={() => updateData({ businessPriority: opt.value })}
+                      disabled={isLoading}
+                      size="md"
+                    />
+                  ))}
+                </div>
+                {data.businessPriority && (
+                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
+                    {getSocialProof('businessPriority', data.businessPriority)}
+                  </p>
+                )}
+              </div>
+
+              {/* Challenge (adaptive filtering) */}
+              <div>
+                <label className="amd-label">What&apos;s the biggest thing holding your team back?</label>
+                <div className={`grid grid-cols-2 ${filteredChallenges.length <= 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}>
+                  {filteredChallenges.map((opt) => (
+                    <SelectionCard
+                      key={opt.value}
+                      label={opt.label}
+                      description={opt.description}
+                      selected={data.challenge === opt.value}
+                      onClick={() => updateData({ challenge: opt.value })}
+                      disabled={isLoading}
+                      size="sm"
+                    />
+                  ))}
+                </div>
+                {data.challenge && (
+                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
+                    {getSocialProof('challenge', data.challenge)}
+                  </p>
+                )}
+              </div>
+
+              {/* Assessment Preview */}
+              {showPreview && (
+                <div className="assessment-preview social-proof-enter rounded-xl border border-[#00c8aa]/20 p-4">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className="w-5 h-5 rounded-full bg-[#00c8aa]/20 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-[#00c8aa] uppercase tracking-widest font-bold">
+                      Assessment Preview
+                    </span>
+                  </div>
+                  <p className="text-white/80 text-sm">
+                    Personalized for a <strong className="text-white">{getRoleLabel()}</strong> at{' '}
+                    <strong className="text-white">{data.company || 'your company'}</strong>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getIndustryLabel()}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getStageLabel()} Stage</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getPriorityLabel()}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Consent */}
+              <div className="flex items-start gap-3 pt-1">
+                <input
+                  type="checkbox"
+                  id="wiz-consent"
+                  checked={data.consent}
+                  onChange={(e) => updateData({ consent: e.target.checked })}
+                  disabled={isLoading}
+                  className="amd-checkbox mt-0.5"
+                />
+                <label htmlFor="wiz-consent" className="text-sm text-white/70 leading-relaxed cursor-pointer">
+                  I agree to receive my personalized AI readiness assessment and relevant updates from AMD
+                </label>
+              </div>
+            </div>
+          )}
+        </StepContainer>
+      )}
+
+      {/* Navigation buttons */}
+      {wizardState === 'idle' && (
+        <div className="flex items-center gap-3 mt-8">
+          {currentStep > 0 && (
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={isLoading}
+              className="px-5 py-3.5 rounded-lg border border-white/20 text-white/70 hover:text-white hover:border-white/30 hover:bg-white/[0.05] transition-all duration-200 text-sm font-medium"
+            >
+              Back
+            </button>
+          )}
+
+          {!isLastStep ? (
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={!isCurrentStepValid || isLoading}
+              className="amd-button-primary flex-1"
+            >
+              Continue
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!isCurrentStepValid || isLoading}
+              className="amd-button-primary flex-1"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-3">
+                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Generating Your Assessment...
+                </span>
+              ) : (
+                'Get Your AI Readiness Snapshot'
+              )}
+            </button>
+          )}
         </div>
-      </div>
-
-      {/* Work Email */}
-      <div>
-        <label htmlFor="email" className="amd-label">
-          Work Email
-        </label>
-        <input
-          type="email"
-          id="email"
-          name="email"
-          placeholder="you@company.com"
-          value={email}
-          onChange={handleEmailChange}
-          onBlur={handleEmailBlur}
-          disabled={isLoading}
-          maxLength={100}
-          className={`amd-input ${emailError ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/50' : ''}`}
-        />
-        {emailError && (
-          <p className="mt-2 text-sm text-red-400 font-medium">{emailError}</p>
-        )}
-      </div>
-
-      {/* Company + Size Row */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="company" className="amd-label">
-            Company
-          </label>
-          <input
-            type="text"
-            id="company"
-            name="company"
-            placeholder="Acme Corp"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            disabled={isLoading}
-            maxLength={60}
-            className="amd-input"
-          />
-        </div>
-        <div>
-          <label htmlFor="companySize" className="amd-label">
-            Company Size
-          </label>
-          <select
-            id="companySize"
-            name="companySize"
-            value={companySize}
-            onChange={(e) => setCompanySize(e.target.value)}
-            disabled={isLoading}
-            className="amd-select"
-          >
-            {COMPANY_SIZE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Industry Dropdown */}
-      <div>
-        <label htmlFor="industry" className="amd-label">
-          Industry
-        </label>
-        <select
-          id="industry"
-          name="industry"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
-          disabled={isLoading}
-          className="amd-select"
-        >
-          {INDUSTRY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Role Dropdown with optgroups */}
-      <div>
-        <label htmlFor="persona" className="amd-label">
-          Your Role
-        </label>
-        <select
-          id="persona"
-          name="persona"
-          value={persona}
-          onChange={(e) => setPersona(e.target.value)}
-          disabled={isLoading}
-          className="amd-select"
-        >
-          <option value="">Select your role...</option>
-          {ROLE_GROUPS.map((group) => (
-            <optgroup key={group.label} label={group.label}>
-              {group.options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      {/* IT Environment Dropdown (Stage) */}
-      <div>
-        <label htmlFor="itEnvironment" className="amd-label">
-          How would you describe your current IT environment?
-        </label>
-        <select
-          id="itEnvironment"
-          name="itEnvironment"
-          value={itEnvironment}
-          onChange={(e) => setItEnvironment(e.target.value)}
-          disabled={isLoading}
-          className="amd-select"
-        >
-          {IT_ENVIRONMENT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Business Priority Dropdown */}
-      <div>
-        <label htmlFor="businessPriority" className="amd-label">
-          What&apos;s your main priority right now?
-        </label>
-        <select
-          id="businessPriority"
-          name="businessPriority"
-          value={businessPriority}
-          onChange={(e) => setBusinessPriority(e.target.value)}
-          disabled={isLoading}
-          className="amd-select"
-        >
-          {BUSINESS_PRIORITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Challenge Dropdown */}
-      <div>
-        <label htmlFor="challenge" className="amd-label">
-          What&apos;s your biggest challenge?
-        </label>
-        <select
-          id="challenge"
-          name="challenge"
-          value={challenge}
-          onChange={(e) => setChallenge(e.target.value)}
-          disabled={isLoading}
-          className="amd-select"
-        >
-          {CHALLENGE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Consent Checkbox */}
-      <div className="flex items-start gap-3 pt-3">
-        <input
-          type="checkbox"
-          id="consent"
-          name="consent"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-          disabled={isLoading}
-          className="amd-checkbox mt-0.5"
-        />
-        <label htmlFor="consent" className="text-sm text-white/70 leading-relaxed cursor-pointer">
-          I agree to receive my personalized AI readiness assessment and relevant updates from AMD
-        </label>
-      </div>
-
-      {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={!isFormValid || isLoading}
-        className="amd-button-primary mt-6"
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-3">
-            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            Generating Your Assessment...
-          </span>
-        ) : (
-          'Get Your AI Readiness Snapshot'
-        )}
-      </button>
-
-      {/* Preview text */}
-      <p className="text-center text-sm text-white/50 pt-3">
-        Personalized for{' '}
-        <span className="text-white/70 font-medium">{getSelectedRoleLabel()}</span>
-        {' '}at{' '}
-        <span className="text-white/70 font-medium">{company || 'your company'}</span>
-      </p>
+      )}
     </form>
   );
 }
