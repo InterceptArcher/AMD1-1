@@ -78,7 +78,6 @@ class SupabaseClient:
             Inserted record
         """
         data = {
-            "id": str(uuid.uuid4()),
             "email": email,
             "source": source,
             "payload": payload,
@@ -86,6 +85,7 @@ class SupabaseClient:
         }
 
         if self.mock_mode:
+            data["id"] = str(uuid.uuid4())
             self._mock_raw_data.append(data)
             logger.info(f"[MOCK] Stored raw_data for {email} from {source}")
             return data
@@ -140,7 +140,6 @@ class SupabaseClient:
             Stored record
         """
         data = {
-            "id": str(uuid.uuid4()),
             "email": domain,  # Use email column to store domain as key
             "source": "gnews_cache",
             "payload": payload,
@@ -153,6 +152,7 @@ class SupabaseClient:
                 r for r in self._mock_raw_data
                 if not (r.get("email") == domain and r.get("source") == "gnews_cache")
             ]
+            data["id"] = str(uuid.uuid4())
             self._mock_raw_data.append(data)
             logger.info(f"[MOCK] Cached news for domain {domain}")
             return data
@@ -460,9 +460,7 @@ class SupabaseClient:
         Returns:
             Created job record with id
         """
-        job_id = str(uuid.uuid4())
         data = {
-            "id": job_id,
             "email": email,
             "domain": domain,
             "cta": cta,
@@ -476,8 +474,9 @@ class SupabaseClient:
         }
 
         if self.mock_mode:
+            data["id"] = str(uuid.uuid4())
             self._mock_jobs.append(data)
-            logger.info(f"[MOCK] Created job {job_id} for {email}")
+            logger.info(f"[MOCK] Created job {data['id']} for {email}")
             return data
 
         try:
@@ -767,11 +766,13 @@ class SupabaseClient:
 
         try:
             # Try a simple query to verify connection
-            self.client.table("finalize_data").select("*").limit(1).execute()
-            logger.info("Supabase health check passed")
+            result = self.client.table("finalize_data").select("id").limit(1).execute()
+            logger.info(f"Supabase health check passed (rows: {len(result.data) if result.data else 0})")
             return True
         except Exception as e:
-            logger.error(f"Supabase health check failed: {e}")
+            import traceback
+            logger.error(f"Supabase health check failed: {type(e).__name__}: {e}")
+            logger.error(f"Health check traceback: {traceback.format_exc()}")
             return False
 
 
