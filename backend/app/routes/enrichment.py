@@ -44,7 +44,6 @@ router = APIRouter(prefix="/rad", tags=["enrichment"])
 
 @router.post(
     "/enrich",
-    response_model=EnrichmentResponse,
     responses={
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse}
@@ -212,7 +211,9 @@ async def enrich_profile(
                 data_sources=orchestrator.data_sources
             )
         except Exception as db_err:
-            logger.warning(f"[{job_id}] Failed to store finalize_data: {db_err} - returning data anyway")
+            import traceback
+            logger.error(f"[{job_id}] Failed to store finalize_data: {db_err}")
+            logger.error(f"[{job_id}] DB error traceback: {traceback.format_exc()}")
         
         logger.info(f"[{job_id}] Enrichment completed for {email}")
         
@@ -354,21 +355,34 @@ async def health_check(supabase: SupabaseClient = Depends(get_supabase_client)) 
     GET /rad/health
 
     Health check for the enrichment service.
-    Verifies Supabase connectivity.
+    Verifies Supabase connectivity and returns diagnostic info on failure.
     """
     try:
         is_healthy = supabase.health_check()
-        return {
+        result = {
             "status": "healthy" if is_healthy else "unhealthy",
             "service": "rad_enrichment",
+            "mock_mode": supabase.mock_mode,
             "timestamp": datetime.utcnow().isoformat()
         }
+        if not is_healthy:
+            # Try individual table checks for diagnostics
+            diagnostics = {}
+            for table in ["finalize_data", "raw_data", "personalization_jobs"]:
+                try:
+                    supabase.client.table(table).select("id").limit(1).execute()
+                    diagnostics[table] = "ok"
+                except Exception as table_err:
+                    diagnostics[table] = str(table_err)[:200]
+            result["diagnostics"] = diagnostics
+        return result
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service unhealthy"
-        )
+        return {
+            "status": "error",
+            "error": str(e)[:300],
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @router.get("/test-apis/{email}")
