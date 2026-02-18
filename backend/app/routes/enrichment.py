@@ -3,6 +3,7 @@ Enrichment routes: POST /rad/enrich and GET /rad/profile/{email}
 Alpha endpoints for the personalization pipeline.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -16,7 +17,8 @@ from app.models.schemas import (
     ProfileResponse,
     NormalizedProfile,
     PersonalizationContent,
-    ErrorResponse
+    ErrorResponse,
+    QuickEnrichRequest,
 )
 from app.services.supabase_client import SupabaseClient, get_supabase_client
 from app.services.rad_orchestrator import RADOrchestrator
@@ -36,10 +38,93 @@ from app.services.executive_review_service import (
 )
 from app.services.context_inference_service import infer_context
 from app.services.news_analysis_service import analyze_news
+from app.services.enrichment_apis import ApolloAPI, PDLAPI
 
 logger = logging.getLogger(__name__)
 
+# Free email providers — skip enrichment for these domains
+FREE_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
+    "icloud.com", "protonmail.com", "mail.com", "live.com", "msn.com",
+    "ymail.com", "me.com", "zoho.com", "proton.me",
+}
+
 router = APIRouter(prefix="/rad", tags=["enrichment"])
+
+
+# =============================================================================
+# QUICK ENRICH (lightweight, for wizard pre-fill)
+# =============================================================================
+
+@router.post("/quick-enrich")
+async def quick_enrich(request: QuickEnrichRequest):
+    """
+    POST /rad/quick-enrich
+
+    Lightweight enrichment for wizard pre-fill. Only calls Apollo (person)
+    and PDL Company (company data) in parallel. Returns in ~2-5 seconds.
+
+    Skips free email providers (gmail, yahoo, etc.) immediately.
+    Gracefully handles API failures — returns partial data or found=false.
+    """
+    email = request.email.lower().strip()
+
+    # Extract domain
+    if "@" not in email:
+        return {"found": False}
+    domain = email.split("@")[1]
+
+    # Skip free email providers
+    if domain in FREE_EMAIL_DOMAINS:
+        return {"found": False}
+
+    try:
+        apollo_api = ApolloAPI()
+        pdl_api = PDLAPI()
+
+        # Run Apollo + PDL Company in parallel (15s timeout each)
+        results = await asyncio.gather(
+            apollo_api.enrich(email, domain),
+            pdl_api.enrich_company(domain),
+            return_exceptions=True,
+        )
+
+        apollo_data = results[0] if not isinstance(results[0], Exception) else {}
+        pdl_data = results[1] if not isinstance(results[1], Exception) else {}
+
+        if isinstance(results[0], Exception):
+            logger.warning(f"Quick-enrich Apollo failed for {email}: {results[0]}")
+        if isinstance(results[1], Exception):
+            logger.warning(f"Quick-enrich PDL Company failed for {domain}: {results[1]}")
+
+        # Merge: prefer PDL Company for company data, Apollo for person data
+        company_name = (
+            pdl_data.get("display_name")
+            or pdl_data.get("name")
+            or apollo_data.get("company_name")
+            or ""
+        )
+        industry = pdl_data.get("industry") or apollo_data.get("industry") or ""
+        employee_count = pdl_data.get("employee_count") or 0
+        title = apollo_data.get("title") or ""
+        seniority = apollo_data.get("seniority") or ""
+        company_summary = pdl_data.get("summary") or ""
+        founded_year = pdl_data.get("founded") or 0
+
+        return {
+            "found": bool(company_name),
+            "company_name": company_name,
+            "industry": industry,
+            "employee_count": employee_count,
+            "title": title,
+            "seniority": seniority,
+            "company_summary": company_summary,
+            "founded_year": founded_year,
+        }
+
+    except Exception as e:
+        logger.error(f"Quick-enrich failed for {email}: {e}")
+        return {"found": False}
 
 
 @router.post(

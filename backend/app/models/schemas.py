@@ -11,6 +11,11 @@ from pydantic import BaseModel, EmailStr, Field
 # REQUEST SCHEMAS
 # ============================================================================
 
+class QuickEnrichRequest(BaseModel):
+    """POST /rad/quick-enrich request body. Lightweight enrichment for wizard pre-fill."""
+    email: EmailStr = Field(..., description="Email address to quick-enrich")
+
+
 class EnrichmentRequest(BaseModel):
     """
     POST /rad/enrich request body.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, FormEvent, useCallback, useEffect, useMemo } from 'react';
 import WizardProgressDots from './wizard/WizardProgressDots';
 import StepContainer from './wizard/StepContainer';
 import SelectionCard from './wizard/SelectionCard';
@@ -31,6 +31,10 @@ import {
   saveWizardProgress,
   loadWizardProgress,
   clearWizardProgress,
+  EnrichmentPreview,
+  isWorkEmail,
+  employeeCountToSize,
+  normalizeEnrichmentIndustry,
 } from './wizard/wizardTypes';
 
 export interface UserInputs {
@@ -59,6 +63,9 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   const [wizardState, setWizardState] = useState<'idle' | 'thinking'>('idle');
   const [transitionMessage, setTransitionMessage] = useState('');
   const [companyAutoFilled, setCompanyAutoFilled] = useState(false);
+  const [enrichmentData, setEnrichmentData] = useState<EnrichmentPreview | null>(null);
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false);
+  const lastEnrichedEmailRef = useRef('');
 
   // Derived persona type from role selection
   const personaType: PersonaType = useMemo(() => getPersonaType(data.persona), [data.persona]);
@@ -86,6 +93,47 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   // Stable updateData via useCallback (needed for keyboard effect deps)
   const updateData = useCallback((updates: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  // Fire quick-enrich API when a valid work email is entered
+  const handleEmailEnrich = useCallback(async (email: string) => {
+    if (!email || email === lastEnrichedEmailRef.current) return;
+    lastEnrichedEmailRef.current = email;
+
+    setEnrichmentLoading(true);
+    try {
+      const resp = await fetch('/api/rad/quick-enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (resp.ok) {
+        const result = await resp.json();
+        if (result.found) {
+          setEnrichmentData(result);
+          // Pre-fill empty fields from enrichment
+          setData((prev) => {
+            const updates: Partial<WizardData> = {};
+            if (!prev.company && result.company_name) {
+              updates.company = result.company_name;
+            }
+            if (!prev.companySize && result.employee_count) {
+              updates.companySize = employeeCountToSize(result.employee_count);
+            }
+            if (!prev.industry && result.industry) {
+              updates.industry = normalizeEnrichmentIndustry(result.industry);
+            }
+            if (Object.keys(updates).length === 0) return prev;
+            return { ...prev, ...updates };
+          });
+          setCompanyAutoFilled(true);
+        }
+      }
+    } catch {
+      // Silently fail — enrichment is a nice-to-have
+    } finally {
+      setEnrichmentLoading(false);
+    }
   }, []);
 
   // localStorage: restore on mount
@@ -268,6 +316,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
               data={data}
               onChange={updateData}
               onCompanySuggested={() => setCompanyAutoFilled(true)}
+              onEmailValidated={handleEmailEnrich}
               disabled={isLoading}
             />
           )}
@@ -278,6 +327,8 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
               data={data}
               onChange={updateData}
               companyAutoFilled={companyAutoFilled}
+              enrichmentData={enrichmentData}
+              enrichmentLoading={enrichmentLoading}
               disabled={isLoading}
             />
           )}
