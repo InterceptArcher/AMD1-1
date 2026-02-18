@@ -1,16 +1,17 @@
 'use client';
 
 import { ChangeEvent, useState } from 'react';
-import { WizardData, extractCompanyFromEmail } from '../wizardTypes';
+import { WizardData, extractCompanyFromEmail, isWorkEmail } from '../wizardTypes';
 
 interface StepAboutYouProps {
   data: WizardData;
   onChange: (updates: Partial<WizardData>) => void;
   onCompanySuggested?: (name: string) => void;
+  onEmailValidated?: (email: string) => void;
   disabled?: boolean;
 }
 
-export default function StepAboutYou({ data, onChange, onCompanySuggested, disabled = false }: StepAboutYouProps) {
+export default function StepAboutYou({ data, onChange, onCompanySuggested, onEmailValidated, disabled = false }: StepAboutYouProps) {
   const [emailTouched, setEmailTouched] = useState(false);
 
   const validateEmail = (value: string): boolean => {
@@ -24,12 +25,18 @@ export default function StepAboutYou({ data, onChange, onCompanySuggested, disab
 
   const handleEmailBlur = () => {
     setEmailTouched(true);
-    // Extract company name from work email domain
-    if (data.email && validateEmail(data.email) && !data.company) {
-      const suggested = extractCompanyFromEmail(data.email);
-      if (suggested) {
-        onChange({ company: suggested });
-        onCompanySuggested?.(suggested);
+    if (data.email && validateEmail(data.email)) {
+      // Extract company name from work email domain
+      if (!data.company) {
+        const suggested = extractCompanyFromEmail(data.email);
+        if (suggested) {
+          onChange({ company: suggested });
+          onCompanySuggested?.(suggested);
+        }
+      }
+      // Fire quick enrichment for work emails
+      if (isWorkEmail(data.email)) {
+        onEmailValidated?.(data.email);
       }
     }
   };
