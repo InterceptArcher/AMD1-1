@@ -1223,7 +1223,9 @@ class ExecutiveReviewService:
         """
         if not self.client:
             logger.warning("No Anthropic client - returning mock executive review")
-            return self._get_mock_response(company_name, stage, priority, industry, challenge)
+            mock = self._get_mock_response(company_name, stage, priority, industry, challenge)
+            mock["_source"] = "mock_no_client"
+            return mock
 
         # Get the best matching few-shot example based on stage and other inputs
         example = self._select_best_example(stage, industry, priority, challenge)
@@ -1263,7 +1265,9 @@ class ExecutiveReviewService:
 
             if not result_data:
                 logger.error("No tool_use block in response, falling back")
-                return self._get_mock_response(company_name, stage, priority, industry, challenge)
+                mock = self._get_mock_response(company_name, stage, priority, industry, challenge)
+                mock["_source"] = "mock_no_tool_use"
+                return mock
 
             # Build the full result with case study and stage info
             case_study_name, case_study_desc, case_study_link = select_case_study(stage, priority, industry, challenge)
@@ -1280,6 +1284,7 @@ class ExecutiveReviewService:
                 "case_study_description": case_study_desc,
                 "case_study_link": case_study_link,
                 "case_study_relevance": result_data.get("case_study_relevance", ""),
+                "_source": "llm",
             }
 
             # Run content validation (personalization checks are now blocking)
@@ -1298,7 +1303,10 @@ class ExecutiveReviewService:
 
         except Exception as e:
             logger.error(f"Executive review generation failed: {e}")
-            return self._get_mock_response(company_name, stage, priority, industry, challenge)
+            mock = self._get_mock_response(company_name, stage, priority, industry, challenge)
+            mock["_source"] = "mock_fallback"
+            mock["_error"] = str(e)[:200]
+            return mock
 
     def _select_best_example(self, stage: str, industry: str, priority: str, challenge: str) -> dict:
         """Select the most relevant few-shot example based on inputs."""
@@ -1708,13 +1716,24 @@ Use the generate_executive_review tool to return your response."""
         example_company = example["profile"]["company"]
         case_study_name, case_study_desc, case_study_link = select_case_study(stage, priority, industry, challenge)
 
+        # Build list of name variants to swap (full name, then short forms)
+        # e.g. "HCA Healthcare" → ["HCA Healthcare", "HCA"]
+        name_variants = [example_company]
+        parts = example_company.split()
+        if len(parts) > 1:
+            # Add acronym-style short name (e.g. "HCA" from "HCA Healthcare")
+            for part in parts:
+                if part != example_company and len(part) >= 2:
+                    name_variants.append(part)
+
         def swap_company(text: str) -> str:
             """Replace the example company name with the actual company name."""
             if not text or not example_company:
                 return text
-            # Replace full name and possessive forms
-            text = text.replace(f"{example_company}'s", f"{company_name}'s")
-            text = text.replace(example_company, company_name)
+            # Replace longest variants first to avoid partial matches
+            for variant in sorted(name_variants, key=len, reverse=True):
+                text = text.replace(f"{variant}'s", f"{company_name}'s")
+                text = text.replace(variant, company_name)
             return text
 
         def swap_in_items(items: list, fields: list) -> list:
