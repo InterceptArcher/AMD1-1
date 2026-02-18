@@ -67,23 +67,6 @@ def _make_valid_content(
                 "description": "Invest in upskilling the existing team on modern infrastructure technologies and operational practices to reduce dependency on external consultants and accelerate delivery. Role-specific certification paths ensure that training investments translate directly into improved capability for maintaining modernized systems.",
             },
         ],
-        "roadmap": [
-            {
-                "phase": "Phase 1 (0-90 days)",
-                "title": "Audit current infrastructure and prioritize targets",
-                "description": f"Catalog all {industry_keyword} systems with their maintenance costs and performance metrics. Identify the top five highest-{priority_keyword} workloads and develop business cases for modernization or consolidation.",
-            },
-            {
-                "phase": "Phase 2 (3-6 months)",
-                "title": "Execute priority system migrations",
-                "description": f"Migrate the prioritized {challenge_keyword} workloads to modernized infrastructure, starting with non-critical systems to validate the approach. Apply lessons learned to production {industry_keyword} system migrations with appropriate rollback plans in place.",
-            },
-            {
-                "phase": "Phase 3 (6-12 months)",
-                "title": "Scale improvements across the organization",
-                "description": f"Extend the validated modernization approach across remaining {industry_keyword} systems and facilities. Establish continuous monitoring and optimization practices to ensure infrastructure improvements deliver sustained value as workload demands evolve.",
-            },
-        ],
         "case_study_relevance": case_study_relevance or f"This case study demonstrates how {industry_keyword} organizations have successfully addressed {challenge_keyword} system challenges through AMD-powered data center modernization. Their phased approach to consolidation and infrastructure upgrades mirrors the path forward for organizations facing similar constraints in the {industry_keyword} sector.",
     }
 

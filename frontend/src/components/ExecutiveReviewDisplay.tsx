@@ -15,12 +15,6 @@ interface Recommendation {
   description: string;
 }
 
-interface RoadmapPhase {
-  phase: string;
-  title: string;
-  description: string;
-}
-
 interface ExecutiveReviewData {
   company_name: string;
   stage: string;
@@ -30,7 +24,6 @@ interface ExecutiveReviewData {
   advantages: Advantage[];
   risks: Risk[];
   recommendations: Recommendation[];
-  roadmap?: RoadmapPhase[];
   case_study: string;
   case_study_description: string;
   case_study_link?: string;
@@ -173,37 +166,10 @@ export default function ExecutiveReviewDisplay({ data, inputs, onReset }: Execut
           </div>
         </section>
 
-        {/* Implementation Roadmap */}
-        {data.roadmap && data.roadmap.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#00c8aa]/20 flex items-center justify-center text-xs text-[#00c8aa] font-bold">4</span>
-              Implementation Roadmap
-            </h2>
-
-            <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-[18px] top-4 bottom-4 w-px bg-[#00c8aa]/20" />
-
-              <div className="space-y-4">
-                {data.roadmap.map((phase, idx) => (
-                  <div key={idx} className="rounded-lg bg-white/[0.03] border border-white/10 p-5 pl-12 relative">
-                    {/* Timeline dot */}
-                    <div className="absolute left-3 top-6 w-3 h-3 rounded-full bg-[#00c8aa]/40 border-2 border-[#00c8aa]" />
-                    <div className="text-xs text-[#00c8aa] font-semibold uppercase tracking-wider mb-1">{phase.phase}</div>
-                    <h4 className="font-semibold text-white mb-2">{phase.title}</h4>
-                    <p className="text-sm text-white/70 leading-relaxed">{phase.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
         {/* Case Study */}
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-[#00c8aa]/20 flex items-center justify-center text-xs text-[#00c8aa] font-bold">5</span>
+            <span className="w-6 h-6 rounded-full bg-[#00c8aa]/20 flex items-center justify-center text-xs text-[#00c8aa] font-bold">4</span>
             How Organizations Modernize with AMD
           </h2>
 
