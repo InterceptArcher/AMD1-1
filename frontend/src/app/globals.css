@@ -609,6 +609,22 @@ h1, h2, h3, h4, h5, h6 {
   animation: companyDetectedIn 400ms ease-out;
 }
 
+/* Progressive reveal animation for Step 4 sub-questions */
+@keyframes progressiveReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progressive-reveal {
+  animation: progressiveReveal 400ms ease-out;
+}
+
 /* Reduce motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,
