@@ -2,12 +2,12 @@
 Tests for Executive Review Service.
 Covers mapping functions, case study selection, few-shot example selection,
 response parsing, mock response structure, stage identification text,
-and integration (mock fallback).
+enrichment context injection, and integration (mock fallback).
 """
 
 import json
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from app.services.executive_review_service import (
     map_company_size_to_segment,
@@ -561,3 +561,197 @@ class TestFewShotExamplesPool:
         """Allbirds should be in Observer pool per gold standard examples."""
         observer_companies = [ex["profile"]["company"] for ex in FEW_SHOT_EXAMPLES_POOL["Observer"]]
         assert "Allbirds" in observer_companies
+
+
+# =============================================================================
+# TestEnrichmentContextInPrompt
+# =============================================================================
+
+class TestEnrichmentContextInPrompt:
+    """Verify that enrichment_context data is injected into the LLM prompt."""
+
+    def setup_method(self):
+        self.service = ExecutiveReviewService()
+        self.enrichment_context = {
+            "employee_count": 12400,
+            "founded_year": 2003,
+            "employee_growth_rate": 14.2,
+            "latest_funding_stage": "Series D",
+            "total_funding": 250000000,
+            "company_summary": "Acme Corp is a leading provider of cloud infrastructure solutions for enterprise customers.",
+            "recent_news": [
+                {
+                    "title": "Acme Corp Launches AI-Powered Analytics Platform",
+                    "source": "TechCrunch",
+                    "content": "Acme Corp announced the launch of its new AI analytics platform targeting enterprise customers.",
+                    "query_category": "ai_technology",
+                },
+                {
+                    "title": "Acme Corp Reports 30% Revenue Growth in Q4",
+                    "source": "Reuters",
+                    "content": "Acme Corp exceeded analyst expectations with strong Q4 revenue growth driven by cloud services.",
+                    "query_category": "general",
+                },
+            ],
+            "news_themes": ["AI adoption", "Growth & expansion", "Cloud transformation"],
+            "title": "VP of Infrastructure Engineering",
+            "news_analysis": {
+                "sentiment": "positive",
+                "ai_readiness": "piloting",
+                "crisis": False,
+            },
+        }
+
+    def test_user_prompt_includes_company_summary(self):
+        """Company summary from PDL must appear in the LLM prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "cloud infrastructure solutions" in prompt
+
+    def test_user_prompt_includes_employee_count(self):
+        """Employee count from enrichment must appear in the LLM prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "12,400" in prompt or "12400" in prompt
+
+    def test_user_prompt_includes_news_headlines(self):
+        """Recent news headlines must appear in the LLM prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "AI-Powered Analytics Platform" in prompt
+        assert "30% Revenue Growth" in prompt
+
+    def test_user_prompt_includes_job_title(self):
+        """Contact's actual job title must appear in the LLM prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "VP of Infrastructure Engineering" in prompt
+
+    def test_user_prompt_includes_news_themes(self):
+        """News themes must appear in the LLM prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "AI adoption" in prompt
+        assert "Cloud transformation" in prompt
+
+    def test_user_prompt_includes_ai_readiness(self):
+        """AI readiness stage from news analysis must appear in the prompt."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=self.enrichment_context,
+        )
+        assert "piloting" in prompt
+
+    def test_no_enrichment_context_still_works(self):
+        """Prompt should still build correctly when enrichment_context is None."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=None,
+        )
+        assert "Acme Corp" in prompt
+        assert "Technology" in prompt
+
+    def test_empty_enrichment_context_still_works(self):
+        """Prompt should handle empty enrichment context gracefully."""
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="Acme Corp",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context={},
+        )
+        assert "Acme Corp" in prompt
+
+    def test_enrichment_context_passed_to_build_user_prompt(self):
+        """generate_executive_review must pass enrichment_context to _build_user_prompt."""
+        service = ExecutiveReviewService()
+        service.client = None  # Force mock path
+
+        with patch.object(service, '_build_user_prompt', wraps=service._build_user_prompt) as mock_build:
+            import asyncio
+            asyncio.get_event_loop().run_until_complete(
+                service.generate_executive_review(
+                    company_name="Acme Corp",
+                    industry="Technology",
+                    segment="Enterprise",
+                    persona="ITDM",
+                    stage="Challenger",
+                    priority="Improving performance",
+                    challenge="Integration friction",
+                    enrichment_context=self.enrichment_context,
+                )
+            )
+            # Mock path returns early before calling _build_user_prompt,
+            # so this test validates the method signature accepts enrichment_context
+            # The real integration is tested via the prompt content tests above

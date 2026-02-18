@@ -1384,7 +1384,8 @@ class ExecutiveReviewService:
             stage=stage,
             priority=priority,
             challenge=challenge,
-            example=example
+            example=example,
+            enrichment_context=enrichment_context,
         )
 
         try:
@@ -1633,6 +1634,7 @@ You MUST incorporate ALL of these inputs into the content:
 - PERSONA: Tailor language for the reader (ITDM = technical infrastructure focus, BDM = business outcomes focus)
 - PRIORITY: The executive summary, first advantage, and first recommendation MUST directly address the stated priority
 - CHALLENGE: The first risk MUST directly reference the stated challenge and its consequences
+- COMPANY INTELLIGENCE: When company-specific data is provided (employee count, growth rate, funding, news, AI readiness), you MUST weave these facts into the narrative. Reference specific numbers, recent initiatives, and market signals. This is what makes each review unique to the company rather than generic to the industry.
 
 INDUSTRY TERMINOLOGY (use these terms in your output):
 - Healthcare: EHR systems, clinical AI, imaging systems, HIPAA compliance, patient data
@@ -1663,9 +1665,10 @@ Return valid JSON only, no markdown, no explanation. Match the exact structure s
         stage: str,
         priority: str,
         challenge: str,
-        example: dict
+        example: dict,
+        enrichment_context: dict | None = None,
     ) -> str:
-        """Build the user prompt with few-shot example and AMD IP context."""
+        """Build the user prompt with few-shot example, AMD IP context, and enrichment data."""
         # Get persona-specific language guidance
         persona_guidance = {
             "ITDM": "Focus on infrastructure, systems, technical architecture, and IT operational efficiency.",
@@ -1688,6 +1691,9 @@ Return valid JSON only, no markdown, no explanation. Match the exact structure s
         if amd_context_parts:
             amd_context_block = "\n\n---\nAMD REFERENCE MATERIAL (use to ground your recommendations in AMD's actual capabilities):\n\n" + "\n\n".join(amd_context_parts) + "\n---\n"
 
+        # Build company-specific intelligence block from enrichment data
+        company_intel_block = self._build_company_intelligence_block(enrichment_context)
+
         return f"""Generate an executive review for this profile:
 
 Company: {company_name}
@@ -1697,7 +1703,7 @@ Persona: {persona} - {persona_guidance.get(persona, persona_guidance["BDM"])}
 Stage: {stage}
 Business Priority: {priority}
 Challenge: {challenge}
-{amd_context_block}
+{company_intel_block}{amd_context_block}
 PERSONALIZATION CHECKLIST (you must address ALL of these):
 1. Executive summary MUST mention {company_name} and frame around "{priority}"
 2. First advantage headline MUST relate to "{priority}"
@@ -1707,6 +1713,7 @@ PERSONALIZATION CHECKLIST (you must address ALL of these):
 6. Recommendations MUST be {stage}-appropriate ({"foundational, cost-focused" if stage == "Observer" else "performance, integration-focused" if stage == "Challenger" else "optimization, AI-readiness focused"})
 7. Roadmap MUST have 3 phases with concrete, time-bound actions specific to {industry}
 8. Case study relevance MUST explain the connection to {company_name}'s specific {industry} challenges
+9. Content MUST reference specific company intelligence where available (news, headcount, growth, funding, AI readiness signals)
 
 Here is an example of excellent output for a {stage} stage company:
 
@@ -1716,9 +1723,93 @@ INPUT:
 OUTPUT:
 {json.dumps(example["output"], indent=2)}
 
-Now generate the executive review for {company_name}. The content must be clearly personalized to their specific industry ({industry}), priority ({priority}), and challenge ({challenge}).
+Now generate the executive review for {company_name}. The content must be clearly personalized to their specific industry ({industry}), priority ({priority}), and challenge ({challenge}). Where company intelligence is provided above, weave specific facts (employee count, growth rate, recent initiatives, funding stage) into the narrative to make it unmistakably about this company.
 
 Use the generate_executive_review tool to return your response."""
+
+    def _build_company_intelligence_block(self, enrichment_context: dict | None) -> str:
+        """Build a COMPANY-SPECIFIC INTELLIGENCE section from enrichment data for the LLM prompt."""
+        if not enrichment_context:
+            return ""
+
+        parts = []
+
+        # Company overview
+        company_summary = enrichment_context.get("company_summary")
+        if company_summary:
+            parts.append(f"Company Overview: {company_summary}")
+
+        # Contact's role
+        title = enrichment_context.get("title")
+        if title:
+            parts.append(f"Contact's Title: {title}")
+
+        # Company metrics
+        metrics = []
+        employee_count = enrichment_context.get("employee_count")
+        if employee_count:
+            metrics.append(f"{employee_count:,} employees" if isinstance(employee_count, (int, float)) else f"{employee_count} employees")
+        founded_year = enrichment_context.get("founded_year")
+        if founded_year:
+            metrics.append(f"Founded {founded_year}")
+        growth_rate = enrichment_context.get("employee_growth_rate")
+        if growth_rate:
+            metrics.append(f"Employee growth: {growth_rate}%")
+        funding_stage = enrichment_context.get("latest_funding_stage")
+        if funding_stage:
+            metrics.append(f"Funding stage: {funding_stage}")
+        total_funding = enrichment_context.get("total_funding")
+        if total_funding:
+            if isinstance(total_funding, (int, float)) and total_funding >= 1_000_000:
+                metrics.append(f"Total funding: ${total_funding / 1_000_000:.0f}M")
+            else:
+                metrics.append(f"Total funding: {total_funding}")
+        if metrics:
+            parts.append(f"Company Metrics: {' | '.join(metrics)}")
+
+        # News intelligence
+        news_analysis = enrichment_context.get("news_analysis", {})
+        ai_readiness = news_analysis.get("ai_readiness")
+        sentiment = news_analysis.get("sentiment")
+        crisis = news_analysis.get("crisis")
+
+        signals = []
+        if ai_readiness and ai_readiness != "none":
+            signals.append(f"AI readiness: {ai_readiness}")
+        if sentiment:
+            signals.append(f"News sentiment: {sentiment}")
+        if crisis:
+            signals.append("Crisis signals detected")
+        if signals:
+            parts.append(f"Market Signals: {' | '.join(signals)}")
+
+        # News themes
+        news_themes = enrichment_context.get("news_themes", [])
+        if news_themes:
+            parts.append(f"News Themes: {', '.join(news_themes)}")
+
+        # Recent news headlines
+        recent_news = enrichment_context.get("recent_news", [])
+        if recent_news:
+            headlines = []
+            for article in recent_news[:5]:
+                title_text = article.get("title", "")
+                source = article.get("source", "")
+                category = article.get("query_category", "")
+                if title_text:
+                    entry = f"- {title_text}"
+                    if source:
+                        entry += f" ({source})"
+                    if category:
+                        entry += f" [{category}]"
+                    headlines.append(entry)
+            if headlines:
+                parts.append("Recent News:\n" + "\n".join(headlines))
+
+        if not parts:
+            return ""
+
+        return "\n\n---\nCOMPANY-SPECIFIC INTELLIGENCE (use these facts to make content specific to this company):\n" + "\n".join(parts) + "\n---\n"
 
     def _parse_response(self, content: str, company_name: str, stage: str, priority: str, industry: str, challenge: str = "") -> dict:
         """Parse the LLM response into structured output."""
