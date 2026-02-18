@@ -49,11 +49,11 @@ FIELD_SPECS = {
         "description": "Recommendation title",
     },
     "rec_description": {
-        "min_chars": 150,
-        "max_chars": 400,
-        "min_words": 25,
-        "max_words": 65,
-        "description": "Recommendation description (2-3 sentences)",
+        "min_chars": 200,
+        "max_chars": 550,
+        "min_words": 35,
+        "max_words": 90,
+        "description": "Recommendation description (3-4 sentences)",
     },
     "executive_summary": {
         "min_chars": 200,
@@ -61,13 +61,6 @@ FIELD_SPECS = {
         "min_words": 35,
         "max_words": 90,
         "description": "Executive summary paragraph",
-    },
-    "roadmap_phase": {
-        "min_chars": 100,
-        "max_chars": 350,
-        "min_words": 18,
-        "max_words": 55,
-        "description": "Roadmap phase description",
     },
     "case_study_relevance": {
         "min_chars": 150,
@@ -146,7 +139,7 @@ BANNED_IN_HEADLINES = [
 
 EXECUTIVE_REVIEW_TOOL_SCHEMA = {
     "name": "generate_executive_review",
-    "description": "Generate a personalized executive review with executive summary, advantages, risks, recommendations, implementation roadmap, and case study relevance. Each field has strict character limits.",
+    "description": "Generate a personalized executive review with executive summary, advantages, risks, recommendations, and case study relevance. Each field has strict character limits.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -218,40 +211,12 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                         },
                         "description": {
                             "type": "string",
-                            "description": "2-3 sentences, 25-65 words, professional tone. 150-400 characters. Include actionable steps and expected outcomes.",
-                            "minLength": 150,
-                            "maxLength": 400,
+                            "description": "3-4 sentences, 35-90 words, professional tone. 200-550 characters. Include actionable steps, expected outcomes, and specific implementation guidance.",
+                            "minLength": 200,
+                            "maxLength": 550,
                         },
                     },
                     "required": ["title", "description"],
-                },
-                "minItems": 3,
-                "maxItems": 3,
-            },
-            "roadmap": {
-                "type": "array",
-                "description": "Exactly 3 implementation phases. Phase 1 = 0-90 days (quick wins), Phase 2 = 3-6 months (build foundation), Phase 3 = 6-12 months (scale and optimize).",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "phase": {
-                            "type": "string",
-                            "description": "Phase label, e.g. 'Phase 1 (0-90 days)' or 'Phase 2 (3-6 months)' or 'Phase 3 (6-12 months)'.",
-                        },
-                        "title": {
-                            "type": "string",
-                            "description": "4-10 words, imperative form. 20-65 characters.",
-                            "minLength": 20,
-                            "maxLength": 65,
-                        },
-                        "description": {
-                            "type": "string",
-                            "description": "1-2 sentences, 18-55 words. 100-350 characters. Concrete actions for this phase.",
-                            "minLength": 100,
-                            "maxLength": 350,
-                        },
-                    },
-                    "required": ["phase", "title", "description"],
                 },
                 "minItems": 3,
                 "maxItems": 3,
@@ -263,7 +228,7 @@ EXECUTIVE_REVIEW_TOOL_SCHEMA = {
                 "maxLength": 500,
             },
         },
-        "required": ["executive_summary", "advantages", "risks", "recommendations", "roadmap", "case_study_relevance"],
+        "required": ["executive_summary", "advantages", "risks", "recommendations", "case_study_relevance"],
     },
 }
 
@@ -351,15 +316,6 @@ def validate_executive_review_content(
             rec.get("description", ""),
             f"recommendations[{i}].description",
             FIELD_SPECS["rec_description"],
-            failures,
-        )
-
-    # Validate roadmap
-    for i, phase in enumerate(content.get("roadmap", [])):
-        _validate_field(
-            phase.get("description", ""),
-            f"roadmap[{i}].description",
-            FIELD_SPECS["roadmap_phase"],
             failures,
         )
 
@@ -959,23 +915,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                         "description": "Upgrade underlying compute and storage infrastructure to support emerging AI-driven design, planning, and project management tools. Investing in scalable architecture now prevents the costly cycle of repeated rework that occurs when new capabilities are layered onto infrastructure that cannot handle the additional workload."
                     }
                 ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Audit and prioritize legacy system costs",
-                        "description": "Catalog all on-prem BIM, CAD, and ERP systems with their maintenance costs, licensing expirations, and hardware refresh timelines. Identify the top five highest-cost workloads and develop business cases for migration or consolidation."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Migrate high-cost workloads to modern platforms",
-                        "description": "Execute migration of the prioritized legacy workloads to standardized infrastructure. Begin with non-critical project data environments to validate the approach, then move production BIM and CAD systems with rollback plans in place."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Unify regional infrastructure and enable AI readiness",
-                        "description": "Roll out the standardized platform across remaining regional offices and project sites. Establish compute and storage capacity targets that will support AI-driven design tools as they mature, ensuring AECOM avoids another cycle of infrastructure debt."
-                    }
-                ],
                 "case_study_relevance": "Smurfit Westrock's 25% infrastructure cost reduction demonstrates what enterprise-scale legacy modernization delivers when executed with clear prioritization. Like AECOM, they operated distributed facilities with aging on-prem systems driving escalating maintenance costs. Their phased approach to consolidation and standardization mirrors the path AECOM can follow to reduce technical debt across its global project portfolio.",
                 "case_study": "Smurfit Westrock"
             }
@@ -1024,23 +963,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                     {
                         "title": "Adopt solutions that deliver quick, low-effort efficiency gains",
                         "description": "Choose modernization steps with clear cost savings and minimal implementation lift so the organization can reduce spend without straining its small IT and operations teams. Quick wins build internal confidence and create budget headroom for larger modernization investments down the road."
-                    }
-                ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Map spending and identify consolidation targets",
-                        "description": "Audit current technology spending across ecommerce, inventory, and operations platforms. Identify which systems have overlapping functionality, the highest support costs, or upcoming renewal deadlines that create natural decision points for consolidation."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Consolidate the highest-cost redundant platforms",
-                        "description": "Migrate workloads from the most expensive redundant systems onto consolidated platforms. Start with back-office operations that have lower business continuity risk, then address customer-facing ecommerce systems with a tested migration playbook."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Optimize the simplified stack for growth readiness",
-                        "description": "With fewer platforms to manage, reallocate the freed budget and team capacity toward performance improvements and growth-enabling features. Establish monitoring and cost tracking to ensure the streamlined environment continues delivering efficiency gains as business volume increases."
                     }
                 ],
                 "case_study_relevance": "Smurfit Westrock achieved a 25% reduction in infrastructure costs through strategic consolidation of fragmented systems across distributed operations. Like Allbirds, they faced rising maintenance costs from a complex technology landscape that was absorbing resources needed for growth. Their approach of targeting the highest-cost platforms first and building momentum from early wins is directly applicable to a lean organization working with limited IT staff.",
@@ -1095,23 +1017,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                         "description": "Move toward flexible compute and storage environments that can scale dynamically with Target's seasonal demand patterns. Infrastructure that auto-scales during peak traffic prevents the performance degradation that occurs when fixed-capacity systems are pushed beyond their design limits during critical revenue periods."
                     }
                 ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Benchmark performance and map integration bottlenecks",
-                        "description": "Measure current response times across POS, ecommerce, and inventory systems under peak load conditions. Document the specific integration points where data latency or synchronization failures create customer-visible performance issues."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Upgrade the highest-impact transaction processing systems",
-                        "description": "Modernize compute infrastructure for the workloads with the worst performance-to-revenue impact ratio. Implement improved integration middleware for the top three bottleneck points identified in Phase 1, with validation against peak traffic benchmarks."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Deploy auto-scaling infrastructure across all commerce channels",
-                        "description": "Roll out dynamic scaling capabilities across all customer-facing retail systems to handle seasonal demand spikes without performance degradation. Establish continuous performance monitoring with automated alerting so integration issues are caught before they impact customers."
-                    }
-                ],
                 "case_study_relevance": "KT Cloud's infrastructure modernization demonstrates how large-scale organizations achieve measurable performance improvements across high-volume transaction systems. Like Target, they needed to handle massive throughput demands while maintaining consistent responsiveness. Their approach to upgrading core compute and streamlining platform integrations parallels Target's need to improve POS and ecommerce performance while reducing retail supply chain friction.",
                 "case_study": "KT Cloud"
             }
@@ -1160,23 +1065,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                     {
                         "title": "Invest in training programs that close critical OT-IT skills gaps",
                         "description": "Expand internal training programs and bring in specialized expertise so modernization work can scale across manufacturing sites and support integrated OT-IT operations. Partner with equipment vendors and technology providers to create role-specific certification paths that build the skills needed to maintain modernized infrastructure independently."
-                    }
-                ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Assess OT-IT integration gaps and skills inventory",
-                        "description": "Document the current state of OT-IT connectivity at the top five highest-output manufacturing sites. Conduct a skills assessment across operations and IT teams to identify the specific capability gaps that will limit modernization adoption."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Upgrade production systems at priority manufacturing sites",
-                        "description": "Deploy modernized compute and integration infrastructure at the sites with the highest downtime costs. Launch targeted training programs for the OT-IT skills identified as most critical during Phase 1, with hands-on certification tied to the new platforms."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Scale modernization across global manufacturing operations",
-                        "description": "Extend the validated infrastructure and integration improvements to remaining manufacturing sites using the playbook developed at priority locations. Establish centers of excellence that maintain skills development and support continuous improvement across the global production network."
                     }
                 ],
                 "case_study_relevance": "PQR's infrastructure modernization in an industrial environment demonstrates how manufacturing organizations can improve system performance while managing the skills challenges that come with OT-IT convergence. Their phased approach to upgrading production-critical systems while building internal capabilities mirrors the path Caterpillar needs to follow to scale performance improvements across a global manufacturing footprint without creating dependency on external consultants.",
@@ -1231,23 +1119,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                         "description": "Increase GPU compute and storage capacity to run demanding clinical AI models for diagnostic imaging, patient risk scoring, and operational optimization. Right-size infrastructure investments to the specific AI workloads that HCA is prioritizing, avoiding over-provisioning while ensuring enough capacity to support concurrent model training and inference across facilities."
                     }
                 ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Audit data quality and governance across clinical systems",
-                        "description": "Assess data completeness, consistency, and interoperability across EHR, PACS, and administrative systems at pilot facilities. Identify the specific data governance gaps that would prevent AI models from meeting HIPAA and FDA validation requirements."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Deploy AI pilots with validated governance controls",
-                        "description": "Launch clinical AI pilots in the departments with the strongest data foundations, using the governance templates developed in Phase 1. Validate that AI outputs meet accuracy and safety thresholds before expanding to additional clinical use cases or facilities."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Scale validated AI models across the enterprise network",
-                        "description": "Extend proven AI use cases to additional HCA facilities using the governance playbook and infrastructure standards validated during pilot deployment. Establish continuous monitoring for model performance, data quality, and regulatory compliance across all production AI systems."
-                    }
-                ],
                 "case_study_relevance": "PQR's healthcare infrastructure modernization demonstrates how large health systems build the data foundations and governance controls needed for compliant AI adoption at scale. Like HCA, they needed to ensure that clinical AI systems met strict HIPAA requirements while delivering reliable outputs across EHR and imaging systems. Their phased approach to strengthening data quality before scaling AI deployment directly parallels HCA's path to enterprise-wide clinical AI readiness.",
                 "case_study": "PQR"
             }
@@ -1296,23 +1167,6 @@ FEW_SHOT_EXAMPLES_POOL = {
                     {
                         "title": "Deploy AI for real-time risk assessment and fraud prevention",
                         "description": "Leverage optimized compute infrastructure to run advanced AI models that improve risk management and fraud detection accuracy without adding transaction processing latency. Position these AI capabilities as competitive differentiators that simultaneously strengthen compliance posture and improve the speed and accuracy of critical financial decisions."
-                    }
-                ],
-                "roadmap": [
-                    {
-                        "phase": "Phase 1 (0-90 days)",
-                        "title": "Benchmark trading system latency and compliance overhead",
-                        "description": "Measure current performance metrics across high-frequency trading, risk management, and transaction processing systems. Quantify the latency impact of existing compliance processes to identify where automation can reduce overhead without weakening regulatory controls."
-                    },
-                    {
-                        "phase": "Phase 2 (3-6 months)",
-                        "title": "Upgrade compute infrastructure for priority trading systems",
-                        "description": "Deploy optimized hardware and networking for the trading workloads with the highest revenue-to-latency sensitivity. Simultaneously implement automated compliance monitoring for these systems to ensure performance gains do not come at the expense of regulatory coverage."
-                    },
-                    {
-                        "phase": "Phase 3 (6-12 months)",
-                        "title": "Scale AI-driven risk and compliance automation enterprise-wide",
-                        "description": "Extend AI-powered risk assessment and automated compliance capabilities across all major trading and transaction processing systems. Establish continuous performance monitoring that tracks both execution speed and regulatory compliance metrics to ensure optimization gains are sustained as market conditions and regulatory requirements evolve."
                     }
                 ],
                 "case_study_relevance": "PQR's approach to modernizing performance-critical infrastructure while maintaining strict regulatory compliance demonstrates the path large financial institutions must follow. Like JPMorgan Chase, they needed to improve system performance where every change requires regulatory validation. Their success in automating compliance controls while delivering measurable performance improvements provides a proven framework for balancing speed and governance.",
@@ -1422,7 +1276,6 @@ class ExecutiveReviewService:
                 "advantages": result_data.get("advantages", []),
                 "risks": result_data.get("risks", []),
                 "recommendations": result_data.get("recommendations", []),
-                "roadmap": result_data.get("roadmap", []),
                 "case_study": case_study_name,
                 "case_study_description": case_study_desc,
                 "case_study_link": case_study_link,
@@ -1617,8 +1470,8 @@ Your output must follow these strict rules:
 CONTENT STRUCTURE:
 - Executive Summary: 2-3 sentences (35-90 words) framing the assessment for this specific company
 - Headlines: 4-12 words, imperative or benefit-driven, no colons
-- Descriptions: 2-3 sentences, 25-65 words, human and professional tone with specific systems and outcomes
-- Roadmap: 3 implementation phases (0-90 days, 3-6 months, 6-12 months) with concrete actions
+- Advantage/Risk Descriptions: 2-3 sentences, 25-65 words, human and professional tone with specific systems and outcomes
+- Recommendation Descriptions: 3-4 sentences, 35-90 words, detailed actionable guidance with implementation specifics and expected outcomes
 - Case Study Relevance: 2-4 sentences explaining how the case study maps to the company's situation
 - No jargon, buzzwords, hype, or filler phrases like "in today's landscape"
 - No em dashes, no exclamation marks, no emojis
@@ -1711,7 +1564,7 @@ PERSONALIZATION CHECKLIST (you must address ALL of these):
 4. Content MUST use {industry}-specific terminology and systems
 5. Language MUST be appropriate for a {persona} reader
 6. Recommendations MUST be {stage}-appropriate ({"foundational, cost-focused" if stage == "Observer" else "performance, integration-focused" if stage == "Challenger" else "optimization, AI-readiness focused"})
-7. Roadmap MUST have 3 phases with concrete, time-bound actions specific to {industry}
+7. Recommendation descriptions MUST be 3-4 sentences with specific implementation guidance and expected outcomes
 8. Case study relevance MUST explain the connection to {company_name}'s specific {industry} challenges
 9. Content MUST reference specific company intelligence where available (news, headcount, growth, funding, AI readiness signals)
 
@@ -1838,7 +1691,6 @@ Use the generate_executive_review tool to return your response."""
                 "advantages": data.get("advantages", []),
                 "risks": data.get("risks", []),
                 "recommendations": data.get("recommendations", []),
-                "roadmap": data.get("roadmap", []),
                 "case_study": case_study_name,
                 "case_study_description": case_study_desc,
                 "case_study_link": case_study_link,
@@ -1885,7 +1737,6 @@ Use the generate_executive_review tool to return your response."""
             "advantages": swap_in_items(example["output"]["advantages"], ["headline", "description"]),
             "risks": swap_in_items(example["output"]["risks"], ["headline", "description"]),
             "recommendations": swap_in_items(example["output"]["recommendations"], ["title", "description"]),
-            "roadmap": swap_in_items(example["output"].get("roadmap", []), ["phase", "title", "description"]),
             "case_study": case_study_name,
             "case_study_description": case_study_desc,
             "case_study_link": case_study_link,
