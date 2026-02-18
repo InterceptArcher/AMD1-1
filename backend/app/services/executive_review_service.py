@@ -1851,24 +1851,45 @@ Use the generate_executive_review tool to return your response."""
             return self._get_mock_response(company_name, stage, priority, industry, challenge)
 
     def _get_mock_response(self, company_name: str, stage: str, priority: str, industry: str, challenge: str = "") -> dict:
-        """Return a mock response when LLM is unavailable."""
+        """Return a mock response when LLM is unavailable, with company name swapped."""
         example = FEW_SHOT_EXAMPLES.get(stage, FEW_SHOT_EXAMPLES["Challenger"])
+        example_company = example["profile"]["company"]
         case_study_name, case_study_desc, case_study_link = select_case_study(stage, priority, industry, challenge)
+
+        def swap_company(text: str) -> str:
+            """Replace the example company name with the actual company name."""
+            if not text or not example_company:
+                return text
+            # Replace full name and possessive forms
+            text = text.replace(f"{example_company}'s", f"{company_name}'s")
+            text = text.replace(example_company, company_name)
+            return text
+
+        def swap_in_items(items: list, fields: list) -> list:
+            """Deep-copy list of dicts, swapping company name in specified fields."""
+            result = []
+            for item in items:
+                new_item = dict(item)
+                for field in fields:
+                    if field in new_item and isinstance(new_item[field], str):
+                        new_item[field] = swap_company(new_item[field])
+                result.append(new_item)
+            return result
 
         return {
             "company_name": company_name,
             "stage": stage,
             "stage_sidebar": get_stage_sidebar(stage),
             "stage_identification_text": build_stage_identification_text(company_name, stage),
-            "executive_summary": example["output"].get("executive_summary", f"This assessment evaluates {company_name}'s current infrastructure position and identifies opportunities for modernization aligned with their {priority.lower()} goals."),
-            "advantages": example["output"]["advantages"],
-            "risks": example["output"]["risks"],
-            "recommendations": example["output"]["recommendations"],
-            "roadmap": example["output"].get("roadmap", []),
+            "executive_summary": swap_company(example["output"].get("executive_summary", f"This assessment evaluates {company_name}'s current infrastructure position and identifies opportunities for modernization aligned with their {priority.lower()} goals.")),
+            "advantages": swap_in_items(example["output"]["advantages"], ["headline", "description"]),
+            "risks": swap_in_items(example["output"]["risks"], ["headline", "description"]),
+            "recommendations": swap_in_items(example["output"]["recommendations"], ["title", "description"]),
+            "roadmap": swap_in_items(example["output"].get("roadmap", []), ["phase", "title", "description"]),
             "case_study": case_study_name,
             "case_study_description": case_study_desc,
             "case_study_link": case_study_link,
-            "case_study_relevance": example["output"].get("case_study_relevance", f"This case study demonstrates how organizations in {industry} can address {challenge.lower()} through data center modernization, following a phased approach that delivers measurable results while managing the operational risks of infrastructure change."),
+            "case_study_relevance": swap_company(example["output"].get("case_study_relevance", f"This case study demonstrates how organizations in {industry} can address {challenge.lower()} through data center modernization, following a phased approach that delivers measurable results while managing the operational risks of infrastructure change.")),
         }
 
     async def judge_content_specificity(
