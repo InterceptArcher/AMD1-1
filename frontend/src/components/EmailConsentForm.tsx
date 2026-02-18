@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent, useCallback } from 'react';
+import { useState, FormEvent, useCallback, useEffect, useMemo } from 'react';
 import WizardProgressDots from './wizard/WizardProgressDots';
 import StepContainer from './wizard/StepContainer';
 import SelectionCard from './wizard/SelectionCard';
@@ -12,14 +12,25 @@ import {
   INITIAL_WIZARD_DATA,
   STEP_VALIDATORS,
   TOTAL_STEPS,
-  TRANSITION_MESSAGES,
   SOCIAL_PROOF,
   STAGE_LABELS,
-  IT_ENVIRONMENT_OPTIONS,
-  BUSINESS_PRIORITY_OPTIONS,
   ROLE_OPTIONS,
   INDUSTRY_OPTIONS,
+  PersonaType,
+  getPersonaType,
+  getITEnvironmentOptions,
+  getPriorityOptions,
   getFilteredChallenges,
+  getEnvLabel,
+  getPriorityLabel as getAdaptivePriorityLabel,
+  getChallengeLabel,
+  getAdaptiveStepTitle,
+  getTransitionMessage,
+  getIntelligenceNugget,
+  getAssessmentDepth,
+  saveWizardProgress,
+  loadWizardProgress,
+  clearWizardProgress,
 } from './wizard/wizardTypes';
 
 export interface UserInputs {
@@ -49,22 +60,65 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   const [transitionMessage, setTransitionMessage] = useState('');
   const [companyAutoFilled, setCompanyAutoFilled] = useState(false);
 
-  const updateData = (updates: Partial<WizardData>) => {
+  // Derived persona type from role selection
+  const personaType: PersonaType = useMemo(() => getPersonaType(data.persona), [data.persona]);
+
+  // Adaptive options based on persona and industry
+  const envOptions = useMemo(
+    () => getITEnvironmentOptions(personaType, data.industry),
+    [personaType, data.industry],
+  );
+  const priorityOptions = useMemo(() => getPriorityOptions(personaType), [personaType]);
+  const challengeOptions = useMemo(
+    () => getFilteredChallenges(data.itEnvironment, data.industry),
+    [data.itEnvironment, data.industry],
+  );
+
+  // Assessment depth indicator
+  const assessmentDepth = useMemo(() => getAssessmentDepth(data), [data]);
+
+  // Intelligence nugget for industry + challenge
+  const nugget = useMemo(
+    () => getIntelligenceNugget(data.industry, data.challenge),
+    [data.industry, data.challenge],
+  );
+
+  // Stable updateData via useCallback (needed for keyboard effect deps)
+  const updateData = useCallback((updates: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...updates }));
-  };
+  }, []);
+
+  // localStorage: restore on mount
+  useEffect(() => {
+    const saved = loadWizardProgress();
+    if (saved) {
+      setData(saved.data);
+      setCurrentStep(saved.step);
+    }
+  }, []);
+
+  // localStorage: auto-save on meaningful changes
+  useEffect(() => {
+    if (currentStep > 0 || data.firstName) {
+      saveWizardProgress(currentStep, data);
+    }
+  }, [currentStep, data]);
 
   const isCurrentStepValid = STEP_VALIDATORS[currentStep](data);
 
-  // Transition with thinking moment
-  const startTransition = useCallback((fromStep: number, nextStep: number) => {
-    setTransitionMessage(TRANSITION_MESSAGES[fromStep] || 'Processing...');
-    setWizardState('thinking');
-    setTimeout(() => {
-      setWizardState('idle');
-      setDirection('forward');
-      setCurrentStep(nextStep);
-    }, 900);
-  }, []);
+  // Transition with contextual thinking moment
+  const startTransition = useCallback(
+    (fromStep: number, nextStep: number) => {
+      setTransitionMessage(getTransitionMessage(fromStep, data));
+      setWizardState('thinking');
+      setTimeout(() => {
+        setWizardState('idle');
+        setDirection('forward');
+        setCurrentStep(nextStep);
+      }, 900);
+    },
+    [data],
+  );
 
   const goNext = () => {
     if (currentStep < TOTAL_STEPS - 1 && isCurrentStepValid) {
@@ -79,14 +133,15 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
     }
   };
 
-  // Auto-advance for single-select steps (Role)
+  // Auto-advance for single-select steps (Role → Situation)
   const handleAutoAdvance = useCallback(() => {
-    startTransition(2, 3); // Step 3 (role) → Step 4 (situation)
+    startTransition(2, 3);
   }, [startTransition]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (isCurrentStepValid) {
+      clearWizardProgress();
       onSubmit({
         email: data.email,
         firstName: data.firstName,
@@ -110,19 +165,94 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
 
   // Display label helpers for assessment preview
   const getRoleLabel = () => ROLE_OPTIONS.find((r) => r.value === data.persona)?.label || 'your role';
-  const getIndustryLabel = () => INDUSTRY_OPTIONS.find((i) => i.value === data.industry)?.label || 'your industry';
+  const getIndustryLabel = () =>
+    INDUSTRY_OPTIONS.find((i) => i.value === data.industry)?.label || 'your industry';
   const getStageLabel = () => STAGE_LABELS[data.itEnvironment] || '';
-  const getPriorityLabel = () => BUSINESS_PRIORITY_OPTIONS.find((p) => p.value === data.businessPriority)?.label || '';
+  const getDisplayPriorityLabel = () => {
+    return priorityOptions.find((p) => p.value === data.businessPriority)?.label || '';
+  };
 
   const isLastStep = currentStep === TOTAL_STEPS - 1;
-  const filteredChallenges = getFilteredChallenges(data.itEnvironment);
 
-  // Assessment preview is shown when enough fields are filled on step 4
-  const showPreview = currentStep === 3 && data.itEnvironment && data.businessPriority && data.challenge;
+  // Progressive reveal state for Step 4
+  const showPriority = !!data.itEnvironment;
+  const showChallenge = !!data.businessPriority;
+  const showPreview =
+    currentStep === 3 && !!data.itEnvironment && !!data.businessPriority && !!data.challenge;
+
+  // Keyboard navigation for Step 4 sub-sections
+  useEffect(() => {
+    if (currentStep !== 3 || wizardState !== 'idle') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      const num = parseInt(e.key);
+      if (isNaN(num) || num < 1) return;
+
+      // Target = the latest revealed section without a selection
+      if (!data.itEnvironment) {
+        if (num <= envOptions.length) {
+          updateData({ itEnvironment: envOptions[num - 1].value, challenge: '' });
+        }
+      } else if (!data.businessPriority) {
+        if (num <= priorityOptions.length) {
+          updateData({ businessPriority: priorityOptions[num - 1].value });
+        }
+      } else if (!data.challenge) {
+        if (num <= challengeOptions.length) {
+          updateData({ challenge: challengeOptions[num - 1].value });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    currentStep,
+    wizardState,
+    data.itEnvironment,
+    data.businessPriority,
+    data.challenge,
+    envOptions,
+    priorityOptions,
+    challengeOptions,
+    updateData,
+  ]);
 
   return (
     <form onSubmit={handleSubmit}>
-      <WizardProgressDots currentStep={currentStep} />
+      <WizardProgressDots
+        currentStep={currentStep}
+        stepTitle={getAdaptiveStepTitle(currentStep, currentStep >= 3 ? personaType : undefined)}
+      />
+
+      {/* Assessment depth indicator on Step 4 */}
+      {currentStep === 3 && wizardState === 'idle' && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] text-white/40 uppercase tracking-widest font-semibold">
+              Assessment Depth
+            </span>
+            <span className="text-[11px] text-[#00c8aa]/70 font-semibold">
+              {assessmentDepth.percentage}%
+            </span>
+          </div>
+          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#00c8aa] rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${assessmentDepth.percentage}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Thinking overlay between steps */}
       {wizardState === 'thinking' ? (
@@ -162,25 +292,35 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             />
           )}
 
-          {/* Step 4: Your Situation */}
+          {/* Step 4: Your Situation — Progressive Reveal */}
           {currentStep === 3 && (
             <div className="space-y-5">
-              {/* IT Environment */}
+              {/* IT Environment — always visible on Step 4 */}
               <div>
-                <label className="amd-label">Which sounds most like your day-to-day?</label>
+                <label className="amd-label">{getEnvLabel(personaType)}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {IT_ENVIRONMENT_OPTIONS.map((opt) => (
+                  {envOptions.map((opt) => (
                     <SelectionCard
                       key={opt.value}
                       label={opt.label}
                       description={opt.description}
                       selected={data.itEnvironment === opt.value}
-                      onClick={() => updateData({ itEnvironment: opt.value, challenge: data.itEnvironment !== opt.value ? '' : data.challenge })}
+                      onClick={() =>
+                        updateData({
+                          itEnvironment: opt.value,
+                          challenge: data.itEnvironment !== opt.value ? '' : data.challenge,
+                        })
+                      }
                       disabled={isLoading}
                       size="lg"
                     />
                   ))}
                 </div>
+                {!data.itEnvironment && (
+                  <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
+                    Press 1-{envOptions.length} to select
+                  </p>
+                )}
                 {data.itEnvironment && (
                   <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
                     {getSocialProof('itEnvironment', data.itEnvironment)}
@@ -188,58 +328,81 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                 )}
               </div>
 
-              {/* Business Priority */}
-              <div>
-                <label className="amd-label">If you could change one thing tomorrow...</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {BUSINESS_PRIORITY_OPTIONS.map((opt) => (
-                    <SelectionCard
-                      key={opt.value}
-                      label={opt.label}
-                      description={opt.description}
-                      selected={data.businessPriority === opt.value}
-                      onClick={() => updateData({ businessPriority: opt.value })}
-                      disabled={isLoading}
-                      size="md"
-                    />
-                  ))}
+              {/* Business Priority — revealed after env selection */}
+              {showPriority && (
+                <div className="progressive-reveal">
+                  <label className="amd-label">{getAdaptivePriorityLabel(personaType)}</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {priorityOptions.map((opt) => (
+                      <SelectionCard
+                        key={opt.value}
+                        label={opt.label}
+                        description={opt.description}
+                        selected={data.businessPriority === opt.value}
+                        onClick={() => updateData({ businessPriority: opt.value })}
+                        disabled={isLoading}
+                        size="md"
+                      />
+                    ))}
+                  </div>
+                  {!data.businessPriority && (
+                    <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
+                      Press 1-{priorityOptions.length} to select
+                    </p>
+                  )}
+                  {data.businessPriority && (
+                    <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
+                      {getSocialProof('businessPriority', data.businessPriority)}
+                    </p>
+                  )}
                 </div>
-                {data.businessPriority && (
-                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
-                    {getSocialProof('businessPriority', data.businessPriority)}
-                  </p>
-                )}
-              </div>
+              )}
 
-              {/* Challenge (adaptive filtering) */}
-              <div>
-                <label className="amd-label">What&apos;s the biggest thing holding your team back?</label>
-                <div className={`grid grid-cols-2 ${filteredChallenges.length <= 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}>
-                  {filteredChallenges.map((opt) => (
-                    <SelectionCard
-                      key={opt.value}
-                      label={opt.label}
-                      description={opt.description}
-                      selected={data.challenge === opt.value}
-                      onClick={() => updateData({ challenge: opt.value })}
-                      disabled={isLoading}
-                      size="sm"
-                    />
-                  ))}
+              {/* Challenge — revealed after priority selection */}
+              {showChallenge && (
+                <div className="progressive-reveal">
+                  <label className="amd-label">{getChallengeLabel(personaType)}</label>
+                  <div
+                    className={`grid grid-cols-2 ${challengeOptions.length <= 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}
+                  >
+                    {challengeOptions.map((opt) => (
+                      <SelectionCard
+                        key={opt.value}
+                        label={opt.label}
+                        description={opt.description}
+                        selected={data.challenge === opt.value}
+                        onClick={() => updateData({ challenge: opt.value })}
+                        disabled={isLoading}
+                        size="sm"
+                      />
+                    ))}
+                  </div>
+                  {!data.challenge && (
+                    <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
+                      Press 1-{challengeOptions.length} to select
+                    </p>
+                  )}
+                  {/* Intelligence nugget after challenge selection */}
+                  {data.challenge && nugget && (
+                    <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1 italic">
+                      {nugget}
+                    </p>
+                  )}
                 </div>
-                {data.challenge && (
-                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
-                    {getSocialProof('challenge', data.challenge)}
-                  </p>
-                )}
-              </div>
+              )}
 
-              {/* Assessment Preview */}
+              {/* Assessment Preview — after all selections made */}
               {showPreview && (
-                <div className="assessment-preview social-proof-enter rounded-xl border border-[#00c8aa]/20 p-4">
+                <div className="progressive-reveal assessment-preview rounded-xl border border-[#00c8aa]/20 p-4">
                   <div className="flex items-center gap-2 mb-2.5">
                     <div className="w-5 h-5 rounded-full bg-[#00c8aa]/20 flex items-center justify-center">
-                      <svg className="w-3 h-3 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <svg
+                        className="w-3 h-3 text-[#00c8aa]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
@@ -252,27 +415,39 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                     <strong className="text-white">{data.company || 'your company'}</strong>
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2.5">
-                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getIndustryLabel()}</span>
-                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getStageLabel()} Stage</span>
-                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">{getPriorityLabel()}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
+                      {getIndustryLabel()}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
+                      {getStageLabel()} Stage
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
+                      {getDisplayPriorityLabel()}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Consent */}
-              <div className="flex items-start gap-3 pt-1">
-                <input
-                  type="checkbox"
-                  id="wiz-consent"
-                  checked={data.consent}
-                  onChange={(e) => updateData({ consent: e.target.checked })}
-                  disabled={isLoading}
-                  className="amd-checkbox mt-0.5"
-                />
-                <label htmlFor="wiz-consent" className="text-sm text-white/70 leading-relaxed cursor-pointer">
-                  I agree to receive my personalized AI readiness assessment and relevant updates from AMD
-                </label>
-              </div>
+              {/* Consent — appears with preview */}
+              {showPreview && (
+                <div className="progressive-reveal flex items-start gap-3 pt-1">
+                  <input
+                    type="checkbox"
+                    id="wiz-consent"
+                    checked={data.consent}
+                    onChange={(e) => updateData({ consent: e.target.checked })}
+                    disabled={isLoading}
+                    className="amd-checkbox mt-0.5"
+                  />
+                  <label
+                    htmlFor="wiz-consent"
+                    className="text-sm text-white/70 leading-relaxed cursor-pointer"
+                  >
+                    I agree to receive my personalized AI readiness assessment and relevant updates
+                    from AMD
+                  </label>
+                </div>
+              )}
             </div>
           )}
         </StepContainer>

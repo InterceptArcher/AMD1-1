@@ -4,9 +4,10 @@ import { TOTAL_STEPS, STEP_TITLES } from './wizardTypes';
 
 interface WizardProgressDotsProps {
   currentStep: number;
+  stepTitle?: string;
 }
 
-export default function WizardProgressDots({ currentStep }: WizardProgressDotsProps) {
+export default function WizardProgressDots({ currentStep, stepTitle }: WizardProgressDotsProps) {
   return (
     <div className="mb-8">
       {/* Dots with connecting lines */}
@@ -45,7 +46,7 @@ export default function WizardProgressDots({ currentStep }: WizardProgressDotsPr
         </span>
         <span className="text-white/20 mx-2">|</span>
         <span className="text-xs text-white/50 font-medium">
-          {STEP_TITLES[currentStep]}
+          {stepTitle || STEP_TITLES[currentStep]}
         </span>
       </div>
     </div>
