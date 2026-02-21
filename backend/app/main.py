@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="AMD1-1 Alpha - Personalization Pipeline",
+    title="AMD1-1 Beta - Personalization Pipeline",
     description="RAD enrichment API for LinkedIn ebook personalization",
     version="0.1.0",
     lifespan=lifespan
@@ -63,7 +63,7 @@ app.include_router(enrichment.router)
 async def root():
     """Root endpoint."""
     return {
-        "message": "AMD1-1 Alpha Personalization Pipeline",
+        "message": "AMD1-1 Beta Personalization Pipeline",
         "version": "0.1.0",
         "docs": "/docs"
     }

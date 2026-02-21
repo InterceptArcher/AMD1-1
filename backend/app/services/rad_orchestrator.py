@@ -134,7 +134,8 @@ class RADOrchestrator:
         self,
         email: str,
         domain: Optional[str] = None,
-        job_id: Optional[int] = None
+        job_id: Optional[int] = None,
+        user_company: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute full enrichment pipeline for an email.
@@ -149,6 +150,7 @@ class RADOrchestrator:
             email: Email address to enrich
             domain: Company domain (optional, extracted from email if not provided)
             job_id: Optional job ID for tracking
+            user_company: User-provided company name (highest priority for resolution)
 
         Returns:
             Normalized profile dict with metadata
@@ -162,7 +164,7 @@ class RADOrchestrator:
                 domain = email.split("@")[1]
 
             # Step 1: Fetch raw data from all APIs in parallel
-            raw_data = await self._fetch_all_sources(email, domain)
+            raw_data = await self._fetch_all_sources(email, domain, user_company=user_company)
 
             # Step 2: Store raw data in Supabase (non-fatal - continue even if storage fails)
             for source, data in raw_data.items():
@@ -194,7 +196,8 @@ class RADOrchestrator:
     async def _fetch_all_sources(
         self,
         email: str,
-        domain: str
+        domain: str,
+        user_company: Optional[str] = None
     ) -> Dict[str, Dict[str, Any]]:
         """
         Fetch data from all sources in two phases.
@@ -207,6 +210,7 @@ class RADOrchestrator:
         Args:
             email: Email address
             domain: Company domain
+            user_company: User-provided company name (highest priority)
 
         Returns:
             Dict mapping source name to response data
@@ -233,8 +237,9 @@ class RADOrchestrator:
                 raw_data[source_name] = result
 
         # Phase 2: GNews with resolved company name from Phase 1
-        resolved_name = self._resolve_company_name(raw_data, domain)
-        logger.info(f"Resolved company name for GNews: '{resolved_name}' (domain: {domain})")
+        # User-provided company name takes highest priority
+        resolved_name = self._resolve_company_name(raw_data, domain, user_company=user_company)
+        logger.info(f"Resolved company name for GNews: '{resolved_name}' (domain: {domain}, user_company: '{user_company}')")
         raw_data["gnews"] = await self._fetch_gnews_with_name(email, domain, resolved_name)
 
         return raw_data
@@ -253,14 +258,24 @@ class RADOrchestrator:
     def _resolve_company_name(
         self,
         raw_data: Dict[str, Dict[str, Any]],
-        domain: str
+        domain: str,
+        user_company: Optional[str] = None
     ) -> str:
         """
         Resolve the best company name from Phase 1 results.
-        Priority: PDL Company display_name > PDL Company name > Apollo >
-                  ZoomInfo > PDL person > domain fallback.
+        Priority: User input > PDL Company display_name > PDL Company name >
+                  Apollo > ZoomInfo > PDL person > domain fallback.
         Skips mock data sources.
+
+        User-provided company name always wins because person-level APIs
+        (Apollo, PDL Person) return the person's CURRENT employer, which
+        may differ from the company they entered (e.g., Bill Gates entering
+        "Microsoft" but APIs returning "Breakthrough Energy").
         """
+        # Highest priority: user-provided company name from the form
+        if user_company and user_company.strip():
+            return user_company.strip()
+
         # Prefer display_name (human-readable, e.g., "Google" not "Alphabet Inc.")
         pdl_company = raw_data.get("pdl_company", {})
         if pdl_company and not pdl_company.get("_error") and not pdl_company.get("_mock"):

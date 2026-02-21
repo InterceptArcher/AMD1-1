@@ -82,19 +82,19 @@ curl -X POST http://localhost:8000/rad/extract-pdf-json \
 
 ---
 
-### Option 2: Test on Alpha Deployment
+### Option 2: Test on Beta Deployment
 
-The alpha deployment is at: `https://amd1-1-alpha.vercel.app` (frontend)
-Backend is at: `https://amd1-1-backend.onrender.com`
+The beta deployment is at: `https://amd1-1-beta.vercel.app` (frontend)
+Backend is at: `https://amd1-1-backend-beta.onrender.com`
 
 #### Check if New Endpoints Are Deployed
 
 ```bash
 # Test health endpoint
-curl https://amd1-1-backend.onrender.com/rad/health
+curl https://amd1-1-backend-beta.onrender.com/rad/health
 
 # Test if PDF endpoint exists
-curl -X POST https://amd1-1-backend.onrender.com/rad/executive-review-pdf \
+curl -X POST https://amd1-1-backend-beta.onrender.com/rad/executive-review-pdf \
   -H "Content-Type: application/json" \
   -d '{
     "company": "Test Corp",
@@ -280,7 +280,7 @@ cd /workspaces/AMD1-1_Alpha
 # In backend/app/main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://amd1-1-alpha.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://amd1-1-beta.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

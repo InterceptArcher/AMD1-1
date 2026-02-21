@@ -185,7 +185,8 @@ async def enrich_profile(
         compliance_service = ComplianceService()
 
         # Run enrichment (sync in alpha, could be async/queued later)
-        finalized = await orchestrator.enrich(email, domain)
+        # Pass user-provided company so it's used for GNews search and company resolution
+        finalized = await orchestrator.enrich(email, domain, user_company=request.company)
 
         # Log which data sources returned real vs mock data
         logger.info(f"[{job_id}] Data sources used: {orchestrator.data_sources}")
@@ -904,7 +905,7 @@ async def generate_executive_review(
 
         # Step 1: Enrich from email via APIs
         orchestrator = RADOrchestrator(supabase)
-        finalized = await orchestrator.enrich(email, domain)
+        finalized = await orchestrator.enrich(email, domain, user_company=request.company)
 
         logger.info(f"Enrichment complete. Quality: {finalized.get('data_quality_score', 0)}, Sources: {orchestrator.data_sources}")
 
@@ -916,8 +917,9 @@ async def generate_executive_review(
         inferred = infer_context(finalized, user_goal=request.goal)
         logger.info(f"Context inferred: {inferred}")
 
-        # Step 4: Resolve final values - use enriched/inferred data, fall back to form inputs
-        company_name = finalized.get("company_name") or request.company or domain.split(".")[0].title()
+        # Step 4: Resolve final values - user input wins over API data
+        # (APIs may return the person's CURRENT employer, not the company they entered)
+        company_name = request.company or finalized.get("company_name") or domain.split(".")[0].title()
         raw_industry = finalized.get("industry") or request.industry or "technology"
         industry = map_industry_display(raw_industry)
 
