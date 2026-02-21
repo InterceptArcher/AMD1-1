@@ -1,5 +1,5 @@
 {
-  "project": "AMD1-1_Alpha",
+  "project": "AMD1-1_Beta",
   "frontend": {
     "platform": "vercel",
     "framework": "nextjs",
