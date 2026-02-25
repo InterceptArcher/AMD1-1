@@ -51,11 +51,11 @@ jobs:
   # Overriding with --reporter=html hides all log output.
   # ====================================================
 
-  test-functional:
-    name: "Agent 1: Functional"
+  test-wizard:
+    name: "Agent 1a: Wizard + Enrichment"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
@@ -65,7 +65,7 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
-      - name: Run functional tests
+      - name: Run wizard + enrichment tests
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
           BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
@@ -73,18 +73,51 @@ jobs:
           NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
         run: |
           echo "────────────────────────────────────────"
-          echo "  AGENT 1: FUNCTIONAL TESTS"
+          echo "  AGENT 1a: WIZARD + ENRICHMENT"
           echo "  Target: $PLAYWRIGHT_TEST_BASE_URL"
-          echo "  Files: wizard-flow, enrichment, executive-review"
+          echo "  Files: wizard-flow, enrichment"
           echo "────────────────────────────────────────"
           npx playwright test \
             tests/e2e/wizard-flow.spec.ts \
-            tests/e2e/enrichment.spec.ts \
-            tests/e2e/executive-review.spec.ts
+            tests/e2e/enrichment.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: report-functional
+          name: report-wizard
+          path: playwright-report/
+          retention-days: 14
+
+  test-executive-review:
+    name: "Agent 1b: Executive Review"
+    needs: resolve-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Run executive review tests
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
+          BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
+          HOME: /root
+          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
+        run: |
+          echo "────────────────────────────────────────"
+          echo "  AGENT 1b: EXECUTIVE REVIEW"
+          echo "  Target: $PLAYWRIGHT_TEST_BASE_URL"
+          echo "  Files: executive-review"
+          echo "────────────────────────────────────────"
+          npx playwright test tests/e2e/executive-review.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-executive-review
           path: playwright-report/
           retention-days: 14
 
@@ -230,7 +263,7 @@ jobs:
   # ====================================================
   gate:
     name: Promotion Gate
-    needs: [test-functional, test-security, test-chaos, test-accessibility, test-performance]
+    needs: [test-wizard, test-executive-review, test-security, test-chaos, test-accessibility, test-performance]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -240,24 +273,27 @@ jobs:
           echo "╔══════════════════════════════════════════════╗"
           echo "║          ARCHER TEST AGENT SUMMARY           ║"
           echo "╠══════════════════════════════════════════════╣"
-          echo "║  Agent 1 (Functional):     ${{ needs.test-functional.result }}"
+          echo "║  Agent 1a (Wizard):        ${{ needs.test-wizard.result }}"
+          echo "║  Agent 1b (Exec Review):   ${{ needs.test-executive-review.result }}"
           echo "║  Agent 2 (Security):       ${{ needs.test-security.result }}"
           echo "║  Agent 3 (Chaos):          ${{ needs.test-chaos.result }}"
           echo "║  Agent 4 (Accessibility):  ${{ needs.test-accessibility.result }}"
           echo "║  Agent 5 (Performance):    ${{ needs.test-performance.result }}"
           echo "╠══════════════════════════════════════════════╣"
-          echo "║  Critical: Functional + Security             ║"
+          echo "║  Critical: Wizard + ExecReview + Security    ║"
           echo "║  Advisory: Chaos + Accessibility + Perf      ║"
           echo "╚══════════════════════════════════════════════╝"
           echo ""
 
-          FUNC="${{ needs.test-functional.result }}"
+          WIZ="${{ needs.test-wizard.result }}"
+          EXEC="${{ needs.test-executive-review.result }}"
           SEC="${{ needs.test-security.result }}"
 
-          if [ "$FUNC" != "success" ] || [ "$SEC" != "success" ]; then
+          if [ "$WIZ" != "success" ] || [ "$EXEC" != "success" ] || [ "$SEC" != "success" ]; then
             echo "BLOCKED: Critical agent failure."
-            echo "  Functional: $FUNC"
-            echo "  Security:   $SEC"
+            echo "  Wizard:          $WIZ"
+            echo "  Executive Review: $EXEC"
+            echo "  Security:         $SEC"
             exit 1
           fi
 
@@ -379,13 +415,14 @@ jobs:
 
           | # | Agent | Role | Tests | Status |
           |---|-------|------|-------|--------|
-          | 1 | Functional | Critical | 23 | PASS |
+          | 1a | Wizard + Enrichment | Critical | 16 | PASS |
+          | 1b | Executive Review | Critical | 7 | PASS |
           | 2 | Security | Critical | 11 | PASS |
           | 3 | Chaos | Advisory | 12 | PASS |
           | 4 | Accessibility | Advisory | 11 | PASS |
           | 5 | Performance | Advisory | 10 | PASS |
 
-          **67 tests** across 5 agents. No XSS, no secrets exposure, graceful failure handling, within performance budgets.
+          **67 tests** across 6 agents. No XSS, no secrets exposure, graceful failure handling, within performance budgets.
 
           ---
           *Auto-created by Archer CI/CD Pipeline*
@@ -409,7 +446,7 @@ jobs:
   # ====================================================
   handle-failure:
     name: Report Failure
-    needs: [gate, resolve-staging, test-functional, test-security, test-chaos, test-accessibility, test-performance]
+    needs: [gate, resolve-staging, test-wizard, test-executive-review, test-security, test-chaos, test-accessibility, test-performance]
     if: failure()
     runs-on: ubuntu-latest
     steps:
@@ -434,7 +471,8 @@ jobs:
 
           | # | Agent | Role | Result |
           |---|-------|------|--------|
-          | 1 | Functional | Critical | AGENT_FUNC |
+          | 1a | Wizard + Enrichment | Critical | AGENT_WIZ |
+          | 1b | Executive Review | Critical | AGENT_EXEC |
           | 2 | Security | Critical | AGENT_SEC |
           | 3 | Chaos | Advisory | AGENT_CHAOS |
           | 4 | Accessibility | Advisory | AGENT_A11Y |
@@ -444,7 +482,8 @@ jobs:
 
           | Agent | Tests | Coverage |
           |-------|-------|----------|
-          | **Functional** | 23 | Wizard flow, form validation, enrichment pre-fill, executive review API + rendering, navigation, reset |
+          | **Wizard + Enrichment** | 16 | Wizard flow, form validation, enrichment pre-fill, navigation, reset |
+          | **Executive Review** | 7 | Executive review API + rendering, stage styling, input pills, error handling, reset |
           | **Security** | 11 | XSS injection, secrets in DOM/JS, security headers, consent, email injection, localStorage, API field whitelist |
           | **Chaos** | 12 | Slow APIs, timeouts, malformed JSON, empty responses, HTML errors, back/forward, rapid input, race conditions |
           | **Accessibility** | 11 | WCAG 2.1 AA, form labels, Tab nav, keyboard Enter, heading hierarchy, focus indicators, ARIA, duplicate IDs |
@@ -466,7 +505,8 @@ jobs:
           sed -i "s|PIPELINE_DATE|$(date +'%b %d %Y %H:%M UTC')|g" /tmp/failure.md
           sed -i "s|PIPELINE_URL|${{ needs.resolve-staging.outputs.staging_url }}|g" /tmp/failure.md
           sed -i "s|PIPELINE_RUN_URL|https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|g" /tmp/failure.md
-          sed -i "s|AGENT_FUNC|${{ needs.test-functional.result }}|g" /tmp/failure.md
+          sed -i "s|AGENT_WIZ|${{ needs.test-wizard.result }}|g" /tmp/failure.md
+          sed -i "s|AGENT_EXEC|${{ needs.test-executive-review.result }}|g" /tmp/failure.md
           sed -i "s|AGENT_SEC|${{ needs.test-security.result }}|g" /tmp/failure.md
           sed -i "s|AGENT_CHAOS|${{ needs.test-chaos.result }}|g" /tmp/failure.md
           sed -i "s|AGENT_A11Y|${{ needs.test-accessibility.result }}|g" /tmp/failure.md
