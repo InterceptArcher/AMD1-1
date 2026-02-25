@@ -228,13 +228,14 @@ test.describe('Accessibility Agent', () => {
     await fillStepCompany(page);
     await fillStepRole(page);
 
-    // Reveal consent section
+    // Reveal consent section (use waitFor instead of fixed timeouts)
     await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Eliminate bottlenecks/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Toolchain fragmentation/ }).click();
-    await page.waitForTimeout(500);
+    const priorityBtn = page.getByRole('button', { name: /Eliminate bottlenecks/ });
+    await expect(priorityBtn).toBeVisible({ timeout: 5_000 });
+    await priorityBtn.click();
+    const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
+    await expect(challengeBtn).toBeVisible({ timeout: 5_000 });
+    await challengeBtn.click();
 
     const consent = page.locator('#wiz-consent');
     await expect(consent).toBeVisible();

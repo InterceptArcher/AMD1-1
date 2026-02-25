@@ -1,8 +1,12 @@
 /**
  * Shared mock data and helpers for Playwright e2e tests.
  * All API responses are deterministic fixtures — no real backend needed.
+ *
+ * IMPORTANT: Navigation helpers use waitFor (not waitForTimeout) to handle
+ * variable transition speeds in CI. Each step waits for the NEXT step's
+ * content to appear before returning.
  */
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 
 // ── Test User Data ──────────────────────────────────────────────────
 export const TEST_USER = {
@@ -175,8 +179,10 @@ export async function mockExecutiveReviewError(page: Page) {
 }
 
 // ── Wizard Navigation Helpers ───────────────────────────────────────
+// Each helper waits for the NEXT step's element to appear (not hardcoded timeouts).
+// This is robust across slow CI, fast local dev, and remote Vercel targets.
 
-/** Fill Step 0 (About You) and advance */
+/** Fill Step 0 (About You) and advance to Step 1 */
 export async function fillStepAboutYou(page: Page) {
   await page.locator('#wiz-firstName').fill(TEST_USER.firstName);
   await page.locator('#wiz-lastName').fill(TEST_USER.lastName);
@@ -184,42 +190,50 @@ export async function fillStepAboutYou(page: Page) {
   // Blur email to trigger validation
   await page.locator('#wiz-firstName').click();
   await page.getByRole('button', { name: 'Continue' }).click();
-  // Wait for thinking overlay to pass
-  await page.waitForTimeout(1200);
+  // Wait for Step 1 content to appear (company input)
+  await expect(page.locator('#wiz-company')).toBeVisible({ timeout: 15_000 });
 }
 
-/** Fill Step 1 (Company) and advance */
+/** Fill Step 1 (Company) and advance to Step 2 */
 export async function fillStepCompany(page: Page) {
   await page.locator('#wiz-company').fill(TEST_USER.company);
   await page.getByRole('button', { name: TEST_USER.companySize }).click();
   await page.getByRole('button', { name: TEST_USER.industry }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.waitForTimeout(1200);
+  // Wait for Step 2 content to appear (role selection buttons)
+  await expect(
+    page.getByRole('button', { name: TEST_USER.role }),
+  ).toBeVisible({ timeout: 15_000 });
 }
 
-/** Fill Step 2 (Role) — auto-advances */
+/** Fill Step 2 (Role) — auto-advances to Step 3 */
 export async function fillStepRole(page: Page) {
   await page.getByRole('button', { name: TEST_USER.role }).click();
-  // Role step auto-advances after 500ms + 900ms thinking overlay
-  await page.waitForTimeout(1800);
+  // Role auto-advances after click. Wait for Step 3 content (IT environment button).
+  await expect(
+    page.getByRole('button', { name: /In the middle of a shift/ }),
+  ).toBeVisible({ timeout: 15_000 });
 }
 
-/** Fill Step 3 (Situation) and submit */
+/** Fill Step 3 (Situation) and check consent */
 export async function fillStepSituation(page: Page) {
-  // IT Environment — "In the middle of a shift" is the modernizing label for tech personas
+  // IT Environment
   await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-  await page.waitForTimeout(500);
 
-  // Business Priority (progressive reveal)
-  await page.getByRole('button', { name: /Eliminate bottlenecks/ }).click();
-  await page.waitForTimeout(500);
+  // Business Priority (progressive reveal) — wait for it to appear
+  const priorityBtn = page.getByRole('button', { name: /Eliminate bottlenecks/ });
+  await expect(priorityBtn).toBeVisible({ timeout: 5_000 });
+  await priorityBtn.click();
 
-  // Challenge (progressive reveal) — technology industry
-  await page.getByRole('button', { name: /Toolchain fragmentation/ }).click();
-  await page.waitForTimeout(500);
+  // Challenge (progressive reveal) — wait for it to appear
+  const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
+  await expect(challengeBtn).toBeVisible({ timeout: 5_000 });
+  await challengeBtn.click();
 
-  // Consent checkbox
-  await page.locator('#wiz-consent').check();
+  // Consent checkbox — wait for it to appear
+  const consent = page.locator('#wiz-consent');
+  await expect(consent).toBeVisible({ timeout: 5_000 });
+  await consent.check();
 }
 
 /** Complete the entire wizard from start to submission */

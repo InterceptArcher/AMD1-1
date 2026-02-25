@@ -262,11 +262,12 @@ test.describe('Security Audit', () => {
 
     // Fill all Step 3 selections but skip consent
     await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Eliminate bottlenecks/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Toolchain fragmentation/ }).click();
-    await page.waitForTimeout(500);
+    const priorityBtn = page.getByRole('button', { name: /Eliminate bottlenecks/ });
+    await expect(priorityBtn).toBeVisible({ timeout: 5_000 });
+    await priorityBtn.click();
+    const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
+    await expect(challengeBtn).toBeVisible({ timeout: 5_000 });
+    await challengeBtn.click();
 
     // Submit button MUST be disabled without consent
     const submitBtn = page.getByRole('button', { name: /Get Your AI Readiness Snapshot/ });
