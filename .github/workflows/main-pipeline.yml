@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@canary
+        run: npm install --global vercel@latest
 
       # Build & Deploy to Vercel from frontend directory
       - name: Vercel Build & Deploy
@@ -247,17 +247,13 @@ jobs:
           PROJECT_NAME: ${{ needs.provision-stack.outputs.project_name }}
         run: |
           # Install CLI
-          npm install --global vercel@canary
+          npm install --global vercel@latest
 
-          cd frontend
-
-          # Link & Pull
+          # Link from repo root (Vercel project settings point to frontend/)
           vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
-          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
 
-          # Build & Deploy (Supabase env vars already configured in Vercel)
-          vercel build --prod --token=$VERCEL_TOKEN
-          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          # Deploy to production (build on Vercel servers)
+          vercel deploy --prod --token=$VERCEL_TOKEN
 
       # 4. Promote Azure (Unchanged)
       - name: Promote Azure (Slot Swap)
