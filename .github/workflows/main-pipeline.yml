@@ -3,7 +3,6 @@ name: Archer CI/CD Pipeline
 on:
   workflow_dispatch:
   schedule:
-    # 6:00 PM EST is approx 23:00 UTC
     - cron: '0 23 * * *'
 
 permissions:
@@ -21,21 +20,14 @@ jobs:
     outputs:
       fe_provider: ${{ steps.parse.outputs.fe_provider }}
       project_name: ${{ steps.parse.outputs.project_name }}
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Parse stack.json
         id: parse
         run: |
-          PROVIDER=$(jq -r '.frontend.provider' setup/stack.json)
-          PROJECT=$(jq -r '.project_name' setup/stack.json)
-          echo "fe_provider=$PROVIDER" >> $GITHUB_OUTPUT
-          echo "project_name=$PROJECT" >> $GITHUB_OUTPUT
-
-      - name: Create Placeholder Env File
-        run: echo "PLACEHOLDER=true" > .env
-
+          echo "fe_provider=$(jq -r '.frontend.provider' setup/stack.json)" >> $GITHUB_OUTPUT
+          echo "project_name=$(jq -r '.project_name' setup/stack.json)" >> $GITHUB_OUTPUT
+      - run: echo "PLACEHOLDER=true" > .env
       - uses: actions/upload-artifact@v4
         with:
           name: supabase-env
@@ -46,223 +38,167 @@ jobs:
   # ====================================================
   # JOB 2: RESOLVE TESTING URL
   # ====================================================
-  deploy-testing:
+  resolve-url:
     name: Resolve Testing URL
     needs: provision-stack
     runs-on: ubuntu-latest
     outputs:
       preview_url: ${{ steps.set-url.outputs.preview_url }}
-
     steps:
-      - name: Set Testing URL
-        id: set-url
-        run: |
-          echo "preview_url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
+      - id: set-url
+        run: echo "preview_url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
 
   # ====================================================
-  # JOB 3: RUN ALL TEST AGENTS
+  # JOBS 3a-3e: TEST AGENTS (PARALLEL)
   # ====================================================
-  validate-deployment:
-    name: Run All Test Agents
-    needs: [provision-stack, deploy-testing]
+  test-functional:
+    name: "Agent 1: Functional"
+    needs: resolve-url
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
-
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
-
-      # ── Agent 1: Functional Tests ──
-      - name: "Agent 1: Functional Tests"
-        id: functional
-        continue-on-error: true
+      - name: Run functional tests
         env:
-          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
           HOME: /root
-          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
-        run: |
-          npx playwright test tests/e2e/wizard-flow.spec.ts tests/e2e/enrichment.spec.ts tests/e2e/executive-review.spec.ts --reporter=json > /tmp/functional.json 2>&1 || true
-          PASSED=$(jq '.stats.expected // 0' /tmp/functional.json 2>/dev/null || echo 0)
-          FAILED=$(jq '.stats.unexpected // 0' /tmp/functional.json 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          [ "$FAILED" -gt 0 ] && exit 1 || true
-
-      # ── Agent 2: Security Audit ──
-      - name: "Agent 2: Security Audit"
-        id: security
-        continue-on-error: true
-        env:
-          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          HOME: /root
-          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
-        run: |
-          npx playwright test tests/e2e/security-audit.spec.ts --reporter=json > /tmp/security.json 2>&1 || true
-          PASSED=$(jq '.stats.expected // 0' /tmp/security.json 2>/dev/null || echo 0)
-          FAILED=$(jq '.stats.unexpected // 0' /tmp/security.json 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          [ "$FAILED" -gt 0 ] && exit 1 || true
-
-      # ── Agent 3: Chaos Agent ──
-      - name: "Agent 3: Chaos Agent"
-        id: chaos
-        continue-on-error: true
-        env:
-          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          HOME: /root
-          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
-        run: |
-          npx playwright test tests/e2e/chaos-agent.spec.ts --reporter=json > /tmp/chaos.json 2>&1 || true
-          PASSED=$(jq '.stats.expected // 0' /tmp/chaos.json 2>/dev/null || echo 0)
-          FAILED=$(jq '.stats.unexpected // 0' /tmp/chaos.json 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          [ "$FAILED" -gt 0 ] && exit 1 || true
-
-      # ── Agent 4: Accessibility Agent ──
-      - name: "Agent 4: Accessibility Agent"
-        id: accessibility
-        continue-on-error: true
-        env:
-          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          HOME: /root
-          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
-        run: |
-          npx playwright test tests/e2e/accessibility-agent.spec.ts --reporter=json > /tmp/a11y.json 2>&1 || true
-          PASSED=$(jq '.stats.expected // 0' /tmp/a11y.json 2>/dev/null || echo 0)
-          FAILED=$(jq '.stats.unexpected // 0' /tmp/a11y.json 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          [ "$FAILED" -gt 0 ] && exit 1 || true
-
-      # ── Agent 5: Performance Agent ──
-      - name: "Agent 5: Performance Agent"
-        id: performance
-        continue-on-error: true
-        env:
-          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          BASE_URL: ${{ needs.deploy-testing.outputs.preview_url }}
-          HOME: /root
-          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
-        run: |
-          npx playwright test tests/e2e/performance-agent.spec.ts --reporter=json > /tmp/perf.json 2>&1 || true
-          PASSED=$(jq '.stats.expected // 0' /tmp/perf.json 2>/dev/null || echo 0)
-          FAILED=$(jq '.stats.unexpected // 0' /tmp/perf.json 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          [ "$FAILED" -gt 0 ] && exit 1 || true
-
-      # ── Gate: block promotion if critical agents fail ──
-      - name: Check critical agents
-        if: always()
-        run: |
-          F=${{ steps.functional.outputs.failed || 0 }}
-          S=${{ steps.security.outputs.failed || 0 }}
-          if [ "$F" -gt 0 ] || [ "$S" -gt 0 ]; then
-            echo "BLOCKED: Functional ($F) or Security ($S) failures."
-            exit 1
-          fi
-
+        run: npx playwright test tests/e2e/wizard-flow.spec.ts tests/e2e/enrichment.spec.ts tests/e2e/executive-review.spec.ts --reporter=html
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: report-functional
           path: playwright-report/
-          retention-days: 30
+          retention-days: 14
 
-  # ====================================================
-  # JOB 4: FAILURE — Create GitHub Issue (notifies owner)
-  # ====================================================
-  handle-failure:
-    name: Report Failure
-    needs: [validate-deployment, provision-stack, deploy-testing]
-    if: failure()
+  test-security:
+    name: "Agent 2: Security"
+    needs: resolve-url
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create GitHub Issue
+      - run: npm ci
+      - name: Run security tests
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cat <<'ISSUE_BODY' > /tmp/issue-body.md
-          ## Archer Pipeline — Validation Failed
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          HOME: /root
+        run: npx playwright test tests/e2e/security-audit.spec.ts --reporter=html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-security
+          path: playwright-report/
+          retention-days: 14
 
-          **Date:** PIPELINE_DATE
-          **Branch:** PIPELINE_BRANCH
-          **Tested URL:** PIPELINE_URL
-          **Run:** PIPELINE_RUN_URL
+  test-chaos:
+    name: "Agent 3: Chaos"
+    needs: resolve-url
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run chaos tests
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          HOME: /root
+        run: npx playwright test tests/e2e/chaos-agent.spec.ts --reporter=html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-chaos
+          path: playwright-report/
+          retention-days: 14
 
-          ---
+  test-accessibility:
+    name: "Agent 4: Accessibility"
+    needs: resolve-url
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run accessibility tests
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          HOME: /root
+        run: npx playwright test tests/e2e/accessibility-agent.spec.ts --reporter=html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-accessibility
+          path: playwright-report/
+          retention-days: 14
 
-          ### Test Agent Results
-
-          | # | Agent | Tests | What It Validates |
-          |---|-------|-------|-------------------|
-          | 1 | **Functional** | 23 | Wizard flow (4 steps), form validation, email enrichment pre-fill, executive review API + results rendering, back navigation, reset |
-          | 2 | **Security Audit** | 11 | XSS injection (script/img/onerror), no secrets in DOM or JS bundles, security headers, consent enforcement, email injection, API field whitelist, localStorage safety |
-          | 3 | **Chaos Agent** | 12 | 8s slow APIs, connection refused, malformed JSON, empty responses, HTML 502 errors, browser back/forward, rapid input changes, race conditions |
-          | 4 | **Accessibility** | 11 | WCAG 2.1 AA, form labels, Tab navigation, keyboard Enter, heading hierarchy, focus indicators, no duplicate IDs, ARIA labels, screen reader support |
-          | 5 | **Performance** | 10 | Page load <10s, JS bundle <2MB, <80 requests, DOM <3000 nodes, CLS <0.5, step transitions <3s, no console errors, no uncaught exceptions |
-
-          ### How to Investigate
-          1. Click the **Run** link above
-          2. Download the `playwright-report` artifact
-          3. Open `index.html` — it has per-test screenshots, traces, and error messages
-          4. Fix the failures and push — the pipeline runs nightly or on-demand via `workflow_dispatch`
-
-          ### Promotion Policy
-          - **Functional + Security** failures = promotion **blocked** (critical)
-          - **Chaos + Accessibility + Performance** failures = logged as warnings (advisory)
-
-          ---
-          *Auto-created by Archer CI/CD Pipeline*
-          ISSUE_BODY
-
-          # Replace placeholders
-          sed -i "s|PIPELINE_DATE|$(date)|g" /tmp/issue-body.md
-          sed -i "s|PIPELINE_BRANCH|${{ github.ref_name }}|g" /tmp/issue-body.md
-          sed -i "s|PIPELINE_URL|${{ needs.deploy-testing.outputs.preview_url }}|g" /tmp/issue-body.md
-          sed -i "s|PIPELINE_RUN_URL|https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|g" /tmp/issue-body.md
-
-          gh issue create \
-            --title "Pipeline Failure — $(date +'%b %d %Y %H:%M') UTC" \
-            --body-file /tmp/issue-body.md \
-            --label "bug" \
-            --assignee "${{ github.repository_owner }}" 2>/dev/null || \
-          gh issue create \
-            --title "Pipeline Failure — $(date +'%b %d %Y %H:%M') UTC" \
-            --body-file /tmp/issue-body.md 2>/dev/null || \
-          echo "Could not create issue, continuing..."
-
-      - name: Commit failure log
-        run: |
-          mkdir -p deployment_logs
-          cp /tmp/issue-body.md "deployment_logs/failure-$(date +'%Y-%m-%d-%H%M').md"
-          git config --global user.name 'GitHub Actions Bot'
-          git config --global user.email 'actions@github.com'
-          git pull --rebase origin main || true
-          git add deployment_logs/
-          git commit -m "chore: add validation failure log [skip ci]" || true
-          git push || true
+  test-performance:
+    name: "Agent 5: Performance"
+    needs: resolve-url
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run performance tests
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          BASE_URL: ${{ needs.resolve-url.outputs.preview_url }}
+          HOME: /root
+        run: npx playwright test tests/e2e/performance-agent.spec.ts --reporter=html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-performance
+          path: playwright-report/
+          retention-days: 14
 
   # ====================================================
-  # JOB 5: SUCCESS — Create GitHub Issue + Backup Tag
+  # JOB 4: GATE — only functional + security block promotion
+  # ====================================================
+  gate:
+    name: Promotion Gate
+    needs: [test-functional, test-security, test-chaos, test-accessibility, test-performance]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check critical agents
+        run: |
+          echo "Functional: ${{ needs.test-functional.result }}"
+          echo "Security:   ${{ needs.test-security.result }}"
+          echo "Chaos:      ${{ needs.test-chaos.result }}"
+          echo "A11y:       ${{ needs.test-accessibility.result }}"
+          echo "Perf:       ${{ needs.test-performance.result }}"
+          if [[ "${{ needs.test-functional.result }}" != "success" ]] || [[ "${{ needs.test-security.result }}" != "success" ]]; then
+            echo "BLOCKED: Functional or Security agent failed."
+            exit 1
+          fi
+          echo "Critical agents passed. Advisory agents logged above."
+
+  # ====================================================
+  # JOB 5: PROMOTE TO PROD (only if gate passes)
   # ====================================================
   promote-to-prod:
     name: Promote to Production
-    needs: [validate-deployment, provision-stack, deploy-testing]
+    needs: [gate, resolve-url]
     if: success()
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -279,56 +215,34 @@ jobs:
         run: |
           ISSUES=$(gh issue list --search "Pipeline Failure" --state open --json number --jq '.[].number' 2>/dev/null || echo "")
           for NUM in $ISSUES; do
-            gh issue close "$NUM" --comment "Resolved: All 5 test agents passed in run #${{ github.run_number }}." 2>/dev/null || true
+            gh issue close "$NUM" --comment "Resolved: All agents passed in run #${{ github.run_number }}." 2>/dev/null || true
           done
 
-      - name: Create Success Report Issue
+      - name: Log success
+        run: echo "All critical agents passed against ${{ needs.resolve-url.outputs.preview_url }}"
+
+  # ====================================================
+  # JOB 6: FAILURE REPORT (if gate fails)
+  # ====================================================
+  handle-failure:
+    name: Report Failure
+    needs: [gate, resolve-url]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create failure issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat <<'ISSUE_BODY' > /tmp/success-body.md
-          ## Archer Pipeline — All Agents Passed
+          BODY="## Pipeline Failure — $(date)
 
-          **Date:** PIPELINE_DATE
-          **Branch:** PIPELINE_BRANCH
-          **Tested URL:** PIPELINE_URL
-          **Run:** PIPELINE_RUN_URL
-          **Backup Tag:** prod-backup-${{ github.run_number }}
+          **Branch:** ${{ github.ref_name }}
+          **URL:** ${{ needs.resolve-url.outputs.preview_url }}
+          **Run:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          ---
-
-          ### Test Agent Results
-
-          | # | Agent | Tests | Status | What It Validated |
-          |---|-------|-------|--------|-------------------|
-          | 1 | **Functional** | 23 | PASS | Wizard flow (4 steps), form validation, email enrichment pre-fill, executive review API + results rendering, back navigation, reset |
-          | 2 | **Security Audit** | 11 | PASS | XSS injection (script/img/onerror), no secrets in DOM or JS bundles, security headers, consent enforcement, email injection, API field whitelist, localStorage safety |
-          | 3 | **Chaos Agent** | 12 | PASS | 8s slow APIs, connection refused, malformed JSON, empty responses, HTML 502 errors, browser back/forward, rapid input changes, race conditions |
-          | 4 | **Accessibility** | 11 | PASS | WCAG 2.1 AA, form labels, Tab navigation, keyboard Enter, heading hierarchy, focus indicators, no duplicate IDs, ARIA labels |
-          | 5 | **Performance** | 10 | PASS | Page load <10s, JS bundle <2MB, <80 requests, DOM <3000 nodes, CLS <0.5, step transitions <3s, no console errors |
-
-          ### What This Means
-          - All **67 automated tests** passed across 5 independent test agents
-          - No XSS vulnerabilities, no secrets exposure, no accessibility violations
-          - App handles API failures, malformed data, and network issues gracefully
-          - Page loads within performance budgets
-          - Site is validated and ready for production
-
-          ---
-          *Auto-created by Archer CI/CD Pipeline*
-          ISSUE_BODY
-
-          sed -i "s|PIPELINE_DATE|$(date)|g" /tmp/success-body.md
-          sed -i "s|PIPELINE_BRANCH|${{ github.ref_name }}|g" /tmp/success-body.md
-          sed -i "s|PIPELINE_URL|${{ needs.deploy-testing.outputs.preview_url }}|g" /tmp/success-body.md
-          sed -i "s|PIPELINE_RUN_URL|https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|g" /tmp/success-body.md
+          Download the test report artifacts from the run link above for details."
 
           gh issue create \
-            --title "Pipeline PASSED — $(date +'%b %d %Y') — All 67 tests green" \
-            --body-file /tmp/success-body.md \
-            --label "documentation" \
-            --assignee "${{ github.repository_owner }}" 2>/dev/null || \
-          gh issue create \
-            --title "Pipeline PASSED — $(date +'%b %d %Y') — All 67 tests green" \
-            --body-file /tmp/success-body.md 2>/dev/null || \
-          echo "Could not create issue, continuing..."
+            --title "Pipeline Failure — $(date +'%b %d %H:%M') UTC" \
+            --body "$BODY" 2>/dev/null || echo "Could not create issue"
