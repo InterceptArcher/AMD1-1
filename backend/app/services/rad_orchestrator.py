@@ -482,6 +482,16 @@ class RADOrchestrator:
             if not normalized.get("employee_count") and pdl_company.get("employee_count"):
                 normalized["employee_count"] = pdl_company.get("employee_count")
 
+        # Cross-reference: use max of all available employee counts for accuracy
+        apollo_data = raw_data.get("apollo", {})
+        if apollo_data and not apollo_data.get("_error"):
+            apollo_count = apollo_data.get("estimated_num_employees") or 0
+            pdl_count = normalized.get("employee_count") or 0
+            if isinstance(apollo_count, (int, float)) and isinstance(pdl_count, (int, float)):
+                if apollo_count > pdl_count:
+                    normalized["employee_count"] = int(apollo_count)
+                    logger.info(f"Employee count cross-ref: Apollo ({apollo_count}) > PDL ({pdl_count}), using Apollo")
+
         # Fallback: estimate employee_count from range strings if still missing
         # This prevents mock data (e.g., ZoomInfo mock = 100) from being used
         if not normalized.get("employee_count"):
@@ -554,6 +564,7 @@ class RADOrchestrator:
             "employee_count": [
                 ("pdl_company", "employee_count"),
                 ("zoominfo", "employee_count"),
+                ("apollo", "estimated_num_employees"),
             ],
             "employee_count_range": [
                 ("pdl_company", "employee_count_range"),

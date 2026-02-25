@@ -374,6 +374,28 @@ class TestEmployeeCountEstimation:
         assert result.get("employee_count") == 750
         assert result.get("employee_count_estimated") is True
 
+    def test_resolve_profile_cross_refs_apollo_employee_count(self, orchestrator):
+        """
+        _resolve_profile: Should use max(Apollo, PDL) for employee_count.
+        Apollo reports 5000, PDL reports 1500 → should return 5000.
+        """
+        raw_data = {
+            "apollo": {"estimated_num_employees": 5000, "first_name": "Jane"},
+            "pdl": {},
+            "pdl_company": {
+                "employee_count": 1500,
+                "name": "Aritzia"
+            },
+            "hunter": {},
+            "gnews": {},
+            "zoominfo": {}
+        }
+        orchestrator.data_sources = ["apollo", "pdl_company"]
+
+        result = orchestrator._resolve_profile("jane@aritzia.com", "aritzia.com", raw_data)
+
+        assert result.get("employee_count") == 5000
+
     def test_resolve_profile_prefers_actual_count(self, orchestrator):
         """
         _resolve_profile: Should use actual count over estimated.
