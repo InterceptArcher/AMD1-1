@@ -38,7 +38,7 @@ MAX_RETRIES = 2
 RETRY_DELAY_SECONDS = 1.0
 
 # Model names per provider
-ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
+ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 ANTHROPIC_OPUS = "claude-opus-4-5-20251101"
 OPENAI_MODEL = "gpt-4o-mini"
 GEMINI_MODEL = "gemini-1.5-flash"
