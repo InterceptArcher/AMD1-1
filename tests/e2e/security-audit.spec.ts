@@ -386,7 +386,7 @@ test.describe('Security Audit', () => {
     const allowedFields = [
       'email', 'firstName', 'lastName', 'company', 'companySize',
       'industry', 'persona', 'itEnvironment', 'businessPriority',
-      'challenge', 'goal', 'consent', 'cta',
+      'challenge', 'goal', 'consent', 'cta', 'signalAnswers',
     ];
 
     const bodyKeys = Object.keys(capturedBody!);
