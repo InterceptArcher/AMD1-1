@@ -1,0 +1,51 @@
+name: Smoke Test (Quick ~1min)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  smoke-test:
+    name: Quick Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+
+      - name: Run 3 fast tests
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: https://amd1-1-beta.vercel.app
+          BASE_URL: https://amd1-1-beta.vercel.app
+          HOME: /root
+          NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
+        run: |
+          npx playwright test -g "landing page loads|no API keys|DOM node count" --reporter=list
+
+      - name: Create result issue
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATUS=${{ job.status }}
+          if [ "$STATUS" = "success" ]; then
+            TITLE="Smoke Test PASSED — $(date +'%b %d %H:%M') UTC"
+            LABEL="documentation"
+          else
+            TITLE="Smoke Test FAILED — $(date +'%b %d %H:%M') UTC"
+            LABEL="bug"
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --body "Quick smoke test (3 tests): landing page, security, performance. Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --label "$LABEL" \
+            --assignee "${{ github.repository_owner }}" 2>/dev/null || \
+          gh issue create \
+            --title "$TITLE" \
+            --body "Quick smoke test (3 tests). Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
