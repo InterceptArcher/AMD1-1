@@ -32,15 +32,77 @@ jobs:
           echo "project_name=$(jq -r '.project_name' setup/stack.json)" >> $GITHUB_OUTPUT
 
   # ====================================================
-  # JOB 2: RESOLVE STAGING URL
+  # JOB 2: DEPLOY STAGING & RESOLVE URL
+  # Deploys the latest beta code to Vercel before tests.
+  # Falls back to existing deployment if secrets missing.
   # ====================================================
   resolve-staging:
-    name: Resolve Staging URL
+    name: Deploy Staging
     needs: provision-stack
     runs-on: ubuntu-latest
     outputs:
       staging_url: ${{ steps.set-url.outputs.staging_url }}
     steps:
+      - name: Deploy beta to Vercel staging
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_BETA: ${{ secrets.VERCEL_PROJECT_ID_BETA }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID_BETA" ]; then
+            echo "Vercel secrets not configured. Tests will run against existing deployment."
+            echo "To enable: add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_BETA to repo secrets."
+            echo "deployed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Triggering Vercel staging deployment from beta branch..."
+          RESPONSE=$(curl -s -X POST "https://api.vercel.com/v13/deployments" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"name\": \"amd1-1-beta\",
+              \"project\": \"$VERCEL_PROJECT_ID_BETA\",
+              \"target\": \"production\",
+              \"gitSource\": {
+                \"type\": \"github\",
+                \"repoId\": \"${{ github.repository_id }}\",
+                \"ref\": \"beta\"
+              }
+            }" 2>&1)
+
+          DEPLOY_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+          ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+
+          if [ -n "$ERROR" ] || [ -z "$DEPLOY_ID" ]; then
+            echo "Vercel API error: ${ERROR:-no deploy ID returned}"
+            echo "Tests will run against existing deployment."
+            echo "deployed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Deployment triggered (ID: $DEPLOY_ID). Waiting for ready state..."
+
+          for i in $(seq 1 36); do
+            STATUS=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$DEPLOY_ID" | jq -r '.readyState')
+            echo "  Attempt $i/36: $STATUS"
+            if [ "$STATUS" = "READY" ]; then
+              echo "Staging deployment ready."
+              echo "deployed=true" >> $GITHUB_OUTPUT
+              exit 0
+            elif [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "CANCELED" ]; then
+              echo "Deployment failed: $STATUS"
+              echo "deployed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Deployment timed out after 6 minutes. Tests will run against existing deployment."
+          echo "deployed=false" >> $GITHUB_OUTPUT
+
       - id: set-url
         run: echo "staging_url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
 
