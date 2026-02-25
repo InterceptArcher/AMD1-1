@@ -971,6 +971,10 @@ async def generate_executive_review(
             },
         }
 
+        # Include signal answers from wizard for richer LLM personalization
+        if request.signalAnswers:
+            enrichment_context["signal_answers"] = request.signalAnswers
+
         service = ExecutiveReviewService()
         result = await service.generate_executive_review(
             company_name=company_name,

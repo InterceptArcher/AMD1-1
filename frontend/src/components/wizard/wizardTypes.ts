@@ -155,78 +155,414 @@ export const BUSINESS_PRIORITY_OPTIONS: Record<PersonaType, CardOption[]> = {
 };
 
 // =============================================================================
-// STEP 4: SCENARIO CARDS (replaces separate env + priority selections)
+// STEP 4: SIGNAL QUESTIONS (multi-signal stage deduction)
 // =============================================================================
 
-// Each scenario maps to an itEnvironment + businessPriority pair
-export interface ScenarioOption {
-  itEnvironment: string;
-  businessPriority: string;
-  label: string;
-  description: string;
+// Score contribution for each signal option across all 6 axes
+export interface SignalScore {
+  traditional: number;
+  modernizing: number;
+  modern: number;
+  reducing_cost: number;
+  improving_performance: number;
+  preparing_ai: number;
 }
 
-export const SCENARIO_OPTIONS: Record<PersonaType, ScenarioOption[]> = {
-  technical: [
-    {
-      itEnvironment: 'traditional',
-      businessPriority: 'reducing_cost',
-      label: 'Keeping the lights on',
-      description: 'Keeping legacy systems running while trying to free up budget',
-    },
-    {
-      itEnvironment: 'modernizing',
-      businessPriority: 'improving_performance',
-      label: 'Migrating and modernizing',
-      description: 'Migrating to cloud and eliminating bottlenecks',
-    },
-    {
-      itEnvironment: 'modern',
-      businessPriority: 'preparing_ai',
-      label: 'Building for AI',
-      description: 'Cloud-native infrastructure, building the compute layer for AI',
-    },
-  ],
-  business: [
-    {
-      itEnvironment: 'traditional',
-      businessPriority: 'reducing_cost',
-      label: 'Maintaining and cutting costs',
-      description: 'Maintaining what we have and focused on cutting costs',
-    },
-    {
-      itEnvironment: 'modernizing',
-      businessPriority: 'improving_performance',
-      label: 'Investing in modernization',
-      description: 'Investing in modernization to speed up delivery',
-    },
-    {
-      itEnvironment: 'modern',
-      businessPriority: 'preparing_ai',
-      label: 'Ready for AI',
-      description: 'Ready for the next wave — unlocking AI-driven growth',
-    },
-  ],
-};
+// A single option within a signal question
+export interface SignalOption {
+  value: string;
+  label: string;
+  description: string;
+  scores: SignalScore;
+}
 
-// Stage reveal copy shown after scenario + challenge are selected
-export const STAGE_REVEAL_COPY: Record<string, { title: string; description: string; stat: string }> = {
+// A signal question with persona-adaptive options
+export interface SignalQuestion {
+  id: string;
+  topic: string;
+  labels: Record<PersonaType, string>;
+  weight: number;
+  options: Record<PersonaType, SignalOption[]>;
+}
+
+// Result of running deduceFromSignals()
+export interface SignalDeduction {
+  itEnvironment: string;
+  businessPriority: string;
+  confidence: number;
+}
+
+export const SIGNAL_QUESTIONS: SignalQuestion[] = [
+  // Q1: Infrastructure age — strong signal for itEnvironment (1.5x)
+  {
+    id: 'infra_age',
+    topic: 'Infrastructure age',
+    labels: {
+      technical: 'How old is your infrastructure?',
+      business: 'How would you describe your technology foundation?',
+    },
+    weight: 1.5,
+    options: {
+      technical: [
+        {
+          value: 'legacy',
+          label: '10+ years, mostly on-prem',
+          description: 'Mainframes, VMs, or bare metal running production',
+          scores: { traditional: 3, modernizing: 0, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'hybrid',
+          label: 'Mix of old and new',
+          description: 'Some cloud, some on-prem, actively migrating',
+          scores: { traditional: 0, modernizing: 3, modern: 0, reducing_cost: 1, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'cloud_native',
+          label: 'Cloud-native, < 5 years old',
+          description: 'Containers, K8s, serverless — built for scale',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 2 },
+        },
+      ],
+      business: [
+        {
+          value: 'legacy',
+          label: 'Established, long-standing systems',
+          description: 'Reliable but aging — built over many years',
+          scores: { traditional: 3, modernizing: 0, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'hybrid',
+          label: 'In transition',
+          description: 'Upgrading some systems while maintaining others',
+          scores: { traditional: 0, modernizing: 3, modern: 0, reducing_cost: 1, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'cloud_native',
+          label: 'Modern and flexible',
+          description: 'Recent platforms designed for agility and growth',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 2 },
+        },
+      ],
+    },
+  },
+  // Q2: AI readiness — signals for both axes (1.0x)
+  {
+    id: 'ai_readiness',
+    topic: 'AI readiness',
+    labels: {
+      technical: 'Where are you with AI workloads?',
+      business: 'How is your org using AI today?',
+    },
+    weight: 1.0,
+    options: {
+      technical: [
+        {
+          value: 'no_ai',
+          label: 'Not on our roadmap yet',
+          description: 'No GPU workloads, no ML pipelines in place',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'experimenting',
+          label: 'Experimenting with pilots',
+          description: 'POCs, evaluating tools, some data science work',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 0, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'production_ai',
+          label: 'AI in production',
+          description: 'Models deployed, GPU clusters, ML pipelines running',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 3 },
+        },
+      ],
+      business: [
+        {
+          value: 'no_ai',
+          label: 'Not a priority right now',
+          description: 'Focused on other business initiatives first',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'experimenting',
+          label: 'Exploring use cases',
+          description: 'Evaluating where AI could add business value',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 0, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'production_ai',
+          label: 'Driving business results with AI',
+          description: 'AI actively improving revenue, efficiency, or customer experience',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 3 },
+        },
+      ],
+    },
+  },
+  // Q3: Spending focus — strong signal for businessPriority (1.5x)
+  {
+    id: 'spending_focus',
+    topic: 'Spending focus',
+    labels: {
+      technical: 'Where is most of your IT budget going?',
+      business: 'Where is your tech investment focused?',
+    },
+    weight: 1.5,
+    options: {
+      technical: [
+        {
+          value: 'cost_reduction',
+          label: 'Reducing infrastructure costs',
+          description: 'Consolidating, decommissioning, cutting licenses',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 3, improving_performance: 0, preparing_ai: 0 },
+        },
+        {
+          value: 'performance',
+          label: 'Eliminating bottlenecks',
+          description: 'Faster workloads, better throughput, lower latency',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 0, improving_performance: 3, preparing_ai: 0 },
+        },
+        {
+          value: 'ai_capabilities',
+          label: 'Building AI capabilities',
+          description: 'GPU infrastructure, ML platforms, data pipelines',
+          scores: { traditional: 0, modernizing: 0, modern: 2, reducing_cost: 0, improving_performance: 0, preparing_ai: 3 },
+        },
+      ],
+      business: [
+        {
+          value: 'cost_reduction',
+          label: 'Cutting operational costs',
+          description: 'Reducing overhead and optimizing technology spend',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 3, improving_performance: 0, preparing_ai: 0 },
+        },
+        {
+          value: 'performance',
+          label: 'Speeding up delivery',
+          description: 'Faster time-to-market, fewer delays',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 0, improving_performance: 3, preparing_ai: 0 },
+        },
+        {
+          value: 'ai_capabilities',
+          label: 'Investing in AI-driven growth',
+          description: 'Positioning the business for AI-powered revenue',
+          scores: { traditional: 0, modernizing: 0, modern: 2, reducing_cost: 0, improving_performance: 0, preparing_ai: 3 },
+        },
+      ],
+    },
+  },
+  // Q4: Team composition — balancing signal (1.0x)
+  {
+    id: 'team_composition',
+    topic: 'Team composition',
+    labels: {
+      technical: 'What does your engineering team look like?',
+      business: 'What talent are you investing in?',
+    },
+    weight: 1.0,
+    options: {
+      technical: [
+        {
+          value: 'maintaining',
+          label: 'Mostly maintaining existing systems',
+          description: 'Ops-heavy, focused on uptime and patching',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'mixed',
+          label: 'Mix of ops and new development',
+          description: 'Some legacy support, some new projects',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 1, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'ai_heavy',
+          label: 'Hiring for cloud and AI',
+          description: 'ML engineers, platform engineers, data scientists',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 2 },
+        },
+      ],
+      business: [
+        {
+          value: 'maintaining',
+          label: 'Keeping things running smoothly',
+          description: 'Team focused on stability and reliability',
+          scores: { traditional: 2, modernizing: 1, modern: 0, reducing_cost: 2, improving_performance: 1, preparing_ai: 0 },
+        },
+        {
+          value: 'mixed',
+          label: 'Balancing operations and innovation',
+          description: 'Some resources on new initiatives, some on core ops',
+          scores: { traditional: 0, modernizing: 2, modern: 1, reducing_cost: 1, improving_performance: 2, preparing_ai: 1 },
+        },
+        {
+          value: 'ai_heavy',
+          label: 'Building the future workforce',
+          description: 'Hiring for AI, analytics, and digital transformation',
+          scores: { traditional: 0, modernizing: 0, modern: 3, reducing_cost: 0, improving_performance: 1, preparing_ai: 2 },
+        },
+      ],
+    },
+  },
+];
+
+// Signal question IDs for tie-breaking
+const INFRA_TIEBREAK_Q = 'infra_age';     // Q1 breaks itEnvironment ties
+const PRIORITY_TIEBREAK_Q = 'spending_focus'; // Q3 breaks businessPriority ties
+
+/**
+ * Accumulates weighted scores across all answered signal questions.
+ * Winner-take-all for each axis. Tie-breaker: Q1 for itEnvironment, Q3 for businessPriority.
+ * Returns deduced itEnvironment, businessPriority, and confidence (0-1).
+ */
+export function deduceFromSignals(
+  answers: Record<string, string>,
+  personaType: PersonaType = 'technical',
+): SignalDeduction {
+  // Accumulate scores
+  const totals: SignalScore = {
+    traditional: 0, modernizing: 0, modern: 0,
+    reducing_cost: 0, improving_performance: 0, preparing_ai: 0,
+  };
+
+  // Track per-question contributions for tie-breaking
+  const perQuestion: Record<string, SignalScore> = {};
+
+  for (const question of SIGNAL_QUESTIONS) {
+    const answerValue = answers[question.id];
+    if (!answerValue) continue;
+
+    const options = question.options[personaType] || question.options.technical;
+    const selected = options.find((o) => o.value === answerValue);
+    if (!selected) continue;
+
+    const w = question.weight;
+    const weighted: SignalScore = {
+      traditional: selected.scores.traditional * w,
+      modernizing: selected.scores.modernizing * w,
+      modern: selected.scores.modern * w,
+      reducing_cost: selected.scores.reducing_cost * w,
+      improving_performance: selected.scores.improving_performance * w,
+      preparing_ai: selected.scores.preparing_ai * w,
+    };
+
+    perQuestion[question.id] = weighted;
+
+    totals.traditional += weighted.traditional;
+    totals.modernizing += weighted.modernizing;
+    totals.modern += weighted.modern;
+    totals.reducing_cost += weighted.reducing_cost;
+    totals.improving_performance += weighted.improving_performance;
+    totals.preparing_ai += weighted.preparing_ai;
+  }
+
+  // Resolve itEnvironment (winner-take-all with Q1 tiebreak)
+  const envCandidates = [
+    { key: 'traditional', score: totals.traditional },
+    { key: 'modernizing', score: totals.modernizing },
+    { key: 'modern', score: totals.modern },
+  ];
+  const itEnvironment = resolveWinner(envCandidates, perQuestion[INFRA_TIEBREAK_Q], ['traditional', 'modernizing', 'modern']);
+
+  // Resolve businessPriority (winner-take-all with Q3 tiebreak)
+  const priCandidates = [
+    { key: 'reducing_cost', score: totals.reducing_cost },
+    { key: 'improving_performance', score: totals.improving_performance },
+    { key: 'preparing_ai', score: totals.preparing_ai },
+  ];
+  const businessPriority = resolveWinner(priCandidates, perQuestion[PRIORITY_TIEBREAK_Q], ['reducing_cost', 'improving_performance', 'preparing_ai']);
+
+  // Confidence: ratio of winner score to total on the winning axis
+  const envWinnerScore = envCandidates.find((c) => c.key === itEnvironment)?.score || 0;
+  const envTotal = envCandidates.reduce((s, c) => s + c.score, 0);
+  const priWinnerScore = priCandidates.find((c) => c.key === businessPriority)?.score || 0;
+  const priTotal = priCandidates.reduce((s, c) => s + c.score, 0);
+
+  const envConfidence = envTotal > 0 ? envWinnerScore / envTotal : 0.5;
+  const priConfidence = priTotal > 0 ? priWinnerScore / priTotal : 0.5;
+  const confidence = Math.round(((envConfidence + priConfidence) / 2) * 100) / 100;
+
+  return { itEnvironment, businessPriority, confidence };
+}
+
+function resolveWinner(
+  candidates: Array<{ key: string; score: number }>,
+  tiebreakScores: SignalScore | undefined,
+  tiebreakKeys: string[],
+): string {
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+
+  // No scores at all — default to first candidate
+  if (sorted[0].score === 0) return sorted[0].key;
+
+  // Clear winner
+  if (sorted[0].score > sorted[1].score) return sorted[0].key;
+
+  // Tie — use tiebreak question scores
+  if (tiebreakScores) {
+    const tied = sorted.filter((c) => c.score === sorted[0].score);
+    const tiebroken = tied
+      .map((c) => ({
+        key: c.key,
+        tieScore: tiebreakScores[c.key as keyof SignalScore] || 0,
+      }))
+      .sort((a, b) => b.tieScore - a.tieScore);
+    return tiebroken[0].key;
+  }
+
+  return sorted[0].key;
+}
+
+/**
+ * Convert signal answer values to human-readable labels for backend consumption.
+ * Returns e.g. { "infra_age": "10+ years, mostly on-prem", "ai_readiness": "Experimenting with pilots", ... }
+ */
+export function getSignalAnswerLabels(
+  answers: Record<string, string>,
+  personaType: PersonaType = 'technical',
+): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const question of SIGNAL_QUESTIONS) {
+    const answerValue = answers[question.id];
+    if (!answerValue) continue;
+    const options = question.options[personaType] || question.options.technical;
+    const selected = options.find((o) => o.value === answerValue);
+    if (selected) {
+      labels[question.id] = selected.label;
+    }
+  }
+  return labels;
+}
+
+// Stage reveal copy shown after signal deduction + challenge are selected
+export const STAGE_REVEAL_COPY: Record<string, {
+  titleHigh: string;
+  titleLow: string;
+  description: string;
+  stat: string;
+}> = {
   Observer: {
-    title: "You're at the Observer stage",
+    titleHigh: "You're at the Observer stage",
+    titleLow: "You're leaning toward the Observer stage",
     description: "Focused on stability — we'll show proven paths to start modernizing.",
     stat: '9% of Observers plan to modernize within the next two years.',
   },
   Challenger: {
-    title: "You're at the Challenger stage",
+    titleHigh: "You're at the Challenger stage",
+    titleLow: "You're leaning toward the Challenger stage",
     description: "Actively transforming — we'll help you accelerate and avoid common pitfalls.",
     stat: '58% of Challengers are currently undertaking modernization initiatives.',
   },
   Leader: {
-    title: "You're at the Leader stage",
+    titleHigh: "You're at the Leader stage",
+    titleLow: "You're leaning toward the Leader stage",
     description: "Ahead of the curve — we'll focus on AI-readiness and competitive advantage.",
     stat: '33% of Leaders have fully modernized in the past two years.',
   },
 };
+
+export function getStageRevealTitle(stage: string, confidence: number): string {
+  const copy = STAGE_REVEAL_COPY[stage];
+  if (!copy) return '';
+  return confidence > 0.55 ? copy.titleHigh : copy.titleLow;
+}
 
 // =============================================================================
 // STEP 4: INDUSTRY-SPECIFIC CHALLENGES
@@ -485,6 +821,7 @@ export interface WizardData {
   businessPriority: string;
   challenge: string;
   consent: boolean;
+  signalAnswers: Record<string, string>;
 }
 
 export const INITIAL_WIZARD_DATA: WizardData = {
@@ -499,6 +836,7 @@ export const INITIAL_WIZARD_DATA: WizardData = {
   businessPriority: '',
   challenge: '',
   consent: false,
+  signalAnswers: {},
 };
 
 // =============================================================================
@@ -515,8 +853,9 @@ export const STEP_VALIDATORS: Array<(data: WizardData) => boolean> = [
   (data) => data.company.length > 0 && data.companySize.length > 0 && data.industry.length > 0,
   // Step 3: Role
   (data) => data.persona.length > 0,
-  // Step 4: Situation (environment + priority + challenge + consent)
+  // Step 4: Situation (all 4 signal questions + challenge + consent)
   (data) =>
+    Object.keys(data.signalAnswers).length >= SIGNAL_QUESTIONS.length &&
     data.itEnvironment.length > 0 &&
     data.businessPriority.length > 0 &&
     data.challenge.length > 0 &&
@@ -552,12 +891,6 @@ export function getAdaptiveStepTitle(step: number, personaType?: PersonaType, co
 // =============================================================================
 // STEP 4 QUESTION LABELS (adapt based on persona type)
 // =============================================================================
-
-export function getScenarioLabel(personaType: PersonaType): string {
-  return personaType === 'technical'
-    ? 'Which best describes where you are?'
-    : 'Which best describes your situation?';
-}
 
 export function getEnvLabel(personaType: PersonaType): string {
   return personaType === 'technical'
@@ -617,12 +950,15 @@ export interface AssessmentDepth {
 }
 
 export function getAssessmentDepth(data: WizardData): AssessmentDepth {
+  const signalCount = Object.keys(data.signalAnswers).length;
   const items = [
     { label: 'Contact identified', done: data.firstName.length > 0 && data.email.length > 0 },
     { label: 'Industry context loaded', done: data.industry.length > 0 },
     { label: 'Role-specific framing applied', done: data.persona.length > 0 },
-    { label: 'Infrastructure stage set', done: data.itEnvironment.length > 0 },
-    { label: 'Priority alignment locked', done: data.businessPriority.length > 0 },
+    { label: 'Infrastructure signal', done: signalCount >= 1 },
+    { label: 'AI readiness signal', done: signalCount >= 2 },
+    { label: 'Spending focus signal', done: signalCount >= 3 },
+    { label: 'Team composition signal', done: signalCount >= 4 },
     { label: 'Challenge focus sharpened', done: data.challenge.length > 0 },
   ];
   const done = items.filter((i) => i.done).length;

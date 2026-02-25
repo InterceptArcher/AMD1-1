@@ -19,7 +19,6 @@ import {
   PersonaType,
   getPersonaType,
   getFilteredChallenges,
-  getScenarioLabel,
   getChallengeLabel,
   getAdaptiveStepTitle,
   getTransitionMessage,
@@ -29,8 +28,11 @@ import {
   loadWizardProgress,
   clearWizardProgress,
   EnrichmentPreview,
-  SCENARIO_OPTIONS,
+  SIGNAL_QUESTIONS,
   STAGE_REVEAL_COPY,
+  deduceFromSignals,
+  getStageRevealTitle,
+  getSignalAnswerLabels,
   employeeCountToSize,
   normalizeEnrichmentIndustry,
   mapSeniorityToRole,
@@ -48,6 +50,7 @@ export interface UserInputs {
   itEnvironment: string;
   businessPriority: string;
   challenge: string;
+  signalAnswers?: Record<string, string>;
 }
 
 interface EmailConsentFormProps {
@@ -69,11 +72,27 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   // Derived persona type from role selection
   const personaType: PersonaType = useMemo(() => getPersonaType(data.persona), [data.persona]);
 
-  // Adaptive options based on persona and industry
-  const scenarioOptions = useMemo(
-    () => SCENARIO_OPTIONS[personaType],
-    [personaType],
-  );
+  // Signal deduction state — computed when all 4 signals are answered
+  const signalCount = Object.keys(data.signalAnswers).length;
+  const allSignalsAnswered = signalCount >= SIGNAL_QUESTIONS.length;
+
+  const deduction = useMemo(() => {
+    if (!allSignalsAnswered) return null;
+    return deduceFromSignals(data.signalAnswers, personaType);
+  }, [allSignalsAnswered, data.signalAnswers, personaType]);
+
+  // When deduction resolves, set itEnvironment and businessPriority
+  useEffect(() => {
+    if (deduction && (!data.itEnvironment || !data.businessPriority)) {
+      setData((prev) => ({
+        ...prev,
+        itEnvironment: deduction.itEnvironment,
+        businessPriority: deduction.businessPriority,
+      }));
+    }
+  }, [deduction, data.itEnvironment, data.businessPriority]);
+
+  // Challenge options depend on deduced itEnvironment
   const challengeOptions = useMemo(
     () => getFilteredChallenges(data.itEnvironment, data.industry),
     [data.itEnvironment, data.industry],
@@ -91,6 +110,33 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   // Stable updateData via useCallback (needed for keyboard effect deps)
   const updateData = useCallback((updates: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  // Handle signal answer selection
+  const handleSignalAnswer = useCallback((questionId: string, value: string) => {
+    setData((prev) => {
+      const newSignalAnswers = { ...prev.signalAnswers, [questionId]: value };
+      const newSignalCount = Object.keys(newSignalAnswers).length;
+      const updates: Partial<WizardData> = { signalAnswers: newSignalAnswers };
+
+      // If changing an answer after deduction was done, reset downstream
+      if (newSignalCount >= SIGNAL_QUESTIONS.length) {
+        const newDeduction = deduceFromSignals(newSignalAnswers, getPersonaType(prev.persona));
+        updates.itEnvironment = newDeduction.itEnvironment;
+        updates.businessPriority = newDeduction.businessPriority;
+        // Reset challenge if environment changed
+        if (newDeduction.itEnvironment !== prev.itEnvironment) {
+          updates.challenge = '';
+        }
+      } else {
+        // Not all signals answered yet — clear deduction
+        updates.itEnvironment = '';
+        updates.businessPriority = '';
+        updates.challenge = '';
+      }
+
+      return { ...prev, ...updates };
+    });
   }, []);
 
   // Fire quick-enrich API when a valid work email is entered
@@ -205,6 +251,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
         itEnvironment: data.itEnvironment,
         businessPriority: data.businessPriority,
         challenge: data.challenge,
+        signalAnswers: getSignalAnswerLabels(data.signalAnswers, personaType),
       });
     }
   };
@@ -214,23 +261,23 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   const getIndustryLabel = () =>
     INDUSTRY_OPTIONS.find((i) => i.value === data.industry)?.label || 'your industry';
   const getStageLabel = () => STAGE_LABELS[data.itEnvironment] || '';
-  const getSelectedScenarioLabel = () =>
-    scenarioOptions.find((s) => s.itEnvironment === data.itEnvironment)?.label || '';
 
   const isLastStep = currentStep === TOTAL_STEPS - 1;
 
   // Progressive reveal state for Step 4
-  const showChallenge = !!data.itEnvironment; // scenario selected → show challenge
-  const showStageReveal = !!data.itEnvironment && !!data.challenge; // scenario + challenge → stage reveal
-  const showPreview =
-    currentStep === 3 && showStageReveal;
+  // Find the first unanswered signal question index
+  const firstUnansweredSignalIdx = SIGNAL_QUESTIONS.findIndex(
+    (q) => !data.signalAnswers[q.id],
+  );
+  const showChallenge = allSignalsAnswered && !!data.itEnvironment;
+  const showStageReveal = showChallenge && !!data.challenge;
+  const showPreview = currentStep === 3 && showStageReveal;
 
-  // Keyboard navigation for Step 4 sub-sections (2 sections: scenario, challenge)
+  // Keyboard navigation for Step 4 sub-sections
   useEffect(() => {
     if (currentStep !== 3 || wizardState !== 'idle') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -240,20 +287,17 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
       }
 
       const num = parseInt(e.key);
-      if (isNaN(num) || num < 1) return;
+      if (isNaN(num) || num < 1 || num > 3) return;
 
-      // Section 1: Scenario (sets itEnvironment + businessPriority)
-      if (!data.itEnvironment) {
-        if (num <= scenarioOptions.length) {
-          const scenario = scenarioOptions[num - 1];
-          updateData({
-            itEnvironment: scenario.itEnvironment,
-            businessPriority: scenario.businessPriority,
-            challenge: '',
-          });
+      // Signal questions: select option for first unanswered question
+      if (firstUnansweredSignalIdx >= 0) {
+        const question = SIGNAL_QUESTIONS[firstUnansweredSignalIdx];
+        const options = question.options[personaType];
+        if (num <= options.length) {
+          handleSignalAnswer(question.id, options[num - 1].value);
         }
-      // Section 2: Challenge
-      } else if (!data.challenge) {
+      // Challenge section
+      } else if (!data.challenge && showChallenge) {
         if (num <= challengeOptions.length) {
           updateData({ challenge: challengeOptions[num - 1].value });
         }
@@ -265,10 +309,12 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   }, [
     currentStep,
     wizardState,
-    data.itEnvironment,
+    firstUnansweredSignalIdx,
+    personaType,
     data.challenge,
-    scenarioOptions,
+    showChallenge,
     challengeOptions,
+    handleSignalAnswer,
     updateData,
   ]);
 
@@ -348,39 +394,50 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             />
           )}
 
-          {/* Step 4: Your Situation — Scenario Cards → Challenge → Stage Reveal */}
+          {/* Step 4: Signal Questions → Stage Deduction → Challenge → Stage Reveal */}
           {currentStep === 3 && (
             <div className="space-y-5">
-              {/* Scenario Cards — always visible on Step 4 */}
-              <div>
-                <label className="amd-label">{getScenarioLabel(personaType)}</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {scenarioOptions.map((scenario) => (
-                    <SelectionCard
-                      key={scenario.itEnvironment}
-                      label={scenario.label}
-                      description={scenario.description}
-                      selected={data.itEnvironment === scenario.itEnvironment}
-                      onClick={() =>
-                        updateData({
-                          itEnvironment: scenario.itEnvironment,
-                          businessPriority: scenario.businessPriority,
-                          challenge: data.itEnvironment !== scenario.itEnvironment ? '' : data.challenge,
-                        })
-                      }
-                      disabled={isLoading}
-                      size="lg"
-                    />
-                  ))}
-                </div>
-                {!data.itEnvironment && (
-                  <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
-                    Press 1-{scenarioOptions.length} to select
-                  </p>
-                )}
-              </div>
+              {/* Signal Questions — progressive reveal */}
+              {SIGNAL_QUESTIONS.map((question, qIdx) => {
+                // Show this question if all previous are answered (or it's the first)
+                const previousAnswered = SIGNAL_QUESTIONS.slice(0, qIdx).every(
+                  (q) => !!data.signalAnswers[q.id],
+                );
+                if (!previousAnswered) return null;
 
-              {/* Challenge — revealed after scenario selection */}
+                const options = question.options[personaType];
+                const selectedValue = data.signalAnswers[question.id];
+                const isActiveQuestion = qIdx === firstUnansweredSignalIdx;
+
+                return (
+                  <div
+                    key={question.id}
+                    className={qIdx > 0 ? 'progressive-reveal' : ''}
+                  >
+                    <label className="amd-label">{question.labels[personaType]}</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {options.map((opt) => (
+                        <SelectionCard
+                          key={opt.value}
+                          label={opt.label}
+                          description={opt.description}
+                          selected={selectedValue === opt.value}
+                          onClick={() => handleSignalAnswer(question.id, opt.value)}
+                          disabled={isLoading}
+                          size="lg"
+                        />
+                      ))}
+                    </div>
+                    {isActiveQuestion && (
+                      <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
+                        Press 1-3 to select
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Challenge — revealed after all signals answered and stage deduced */}
               {showChallenge && (
                 <div className="progressive-reveal">
                   <label className="amd-label">{getChallengeLabel(personaType)}</label>
@@ -413,8 +470,8 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                 </div>
               )}
 
-              {/* Stage Reveal — animated card after scenario + challenge */}
-              {showStageReveal && STAGE_REVEAL_COPY[getStageLabel()] && (
+              {/* Stage Reveal — confidence-aware, after challenge selection */}
+              {showStageReveal && deduction && STAGE_REVEAL_COPY[getStageLabel()] && (
                 <div className="stage-reveal rounded-xl border border-[#00c8aa]/30 bg-[#00c8aa]/[0.04] p-5">
                   <div className="flex items-center gap-2.5 mb-3">
                     <div className="w-6 h-6 rounded-full bg-[#00c8aa]/20 flex items-center justify-center">
@@ -429,7 +486,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                       </svg>
                     </div>
                     <span className="text-sm font-bold text-[#00c8aa]">
-                      {STAGE_REVEAL_COPY[getStageLabel()].title}
+                      {getStageRevealTitle(getStageLabel(), deduction.confidence)}
                     </span>
                   </div>
                   <p className="text-white/70 text-sm leading-relaxed mb-3">
@@ -470,9 +527,6 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                     </span>
                     <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
                       {getStageLabel()} Stage
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
-                      {getSelectedScenarioLabel()}
                     </span>
                   </div>
                 </div>

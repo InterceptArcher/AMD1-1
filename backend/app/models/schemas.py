@@ -37,6 +37,7 @@ class EnrichmentRequest(BaseModel):
     itEnvironment: Optional[str] = Field(None, description="IT environment stage (traditional, modernizing, modern)")
     businessPriority: Optional[str] = Field(None, description="Business priority (reducing_cost, improving_performance, preparing_ai)")
     challenge: Optional[str] = Field(None, description="Biggest challenge (legacy_systems, integration_friction, resource_constraints, skills_gap, data_governance)")
+    signalAnswers: Optional[Dict[str, str]] = Field(None, description="Multi-signal wizard answers (infra_age, ai_readiness, spending_focus, team_composition)")
     # Cache control
     force_refresh: Optional[bool] = Field(False, description="Force re-enrichment even if data exists")
 

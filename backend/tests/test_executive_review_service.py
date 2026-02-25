@@ -755,3 +755,82 @@ class TestEnrichmentContextInPrompt:
             # Mock path returns early before calling _build_user_prompt,
             # so this test validates the method signature accepts enrichment_context
             # The real integration is tested via the prompt content tests above
+
+
+# =============================================================================
+# TestSignalAnswersInPrompt
+# =============================================================================
+
+class TestSignalAnswersInPrompt:
+    """Verify that signalAnswers from the wizard are injected into the LLM prompt."""
+
+    def setup_method(self):
+        self.service = ExecutiveReviewService()
+        self.signal_answers = {
+            "infra_age": "10+ years, mostly on-prem",
+            "ai_readiness": "Experimenting with pilots",
+            "spending_focus": "Reducing infrastructure costs",
+            "team_composition": "Mostly maintaining existing systems",
+        }
+
+    def test_signal_answers_appear_in_prompt(self):
+        """Signal answers must appear in the LLM prompt when provided."""
+        enrichment_context = {
+            "signal_answers": self.signal_answers,
+        }
+        example = FEW_SHOT_EXAMPLES_POOL["Observer"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="TestCo",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Observer",
+            priority="Reducing costs",
+            challenge="Legacy systems",
+            example=example,
+            enrichment_context=enrichment_context,
+        )
+        assert "Self-Reported Signals" in prompt or "SELF-REPORTED SIGNALS" in prompt
+        assert "10+ years, mostly on-prem" in prompt
+        assert "Experimenting with pilots" in prompt
+
+    def test_prompt_without_signal_answers_still_works(self):
+        """Prompt works fine without signal_answers in enrichment_context."""
+        enrichment_context = {
+            "company_summary": "A technology company",
+        }
+        example = FEW_SHOT_EXAMPLES_POOL["Observer"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="TestCo",
+            industry="Technology",
+            segment="Enterprise",
+            persona="ITDM",
+            stage="Observer",
+            priority="Reducing costs",
+            challenge="Legacy systems",
+            example=example,
+            enrichment_context=enrichment_context,
+        )
+        assert "TestCo" in prompt
+        # Should not contain signal section when no signals provided
+        assert "Self-Reported Signals" not in prompt
+
+    def test_signal_answer_labels_in_prompt(self):
+        """All 4 signal answer labels must appear in the prompt."""
+        enrichment_context = {
+            "signal_answers": self.signal_answers,
+        }
+        example = FEW_SHOT_EXAMPLES_POOL["Challenger"][0]
+        prompt = self.service._build_user_prompt(
+            company_name="TestCo",
+            industry="Healthcare",
+            segment="Mid-Market",
+            persona="BDM",
+            stage="Challenger",
+            priority="Improving performance",
+            challenge="Integration friction",
+            example=example,
+            enrichment_context=enrichment_context,
+        )
+        for label in self.signal_answers.values():
+            assert label in prompt, f"Signal answer '{label}' not found in prompt"

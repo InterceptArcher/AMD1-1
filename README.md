@@ -236,6 +236,39 @@ Replaced the original single-page dropdown form with a 4-step guided card-based 
 - `wizard/steps/StepRole.tsx` — Step 3 with auto-advance callback
 - `EmailConsentForm.tsx` — wizard orchestrator with Steps 4 inline, thinking moments, social proof, assessment preview
 
+### Multi-Signal Stage Deduction (Step 4)
+
+Step 4 of the wizard uses 4 quick signal questions to deduce the user's IT environment stage and business priority. Each answer contributes weighted scores across 6 axes (`traditional`, `modernizing`, `modern`, `reducing_cost`, `improving_performance`, `preparing_ai`). The stage emerges from the combination of all answers — no single question determines the outcome.
+
+**Rationale:** The previous 3-scenario-card approach hardcoded `itEnvironment × businessPriority` pairs (click "Keeping the lights on" = Observer). Only 3 of 9 possible combinations were reachable. Users reported it felt like a multiple-choice test rather than a real assessment. The multi-signal approach makes all 9 combinations reachable and produces genuinely deduced stages from mixed signals.
+
+**The 4 Signal Questions:**
+
+| # | Topic | Weight | Strong Signal For |
+|---|-------|--------|-------------------|
+| Q1 | Infrastructure age | 1.5x | itEnvironment |
+| Q2 | AI readiness | 1.0x | Both axes |
+| Q3 | Spending focus | 1.5x | businessPriority |
+| Q4 | Team composition | 1.0x | Balancing |
+
+**Scoring Algorithm:**
+- `deduceFromSignals()` accumulates weighted scores across all 4 answers
+- Winner-take-all for each axis (environment and priority resolved independently)
+- Tie-breaker: Q1 wins for itEnvironment, Q3 wins for businessPriority
+- Confidence ratio (winner vs runner-up) determines reveal language: "You're at the X stage" (high) vs "You're leaning toward the X stage" (low)
+
+**Mixed Signal Example:** A user picks "10+ years on-prem" (Q1) but "Building AI capabilities" (Q3) and "Experimenting with pilots" (Q2) → gets `traditional + preparing_ai`. A legacy company actively pivoting. The old system could never produce this combination.
+
+**Progressive Reveal:** Q1 visible → click → Q2 slides in → click → Q3 slides in → click → Q4 slides in → click → stage deduced + revealed → challenge cards → assessment preview + consent. Keyboard nav: 1-3 selects option for the current active question.
+
+**Signal answers flow to LLM:** The 4 answer labels are sent as `signalAnswers` in the API request and injected into the LLM prompt as a "Self-Reported Signals" section, giving the AI richer context for personalization.
+
+**Key files:**
+- `frontend/src/components/wizard/wizardTypes.ts` — `SIGNAL_QUESTIONS`, `deduceFromSignals()`, `SignalScore`, `SignalDeduction`
+- `frontend/src/components/EmailConsentForm.tsx` — Progressive reveal UI, keyboard nav, signal wiring
+- `backend/app/services/executive_review_service.py` — `_build_company_intelligence_block()` injects signals
+- `frontend/__tests__/deduceFromSignals.test.ts` — 24 tests covering all 9 combos, tie resolution, confidence
+
 ### Context-Aware Wizard
 
 The wizard now reacts to enrichment data in real time, making the entire form context-aware rather than static.

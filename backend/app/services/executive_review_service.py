@@ -1667,6 +1667,23 @@ Use the generate_executive_review tool to return your response."""
             if headlines:
                 parts.append("Recent News:\n" + "\n".join(headlines))
 
+        # Self-reported signals from the wizard
+        signal_answers = enrichment_context.get("signal_answers", {})
+        if signal_answers:
+            signal_lines = []
+            signal_labels = {
+                "infra_age": "Infrastructure Age",
+                "ai_readiness": "AI Readiness",
+                "spending_focus": "Spending Focus",
+                "team_composition": "Team Composition",
+            }
+            for key, label in signal_labels.items():
+                answer = signal_answers.get(key, "")
+                if answer:
+                    signal_lines.append(f"- {label}: {answer}")
+            if signal_lines:
+                parts.append("Self-Reported Signals:\n" + "\n".join(signal_lines))
+
         if not parts:
             return ""
 

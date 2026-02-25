@@ -123,6 +123,7 @@ function HomeContent() {
             itEnvironment: inputs.itEnvironment,
             businessPriority: inputs.businessPriority,
             challenge: inputs.challenge,
+            signalAnswers: inputs.signalAnswers,
           }),
         });
 
