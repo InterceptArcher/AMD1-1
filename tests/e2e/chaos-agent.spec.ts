@@ -375,9 +375,9 @@ test.describe('Chaos Agent — Resilience Tests', () => {
     const bodyText = await page.locator('body').innerText();
     expect(bodyText.length).toBeGreaterThan(10);
 
-    // Step 3 content should be visible
+    // Step 3 content should be visible (first signal question)
     await expect(
-      page.getByRole('button', { name: /In the middle of a shift/ }),
+      page.getByRole('button', { name: /Mix of old and new/ }),
     ).toBeVisible({ timeout: 5000 });
   });
 });

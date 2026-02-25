@@ -175,10 +175,10 @@ test.describe('AMD AI Readiness Wizard', () => {
     // Role step auto-advances after 500ms delay + 900ms thinking overlay
     await page.waitForTimeout(1800);
 
-    // Verify Step 3 content appears — IT environment cards should be visible
-    // Tech Executive is a technical persona, so the label is "In the middle of a shift"
+    // Verify Step 3 content appears — first signal question should be visible
+    // Tech Executive is a technical persona, so Q1 asks about infrastructure age
     await expect(
-      page.getByRole('button', { name: /In the middle of a shift/ }),
+      page.getByRole('button', { name: /Mix of old and new/ }),
     ).toBeVisible();
   });
 
@@ -193,45 +193,53 @@ test.describe('AMD AI Readiness Wizard', () => {
     await fillStepCompany(page);
     await fillStepRole(page);
 
-    // We are on Step 3. Section 1 (IT environment) should be visible.
-    // Section 2 (priority) should NOT be visible yet.
+    // We are on Step 3. Signal Q1 (infrastructure age) should be visible.
+    // Signal Q2 should NOT be visible yet (progressive reveal).
     await expect(
-      page.getByRole('button', { name: /Eliminate bottlenecks/ }),
+      page.getByRole('button', { name: /Experimenting with pilots/ }),
     ).not.toBeVisible();
 
-    // Select IT environment: "In the middle of a shift" (modernizing)
-    await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-    await page.waitForTimeout(500);
+    // Answer Q1: "Mix of old and new" (hybrid → modernizing)
+    await page.getByRole('button', { name: /Mix of old and new/ }).click();
 
-    // Section 2 (priority) should now be visible
-    await expect(
-      page.getByRole('button', { name: /Eliminate bottlenecks/ }),
-    ).toBeVisible();
+    // Q2 (AI readiness) should now slide in
+    const q2Btn = page.getByRole('button', { name: /Experimenting with pilots/ });
+    await expect(q2Btn).toBeVisible({ timeout: 5_000 });
 
-    // Section 3 (challenge) should NOT be visible yet
+    // Q3 should NOT be visible yet
     await expect(
-      page.getByRole('button', { name: /Toolchain fragmentation/ }),
+      page.getByRole('button', { name: /Eliminating bottlenecks/ }),
     ).not.toBeVisible();
 
-    // Select a priority
-    await page.getByRole('button', { name: /Eliminate bottlenecks/ }).click();
-    await page.waitForTimeout(500);
+    // Answer Q2
+    await q2Btn.click();
 
-    // Section 3 (challenge) should now be visible (technology industry challenges)
-    await expect(
-      page.getByRole('button', { name: /Toolchain fragmentation/ }),
-    ).toBeVisible();
+    // Q3 (spending focus) should now slide in
+    const q3Btn = page.getByRole('button', { name: /Eliminating bottlenecks/ });
+    await expect(q3Btn).toBeVisible({ timeout: 5_000 });
 
-    // Section 4 (consent) should NOT be visible yet
+    // Answer Q3
+    await q3Btn.click();
+
+    // Q4 (team composition) should slide in
+    const q4Btn = page.getByRole('button', { name: /Mix of ops and new development/ });
+    await expect(q4Btn).toBeVisible({ timeout: 5_000 });
+
+    // Answer Q4
+    await q4Btn.click();
+
+    // Challenge should now appear after all 4 signals + deduction
+    const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
+    await expect(challengeBtn).toBeVisible({ timeout: 10_000 });
+
+    // Consent should NOT be visible yet
     await expect(page.locator('#wiz-consent')).not.toBeVisible();
 
     // Select a challenge
-    await page.getByRole('button', { name: /Toolchain fragmentation/ }).click();
-    await page.waitForTimeout(500);
+    await challengeBtn.click();
 
-    // Section 4 — consent checkbox and assessment preview should now appear
-    await expect(page.locator('#wiz-consent')).toBeVisible();
-    await expect(page.getByText('Assessment Preview')).toBeVisible();
+    // Consent checkbox should now appear after challenge → stage reveal
+    await expect(page.locator('#wiz-consent')).toBeVisible({ timeout: 10_000 });
   });
 
   // -------------------------------------------------------------------------
@@ -245,13 +253,20 @@ test.describe('AMD AI Readiness Wizard', () => {
     await fillStepCompany(page);
     await fillStepRole(page);
 
-    // Fill all Step 3 fields (IT env, priority, challenge) but do NOT check consent
-    await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Eliminate bottlenecks/ }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Toolchain fragmentation/ }).click();
-    await page.waitForTimeout(500);
+    // Answer all 4 signal questions + challenge but do NOT check consent
+    await page.getByRole('button', { name: /Mix of old and new/ }).click();
+    const q2 = page.getByRole('button', { name: /Experimenting with pilots/ });
+    await expect(q2).toBeVisible({ timeout: 5_000 });
+    await q2.click();
+    const q3 = page.getByRole('button', { name: /Eliminating bottlenecks/ });
+    await expect(q3).toBeVisible({ timeout: 5_000 });
+    await q3.click();
+    const q4 = page.getByRole('button', { name: /Mix of ops and new development/ });
+    await expect(q4).toBeVisible({ timeout: 5_000 });
+    await q4.click();
+    const challenge = page.getByRole('button', { name: /Toolchain fragmentation/ });
+    await expect(challenge).toBeVisible({ timeout: 10_000 });
+    await challenge.click();
 
     // Submit button should be visible but disabled (consent not checked)
     const submitBtn = page.getByRole('button', { name: /Get Your AI Readiness Snapshot/ });

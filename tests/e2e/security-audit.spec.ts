@@ -260,13 +260,19 @@ test.describe('Security Audit', () => {
     await fillStepCompany(page);
     await fillStepRole(page);
 
-    // Fill all Step 3 selections but skip consent
-    await page.getByRole('button', { name: /In the middle of a shift/ }).click();
-    const priorityBtn = page.getByRole('button', { name: /Eliminate bottlenecks/ });
-    await expect(priorityBtn).toBeVisible({ timeout: 5_000 });
-    await priorityBtn.click();
+    // Answer all 4 signal questions + challenge but skip consent
+    await page.getByRole('button', { name: /Mix of old and new/ }).click();
+    const q2Btn = page.getByRole('button', { name: /Experimenting with pilots/ });
+    await expect(q2Btn).toBeVisible({ timeout: 5_000 });
+    await q2Btn.click();
+    const q3Btn = page.getByRole('button', { name: /Eliminating bottlenecks/ });
+    await expect(q3Btn).toBeVisible({ timeout: 5_000 });
+    await q3Btn.click();
+    const q4Btn = page.getByRole('button', { name: /Mix of ops and new development/ });
+    await expect(q4Btn).toBeVisible({ timeout: 5_000 });
+    await q4Btn.click();
     const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
-    await expect(challengeBtn).toBeVisible({ timeout: 5_000 });
+    await expect(challengeBtn).toBeVisible({ timeout: 10_000 });
     await challengeBtn.click();
 
     // Submit button MUST be disabled without consent

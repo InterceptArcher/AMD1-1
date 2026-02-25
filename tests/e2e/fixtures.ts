@@ -209,30 +209,51 @@ export async function fillStepCompany(page: Page) {
 /** Fill Step 2 (Role) — auto-advances to Step 3 */
 export async function fillStepRole(page: Page) {
   await page.getByRole('button', { name: TEST_USER.role }).click();
-  // Role auto-advances after click. Wait for Step 3 content (IT environment button).
+  // Role auto-advances after click. Wait for Step 3 content.
+  // Step 3 now starts with signal Q1 — for tech persona: "How old is your infrastructure?"
+  // Wait for any Q1 option button to appear.
   await expect(
-    page.getByRole('button', { name: /In the middle of a shift/ }),
+    page.getByRole('button', { name: /Mix of old and new/ }),
   ).toBeVisible({ timeout: 15_000 });
 }
 
-/** Fill Step 3 (Situation) and check consent */
+/**
+ * Fill Step 3 (Situation) — new multi-signal flow:
+ *   1. Answer 4 signal questions (progressive reveal)
+ *   2. Select challenge (appears after signals → deduction)
+ *   3. Check consent (appears after challenge → stage reveal)
+ *
+ * Uses "Tech Executive" (technical persona) button labels.
+ * Signal answers produce a "Challenger" stage (modernizing + improving_performance).
+ */
 export async function fillStepSituation(page: Page) {
-  // IT Environment
-  await page.getByRole('button', { name: /In the middle of a shift/ }).click();
+  // Q1: Infrastructure age → "Mix of old and new" (hybrid → modernizing)
+  await page.getByRole('button', { name: /Mix of old and new/ }).click();
 
-  // Business Priority (progressive reveal) — wait for it to appear
-  const priorityBtn = page.getByRole('button', { name: /Eliminate bottlenecks/ });
-  await expect(priorityBtn).toBeVisible({ timeout: 5_000 });
-  await priorityBtn.click();
+  // Q2: AI readiness → "Experimenting with pilots"
+  const q2Btn = page.getByRole('button', { name: /Experimenting with pilots/ });
+  await expect(q2Btn).toBeVisible({ timeout: 5_000 });
+  await q2Btn.click();
 
-  // Challenge (progressive reveal) — wait for it to appear
+  // Q3: Spending focus → "Eliminating bottlenecks" (improving_performance)
+  const q3Btn = page.getByRole('button', { name: /Eliminating bottlenecks/ });
+  await expect(q3Btn).toBeVisible({ timeout: 5_000 });
+  await q3Btn.click();
+
+  // Q4: Team composition → "Mix of ops and new development"
+  const q4Btn = page.getByRole('button', { name: /Mix of ops and new development/ });
+  await expect(q4Btn).toBeVisible({ timeout: 5_000 });
+  await q4Btn.click();
+
+  // Challenge appears after all 4 signals answered + deduction
+  // Technology industry: "Toolchain fragmentation"
   const challengeBtn = page.getByRole('button', { name: /Toolchain fragmentation/ });
-  await expect(challengeBtn).toBeVisible({ timeout: 5_000 });
+  await expect(challengeBtn).toBeVisible({ timeout: 10_000 });
   await challengeBtn.click();
 
-  // Consent checkbox — wait for it to appear
+  // Consent checkbox appears after challenge → stage reveal
   const consent = page.locator('#wiz-consent');
-  await expect(consent).toBeVisible({ timeout: 5_000 });
+  await expect(consent).toBeVisible({ timeout: 10_000 });
   await consent.check();
 }
 
