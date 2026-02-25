@@ -84,14 +84,11 @@ jobs:
           vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
           vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
 
-          # Add skip loading delay for preview builds
-          vercel env rm NEXT_PUBLIC_SKIP_LOADING_DELAY preview --token=$VERCEL_TOKEN --yes || true
-          printf "%s\n" "true" | vercel env add NEXT_PUBLIC_SKIP_LOADING_DELAY preview --token=$VERCEL_TOKEN
-
-          # Inject into local env file for build
+          # Inject skip loading delay for preview builds
           echo "NEXT_PUBLIC_SKIP_LOADING_DELAY=true" >> .env.local
 
-          # Build and Deploy (Supabase env vars already configured in Vercel)
+          # Install dependencies and build
+          npm ci
           vercel build --token=$VERCEL_TOKEN
           vercel deploy --prebuilt --token=$VERCEL_TOKEN > deployment-url.txt
 
