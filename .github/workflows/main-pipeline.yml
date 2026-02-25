@@ -305,9 +305,9 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID_BETA: ${{ secrets.VERCEL_PROJECT_ID_BETA }}
         run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID_BETA" ]; then
             echo "Vercel secrets not configured. Skipping production frontend deploy."
             echo "To enable: add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID to repo secrets."
             exit 0
@@ -319,7 +319,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"name\": \"amd1-1\",
-              \"project\": \"$VERCEL_PROJECT_ID\",
+              \"project\": \"$VERCEL_PROJECT_ID_BETA\",
               \"target\": \"production\",
               \"gitSource\": {
                 \"type\": \"github\",
@@ -339,14 +339,14 @@ jobs:
       # ── Deploy backend to Render (if hook available) ──
       - name: Deploy to Render
         env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          RENDER_DEPLOY_HOOK_BETA: ${{ secrets.RENDER_DEPLOY_HOOK_BETA }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+          if [ -z "$RENDER_DEPLOY_HOOK_BETA" ]; then
             echo "Render deploy hook not configured. Skipping backend deploy."
             exit 0
           fi
           echo "Triggering Render backend deployment..."
-          curl -s "$RENDER_DEPLOY_HOOK" || echo "Render hook failed (non-critical)"
+          curl -s "$RENDER_DEPLOY_HOOK_BETA" || echo "Render hook failed (non-critical)"
 
       # ── Auto-close failure issues ──
       - name: Auto-close failure issues
