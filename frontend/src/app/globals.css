@@ -625,6 +625,22 @@ h1, h2, h3, h4, h5, h6 {
   animation: progressiveReveal 400ms ease-out;
 }
 
+/* Company logo enter animation */
+@keyframes companyLogoEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.company-logo-enter {
+  animation: companyLogoEnter 300ms ease-out;
+}
+
 /* Reduce motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,

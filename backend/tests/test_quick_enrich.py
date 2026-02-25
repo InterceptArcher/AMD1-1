@@ -173,6 +173,68 @@ class TestQuickEnrichEndpoint:
             assert data["title"] == "VP of Infrastructure Engineering"
 
     @pytest.mark.asyncio
+    async def test_cross_references_employee_count_uses_max(self):
+        """Should use max(Apollo, PDL) for employee_count when both provide data."""
+        with patch("app.routes.enrichment.ApolloAPI") as MockApollo, \
+             patch("app.routes.enrichment.PDLAPI") as MockPDL:
+
+            # Apollo says 5000, PDL says 1500 → should return 5000
+            apollo_data = {**MOCK_APOLLO_RESULT, "estimated_num_employees": 5000}
+            mock_apollo = MockApollo.return_value
+            mock_apollo.enrich = AsyncMock(return_value=apollo_data)
+
+            pdl_data = {**MOCK_PDL_COMPANY_RESULT, "employee_count": 1500}
+            mock_pdl = MockPDL.return_value
+            mock_pdl.enrich_company = AsyncMock(return_value=pdl_data)
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post("/rad/quick-enrich", json={"email": "jane@honeycomb.io"})
+
+            data = resp.json()
+            assert data["employee_count"] == 5000
+
+    @pytest.mark.asyncio
+    async def test_cross_references_employee_count_falls_back_to_pdl(self):
+        """Should fall back to PDL employee_count when Apollo has no count."""
+        with patch("app.routes.enrichment.ApolloAPI") as MockApollo, \
+             patch("app.routes.enrichment.PDLAPI") as MockPDL:
+
+            # Apollo has no estimated_num_employees field
+            mock_apollo = MockApollo.return_value
+            mock_apollo.enrich = AsyncMock(return_value=MOCK_APOLLO_RESULT)
+
+            mock_pdl = MockPDL.return_value
+            mock_pdl.enrich_company = AsyncMock(return_value=MOCK_PDL_COMPANY_RESULT)
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post("/rad/quick-enrich", json={"email": "jane@honeycomb.io"})
+
+            data = resp.json()
+            assert data["employee_count"] == 250  # PDL's value
+
+    @pytest.mark.asyncio
+    async def test_returns_employee_count_range(self):
+        """Should return employee_count_range string from PDL data."""
+        with patch("app.routes.enrichment.ApolloAPI") as MockApollo, \
+             patch("app.routes.enrichment.PDLAPI") as MockPDL:
+
+            mock_apollo = MockApollo.return_value
+            mock_apollo.enrich = AsyncMock(return_value=MOCK_APOLLO_RESULT)
+
+            pdl_data = {**MOCK_PDL_COMPANY_RESULT, "employee_count_range": "201-500"}
+            mock_pdl = MockPDL.return_value
+            mock_pdl.enrich_company = AsyncMock(return_value=pdl_data)
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post("/rad/quick-enrich", json={"email": "jane@honeycomb.io"})
+
+            data = resp.json()
+            assert data["employee_count_range"] == "201-500"
+
+    @pytest.mark.asyncio
     async def test_invalid_email_returns_400(self):
         """Should reject invalid email addresses."""
         transport = ASGITransport(app=app)

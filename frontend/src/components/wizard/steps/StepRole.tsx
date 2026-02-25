@@ -7,10 +7,11 @@ interface StepRoleProps {
   data: WizardData;
   onChange: (updates: Partial<WizardData>) => void;
   onAutoAdvance?: () => void;
+  suggestedRole?: string;
   disabled?: boolean;
 }
 
-export default function StepRole({ data, onChange, onAutoAdvance, disabled = false }: StepRoleProps) {
+export default function StepRole({ data, onChange, onAutoAdvance, suggestedRole, disabled = false }: StepRoleProps) {
   const handleSelect = (value: string) => {
     onChange({ persona: value });
     // Auto-advance after brief delay so the user sees their selection
@@ -35,6 +36,11 @@ export default function StepRole({ data, onChange, onAutoAdvance, disabled = fal
           />
         ))}
       </div>
+      {suggestedRole && data.persona === suggestedRole && (
+        <p className="social-proof-enter text-[11px] text-[#00c8aa]/60 mt-2 pl-1">
+          Suggested from your profile — change anytime
+        </p>
+      )}
     </div>
   );
 }

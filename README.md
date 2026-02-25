@@ -236,6 +236,38 @@ Replaced the original single-page dropdown form with a 4-step guided card-based 
 - `wizard/steps/StepRole.tsx` — Step 3 with auto-advance callback
 - `EmailConsentForm.tsx` — wizard orchestrator with Steps 4 inline, thinking moments, social proof, assessment preview
 
+### Context-Aware Wizard
+
+The wizard now reacts to enrichment data in real time, making the entire form context-aware rather than static.
+
+**What changed:**
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Employee count | PDL only (single source, often inaccurate) | `max(Apollo, PDL)` cross-reference for accuracy |
+| Role pre-fill | Not used | Seniority + title → role auto-mapped (e.g., VP + "Infrastructure Engineering" → Tech Leadership) |
+| Company logo | Checkmark icon | Clearbit logo from email domain (free, no key), graceful fallback |
+| Step titles | Static ("About your company") | Dynamic ("About Honeycomb") with company name |
+| Company summary | Not shown | 1-2 line PDL summary in banner |
+| Employee display | Raw count ("250 employees") | Range preferred when available ("201-500 employees") |
+| Live preview | None until Step 4 | Progressive preview card on Steps 2-3 builds as fields fill |
+| Role suggestion | None | Hint text "Suggested from your profile — change anytime" |
+
+**Rationale:**
+- **Cross-referenced employee count** prevents single-source inaccuracies (e.g., PDL reporting 1,500 when Apollo reports 5,000 for the same company)
+- **Role pre-selection** reduces clicks by 1 step for enriched users without auto-skipping — users still see their selection and can change it
+- **Company logo + summary** creates recognition and builds trust (users see "we know your company")
+- **Live preview card** gives progressive feedback so users understand what they're building before they reach Step 4
+- **Dynamic step titles** make the form feel personalized from the moment enrichment fires
+
+**Key files:**
+- `backend/app/services/enrichment_apis.py` — Apollo now returns `estimated_num_employees` raw integer
+- `backend/app/routes/enrichment.py` — Cross-references counts, returns `employee_count_range`
+- `frontend/src/components/wizard/wizardTypes.ts` — `mapSeniorityToRole()`, `extractFullDomainFromEmail()`, updated `getAdaptiveStepTitle()`
+- `frontend/src/components/wizard/LivePreviewCard.tsx` — Progressive assessment preview
+- `frontend/src/components/wizard/steps/StepCompany.tsx` — Logo, summary, range display
+- `frontend/src/components/wizard/steps/StepRole.tsx` — Suggested role hint
+
 ### PDF Generation & Delivery
 
 - **Dynamic Ebook Generation**: HTML template with personalization slots (name, company, title, industry, intro hook, CTA)
