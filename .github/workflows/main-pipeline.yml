@@ -221,11 +221,11 @@ jobs:
   # ====================================================
   promote-to-prod:
     name: Promote to Production
-    needs: [validate-deployment, provision-stack]
+    needs: [validate-deployment, provision-stack, deploy-testing]
     if: success()
     runs-on: ubuntu-latest
     environment: production
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -237,20 +237,16 @@ jobs:
           TAG="prod-backup-$(date +'%Y-%m-%d-%H%M')"
           gh release create "$TAG" --generate-notes --title "Prod Deployment $TAG"
 
-      # 2. Promote Vercel (using env vars already configured in Vercel)
+      # 2. Promote preview deployment to production (no rebuild needed)
       - name: Promote Vercel
         if: ${{ needs.provision-stack.outputs.fe_provider == 'vercel' }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          PROJECT_NAME: ${{ needs.provision-stack.outputs.project_name }}
+          PREVIEW_URL: ${{ needs.deploy-testing.outputs.preview_url }}
         run: |
-          # Link from repo root (Vercel project settings point to frontend/)
-          npx vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
-
-          # Deploy to production (build on Vercel servers)
-          npx vercel deploy --prod --token=$VERCEL_TOKEN
+          # Promote the already-tested preview deployment to production
+          npx vercel promote "$PREVIEW_URL" --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --yes
 
       # 4. Promote Azure (Unchanged)
       - name: Promote Azure (Slot Swap)
