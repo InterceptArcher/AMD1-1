@@ -155,8 +155,8 @@ class TestEbookPromptNoNewsFallback:
         assert "7,000" in prompt or "7000" in prompt
 
 
-class TestExecReviewEnrichmentSection:
-    """Test _build_enrichment_section in ExecutiveReviewService."""
+class TestExecReviewCompanyIntelligenceBlock:
+    """Test _build_company_intelligence_block in ExecutiveReviewService."""
 
     def test_company_intelligence_when_no_news(self, exec_service):
         """When recent_news is empty but company data exists, should include intelligence."""
@@ -171,14 +171,14 @@ class TestExecReviewEnrichmentSection:
             "title": "VP of IT",
         }
 
-        section = exec_service._build_enrichment_section(ctx)
+        section = exec_service._build_company_intelligence_block(ctx)
 
         assert "15,000" in section
         assert "1984" in section
-        assert "Dell Technologies" in section.lower() or "digital transformation" in section.lower()
+        assert "dell technologies" in section.lower() or "digital transformation" in section.lower()
 
     def test_news_present_uses_normal_section(self, exec_service):
-        """When news exists, should use normal news formatting."""
+        """When news exists, should include news headlines."""
         ctx = {
             "employee_count": 5000,
             "recent_news": [
@@ -189,18 +189,20 @@ class TestExecReviewEnrichmentSection:
             "title": "CTO",
         }
 
-        section = exec_service._build_enrichment_section(ctx)
+        section = exec_service._build_company_intelligence_block(ctx)
 
         assert "Company wins big contract" in section
         assert "Growth & expansion" in section
 
     def test_empty_context_returns_empty(self, exec_service):
-        """Empty context should return empty string."""
-        section = exec_service._build_enrichment_section({})
+        """Empty/None context should return empty string."""
+        section = exec_service._build_company_intelligence_block({})
         assert section == ""
+        section_none = exec_service._build_company_intelligence_block(None)
+        assert section_none == ""
 
     def test_no_news_directive_added(self, exec_service):
-        """When no news, should add directive to use company data."""
+        """When no news but company data exists, should still include company metrics."""
         ctx = {
             "employee_count": 3000,
             "company_summary": "A logistics company.",
@@ -208,7 +210,7 @@ class TestExecReviewEnrichmentSection:
             "news_themes": [],
         }
 
-        section = exec_service._build_enrichment_section(ctx)
+        section = exec_service._build_company_intelligence_block(ctx)
 
-        # Should instruct LLM to use company data
         assert "3,000" in section
+        assert "logistics" in section.lower()

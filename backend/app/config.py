@@ -30,7 +30,7 @@ class Settings:
     ANTHROPIC_API_KEY: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
-    LLM_MODEL: str = "claude-3-5-haiku-20241022"  # Fast, cost-effective
+    LLM_MODEL: str = "claude-haiku-4-5-20251001"  # Fast, cost-effective
     LLM_TIMEOUT: int = 30  # seconds (target <60s end-to-end)
 
     # App Configuration
