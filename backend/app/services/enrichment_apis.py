@@ -151,18 +151,19 @@ class ApolloAPI(BaseEnrichmentAPI):
                 data = response.json()
 
                 person = data.get("person", {})
+                org = person.get("organization", {})
+                raw_employee_count = org.get("estimated_num_employees")
                 return {
                     "email": email,
                     "first_name": person.get("first_name"),
                     "last_name": person.get("last_name"),
                     "title": person.get("title"),
                     "linkedin_url": person.get("linkedin_url"),
-                    "company_name": person.get("organization", {}).get("name"),
-                    "domain": person.get("organization", {}).get("primary_domain"),
-                    "industry": person.get("organization", {}).get("industry"),
-                    "company_size": self._map_employee_count(
-                        person.get("organization", {}).get("estimated_num_employees")
-                    ),
+                    "company_name": org.get("name"),
+                    "domain": org.get("primary_domain"),
+                    "industry": org.get("industry"),
+                    "company_size": self._map_employee_count(raw_employee_count),
+                    "estimated_num_employees": raw_employee_count,
                     "city": person.get("city"),
                     "state": person.get("state"),
                     "country": person.get("country"),

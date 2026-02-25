@@ -105,17 +105,24 @@ async def quick_enrich(request: QuickEnrichRequest):
             or ""
         )
         industry = pdl_data.get("industry") or apollo_data.get("industry") or ""
-        employee_count = pdl_data.get("employee_count") or 0
+
+        # Cross-reference employee count: use max of Apollo and PDL
+        pdl_count = pdl_data.get("employee_count") or 0
+        apollo_count = apollo_data.get("estimated_num_employees") or 0
+        employee_count = max(pdl_count, apollo_count)
+
         title = apollo_data.get("title") or ""
         seniority = apollo_data.get("seniority") or ""
         company_summary = pdl_data.get("summary") or ""
         founded_year = pdl_data.get("founded") or 0
+        employee_count_range = pdl_data.get("employee_count_range") or ""
 
         return {
             "found": bool(company_name),
             "company_name": company_name,
             "industry": industry,
             "employee_count": employee_count,
+            "employee_count_range": employee_count_range,
             "title": title,
             "seniority": seniority,
             "company_summary": company_summary,

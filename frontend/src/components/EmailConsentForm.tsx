@@ -7,6 +7,7 @@ import SelectionCard from './wizard/SelectionCard';
 import StepAboutYou from './wizard/steps/StepAboutYou';
 import StepCompany from './wizard/steps/StepCompany';
 import StepRole from './wizard/steps/StepRole';
+import LivePreviewCard from './wizard/LivePreviewCard';
 import {
   WizardData,
   INITIAL_WIZARD_DATA,
@@ -35,6 +36,7 @@ import {
   isWorkEmail,
   employeeCountToSize,
   normalizeEnrichmentIndustry,
+  mapSeniorityToRole,
 } from './wizard/wizardTypes';
 
 export interface UserInputs {
@@ -122,6 +124,11 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             }
             if (!prev.industry && result.industry) {
               updates.industry = normalizeEnrichmentIndustry(result.industry);
+            }
+            // Pre-fill role from seniority + title
+            if (!prev.persona && result.seniority && result.title) {
+              const mapped = mapSeniorityToRole(result.seniority, result.title);
+              if (mapped) updates.persona = mapped;
             }
             if (Object.keys(updates).length === 0) return prev;
             return { ...prev, ...updates };
@@ -279,7 +286,11 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
     <form onSubmit={handleSubmit}>
       <WizardProgressDots
         currentStep={currentStep}
-        stepTitle={getAdaptiveStepTitle(currentStep, currentStep >= 3 ? personaType : undefined)}
+        stepTitle={getAdaptiveStepTitle(
+          currentStep,
+          currentStep >= 3 ? personaType : undefined,
+          data.company || undefined,
+        )}
       />
 
       {/* Assessment depth indicator on Step 4 */}
@@ -329,6 +340,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
               companyAutoFilled={companyAutoFilled}
               enrichmentData={enrichmentData}
               enrichmentLoading={enrichmentLoading}
+              email={data.email}
               disabled={isLoading}
             />
           )}
@@ -339,6 +351,9 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
               data={data}
               onChange={updateData}
               onAutoAdvance={handleAutoAdvance}
+              suggestedRole={enrichmentData?.seniority && enrichmentData?.title
+                ? mapSeniorityToRole(enrichmentData.seniority, enrichmentData.title) ?? undefined
+                : undefined}
               disabled={isLoading}
             />
           )}
@@ -502,6 +517,11 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             </div>
           )}
         </StepContainer>
+      )}
+
+      {/* Live Preview Card — shows on Steps 1-2 */}
+      {wizardState === 'idle' && (currentStep === 1 || currentStep === 2) && (
+        <LivePreviewCard data={data} />
       )}
 
       {/* Navigation buttons */}

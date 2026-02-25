@@ -1,7 +1,7 @@
 'use client';
 
-import { ChangeEvent } from 'react';
-import { WizardData, COMPANY_SIZE_OPTIONS, INDUSTRY_OPTIONS, EnrichmentPreview } from '../wizardTypes';
+import { ChangeEvent, useState } from 'react';
+import { WizardData, COMPANY_SIZE_OPTIONS, INDUSTRY_OPTIONS, EnrichmentPreview, extractFullDomainFromEmail } from '../wizardTypes';
 import SelectionCard from '../SelectionCard';
 
 interface StepCompanyProps {
@@ -10,6 +10,7 @@ interface StepCompanyProps {
   companyAutoFilled?: boolean;
   enrichmentData?: EnrichmentPreview | null;
   enrichmentLoading?: boolean;
+  email?: string;
   disabled?: boolean;
 }
 
@@ -19,17 +20,37 @@ export default function StepCompany({
   companyAutoFilled = false,
   enrichmentData = null,
   enrichmentLoading = false,
+  email = '',
   disabled = false,
 }: StepCompanyProps) {
+  const [logoError, setLogoError] = useState(false);
+  const domain = email ? extractFullDomainFromEmail(email) : null;
+  const showLogo = domain && !logoError;
+
+  // Prefer employee_count_range over raw count for display
+  const employeeDisplay = enrichmentData?.employee_count_range
+    || (enrichmentData?.employee_count
+      ? `${enrichmentData.employee_count.toLocaleString()} employees`
+      : null);
+
   return (
     <div className="space-y-6">
-      {/* Enrichment found banner — richer than simple domain detection */}
+      {/* Enrichment found banner — with logo, summary, and range */}
       {enrichmentData && (
         <div className="company-detected flex items-start gap-3 px-4 py-3 rounded-lg border border-[#00c8aa]/25 bg-[#00c8aa]/[0.06]">
-          <div className="w-8 h-8 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg className="w-4 h-4 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+          <div className="w-8 h-8 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center flex-shrink-0 mt-0.5 overflow-hidden">
+            {showLogo ? (
+              <img
+                src={`https://logo.clearbit.com/${domain}`}
+                alt={`${enrichmentData.company_name} logo`}
+                className="w-8 h-8 rounded-lg object-contain company-logo-enter"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <svg className="w-4 h-4 text-[#00c8aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
           </div>
           <div className="min-w-0">
             <p className="text-sm text-white/80 font-medium">
@@ -38,11 +59,11 @@ export default function StepCompany({
                 <span className="text-white/50"> — {enrichmentData.title}</span>
               )}
             </p>
-            {(enrichmentData.employee_count || enrichmentData.industry) && (
+            {(employeeDisplay || enrichmentData.industry) && (
               <div className="flex flex-wrap gap-2 mt-1.5">
-                {enrichmentData.employee_count && (
+                {employeeDisplay && (
                   <span className="text-[11px] px-2 py-0.5 rounded bg-white/10 text-white/40">
-                    {enrichmentData.employee_count.toLocaleString()} employees
+                    {employeeDisplay}
                   </span>
                 )}
                 {enrichmentData.industry && (
@@ -56,6 +77,11 @@ export default function StepCompany({
                   </span>
                 )}
               </div>
+            )}
+            {enrichmentData.company_summary && (
+              <p className="text-[11px] text-white/40 mt-1.5 line-clamp-2 leading-relaxed">
+                {enrichmentData.company_summary}
+              </p>
             )}
             <p className="text-[11px] text-white/30 mt-1">Fields pre-filled — feel free to edit</p>
           </div>

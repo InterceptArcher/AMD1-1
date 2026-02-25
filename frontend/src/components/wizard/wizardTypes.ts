@@ -14,6 +14,7 @@ export interface EnrichmentPreview {
   company_name?: string;
   industry?: string;
   employee_count?: number;
+  employee_count_range?: string;
   founded_year?: number;
   title?: string;
   company_summary?: string;
@@ -459,8 +460,16 @@ export const STEP_TITLES = [
   'Your situation',
 ];
 
-export function getAdaptiveStepTitle(step: number, personaType?: PersonaType): string {
+export function getAdaptiveStepTitle(step: number, personaType?: PersonaType, companyName?: string): string {
+  if (step === 1 && companyName) {
+    return `About ${companyName}`;
+  }
   if (step === 3 && personaType) {
+    if (companyName) {
+      return personaType === 'technical'
+        ? `Your infrastructure at ${companyName}`
+        : `Your business situation at ${companyName}`;
+    }
     return personaType === 'technical' ? 'Your infrastructure' : 'Your business situation';
   }
   return STEP_TITLES[step];
@@ -597,6 +606,72 @@ export function normalizeEnrichmentIndustry(raw: string): string {
     if (keywords.some((k) => lower.includes(k))) return canonical;
   }
   return 'other';
+}
+
+// =============================================================================
+// SENIORITY → ROLE MAPPING (for pre-selection from enrichment)
+// =============================================================================
+
+const TECH_TITLE_KEYWORDS = [
+  'cto', 'engineering', 'it', 'data', 'security', 'infrastructure',
+  'software', 'systems', 'architect', 'devops', 'technology', 'technical',
+  'platform', 'cloud', 'network', 'developer',
+];
+
+const BIZ_TITLE_KEYWORDS = [
+  'ceo', 'coo', 'cfo', 'operations', 'finance', 'business', 'strategy',
+  'revenue', 'sales', 'marketing', 'procurement', 'supply chain',
+  'general manager', 'managing director',
+];
+
+function isTechTitle(title: string): boolean {
+  const lower = title.toLowerCase();
+  return TECH_TITLE_KEYWORDS.some((k) => lower.includes(k));
+}
+
+function isBizTitle(title: string): boolean {
+  const lower = title.toLowerCase();
+  return BIZ_TITLE_KEYWORDS.some((k) => lower.includes(k));
+}
+
+export function mapSeniorityToRole(seniority: string, title: string): string | null {
+  const s = (seniority || '').toLowerCase();
+  const tech = isTechTitle(title);
+  const biz = isBizTitle(title);
+
+  if (s === 'c_suite' || s === 'owner' || s === 'founder') {
+    if (tech) return 'cto';
+    if (biz) return 'ceo';
+    return 'ceo'; // default c-suite to business exec
+  }
+  if (s === 'vp') {
+    if (tech) return 'vp_engineering';
+    if (biz) return 'vp_ops';
+    return 'vp_ops';
+  }
+  if (s === 'director' || s === 'manager') {
+    if (tech) return 'eng_manager';
+    if (biz) return 'ops_manager';
+    return null;
+  }
+  if (s === 'senior' || s === 'entry') {
+    if (tech) return 'senior_engineer';
+    return null;
+  }
+  return null;
+}
+
+// =============================================================================
+// DOMAIN EXTRACTION (for company logo)
+// =============================================================================
+
+export function extractFullDomainFromEmail(email: string): string | null {
+  const match = email.match(/@(.+)$/);
+  if (!match) return null;
+  const domain = match[1].toLowerCase();
+  const base = domain.split('.')[0];
+  if (FREE_EMAIL_PROVIDERS.includes(base)) return null;
+  return domain;
 }
 
 // =============================================================================
