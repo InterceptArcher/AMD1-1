@@ -55,11 +55,15 @@ jobs:
     name: "Agent 1: Functional"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       - run: npm ci
       - name: Run functional tests
         env:
@@ -88,11 +92,15 @@ jobs:
     name: "Agent 2: Security"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       - run: npm ci
       - name: Run security tests
         env:
@@ -117,11 +125,15 @@ jobs:
     name: "Agent 3: Chaos"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       - run: npm ci
       - name: Run chaos tests
         continue-on-error: true
@@ -147,11 +159,15 @@ jobs:
     name: "Agent 4: Accessibility"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       - run: npm ci
       - name: Run accessibility tests
         continue-on-error: true
@@ -177,11 +193,15 @@ jobs:
     name: "Agent 5: Performance"
     needs: resolve-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
       - run: npm ci
       - name: Run performance tests
         continue-on-error: true
