@@ -143,14 +143,14 @@ jobs:
           git push || echo "Failed to push log, continuing..."
 
       - name: Send Failure Email
-        if: ${{ secrets.NOTIFY_EMAIL != '' }}
+        if: ${{ vars.ENABLE_EMAIL_NOTIFICATIONS == 'true' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "❌ AMD Pipeline FAILED — Playwright tests did not pass"
+          subject: "AMD Pipeline FAILED — Playwright tests did not pass"
           to: ${{ secrets.NOTIFY_EMAIL }}
           from: AMD Pipeline <${{ secrets.SMTP_USERNAME }}>
           body: |
@@ -191,18 +191,18 @@ jobs:
           echo "Site is validated and healthy."
 
       - name: Send Success Email
-        if: ${{ secrets.NOTIFY_EMAIL != '' }}
+        if: ${{ vars.ENABLE_EMAIL_NOTIFICATIONS == 'true' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "✅ AMD Pipeline PASSED — All 23 tests green, promoted to prod"
+          subject: "AMD Pipeline PASSED — All tests green, promoted to prod"
           to: ${{ secrets.NOTIFY_EMAIL }}
           from: AMD Pipeline <${{ secrets.SMTP_USERNAME }}>
           body: |
-            All 23 Playwright E2E tests passed. Deployment promoted to production.
+            All Playwright E2E tests passed. Deployment promoted to production.
 
             Date: ${{ github.event.head_commit.timestamp || 'scheduled run' }}
             Branch: ${{ github.ref_name }}
