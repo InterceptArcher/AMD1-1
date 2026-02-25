@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install --global vercel@canary
 
       # Build & Deploy to Vercel from frontend directory
       - name: Vercel Build & Deploy
@@ -78,12 +78,10 @@ jobs:
           PROJECT_NAME: ${{ needs.provision-stack.outputs.project_name }}
           NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
         run: |
-          cd frontend
-
-          # Link project
+          # Link project from repo root (Vercel project settings already point to frontend/)
           vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
 
-          # Deploy to Vercel (build happens on their servers, avoids spawn sh ENOENT)
+          # Deploy to Vercel (build happens on their servers)
           vercel deploy --token=$VERCEL_TOKEN --build-env NEXT_PUBLIC_SKIP_LOADING_DELAY=true > deployment-url.txt
 
           URL=$(cat deployment-url.txt)
@@ -249,7 +247,7 @@ jobs:
           PROJECT_NAME: ${{ needs.provision-stack.outputs.project_name }}
         run: |
           # Install CLI
-          npm install --global vercel@latest
+          npm install --global vercel@canary
 
           cd frontend
 
