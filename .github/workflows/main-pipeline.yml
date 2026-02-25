@@ -210,8 +210,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="prod-backup-$(date +'%Y-%m-%d-%H%M')"
-          gh release create "$TAG" --generate-notes --title "Prod Deployment $TAG"
+          TAG="prod-backup-$(date +'%Y-%m-%d-%H%M%S')-${{ github.run_number }}"
+          gh release create "$TAG" --generate-notes --title "Prod Deployment $TAG" || echo "Backup tag skipped (may already exist)"
 
       # 2. Promote preview deployment to production (no rebuild needed)
       - name: Promote Vercel
