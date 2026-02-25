@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install --global vercel@latest || npx vercel --version
 
       # Build & Deploy to Vercel from frontend directory
       - name: Vercel Build & Deploy
@@ -246,14 +246,11 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.PROJECT_ID }}
           PROJECT_NAME: ${{ needs.provision-stack.outputs.project_name }}
         run: |
-          # Install CLI
-          npm install --global vercel@latest
-
           # Link from repo root (Vercel project settings point to frontend/)
-          vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
+          npx vercel link --yes --token=$VERCEL_TOKEN --scope=$VERCEL_ORG_ID --project=$PROJECT_NAME
 
           # Deploy to production (build on Vercel servers)
-          vercel deploy --prod --token=$VERCEL_TOKEN
+          npx vercel deploy --prod --token=$VERCEL_TOKEN
 
       # 4. Promote Azure (Unchanged)
       - name: Promote Azure (Slot Swap)
