@@ -945,10 +945,10 @@ async def generate_executive_review(
             departments = finalized.get("departments") or []
             persona = _infer_persona_from_title(enriched_title, departments)
 
-        # Stage, priority, challenge from context inference
-        stage = map_it_environment_to_stage(inferred["it_environment"])
-        priority = map_priority_display(inferred["business_priority"])
-        challenge = map_challenge_display(inferred["primary_challenge"])
+        # Stage, priority, challenge — user wizard selections win, inferred is fallback
+        stage = map_it_environment_to_stage(request.itEnvironment or inferred["it_environment"])
+        priority = map_priority_display(request.businessPriority or inferred["business_priority"])
+        challenge = map_challenge_display(request.challenge or inferred["primary_challenge"])
 
         logger.info(f"Resolved: company={company_name}, industry={industry}, segment={segment}, "
                      f"persona={persona}, stage={stage}, priority={priority}, challenge={challenge}")

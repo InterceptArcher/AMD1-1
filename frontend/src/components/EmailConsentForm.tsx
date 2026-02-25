@@ -13,17 +13,13 @@ import {
   INITIAL_WIZARD_DATA,
   STEP_VALIDATORS,
   TOTAL_STEPS,
-  SOCIAL_PROOF,
   STAGE_LABELS,
   ROLE_OPTIONS,
   INDUSTRY_OPTIONS,
   PersonaType,
   getPersonaType,
-  getITEnvironmentOptions,
-  getPriorityOptions,
   getFilteredChallenges,
-  getEnvLabel,
-  getPriorityLabel as getAdaptivePriorityLabel,
+  getScenarioLabel,
   getChallengeLabel,
   getAdaptiveStepTitle,
   getTransitionMessage,
@@ -33,7 +29,8 @@ import {
   loadWizardProgress,
   clearWizardProgress,
   EnrichmentPreview,
-  isWorkEmail,
+  SCENARIO_OPTIONS,
+  STAGE_REVEAL_COPY,
   employeeCountToSize,
   normalizeEnrichmentIndustry,
   mapSeniorityToRole,
@@ -73,11 +70,10 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
   const personaType: PersonaType = useMemo(() => getPersonaType(data.persona), [data.persona]);
 
   // Adaptive options based on persona and industry
-  const envOptions = useMemo(
-    () => getITEnvironmentOptions(personaType, data.industry),
-    [personaType, data.industry],
+  const scenarioOptions = useMemo(
+    () => SCENARIO_OPTIONS[personaType],
+    [personaType],
   );
-  const priorityOptions = useMemo(() => getPriorityOptions(personaType), [personaType]);
   const challengeOptions = useMemo(
     () => getFilteredChallenges(data.itEnvironment, data.industry),
     [data.itEnvironment, data.industry],
@@ -213,29 +209,23 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
     }
   };
 
-  // Social proof helper
-  const getSocialProof = (field: string, value: string): string | null => {
-    return SOCIAL_PROOF[`${field}:${value}`] || null;
-  };
-
   // Display label helpers for assessment preview
   const getRoleLabel = () => ROLE_OPTIONS.find((r) => r.value === data.persona)?.label || 'your role';
   const getIndustryLabel = () =>
     INDUSTRY_OPTIONS.find((i) => i.value === data.industry)?.label || 'your industry';
   const getStageLabel = () => STAGE_LABELS[data.itEnvironment] || '';
-  const getDisplayPriorityLabel = () => {
-    return priorityOptions.find((p) => p.value === data.businessPriority)?.label || '';
-  };
+  const getSelectedScenarioLabel = () =>
+    scenarioOptions.find((s) => s.itEnvironment === data.itEnvironment)?.label || '';
 
   const isLastStep = currentStep === TOTAL_STEPS - 1;
 
   // Progressive reveal state for Step 4
-  const showPriority = !!data.itEnvironment;
-  const showChallenge = !!data.businessPriority;
+  const showChallenge = !!data.itEnvironment; // scenario selected → show challenge
+  const showStageReveal = !!data.itEnvironment && !!data.challenge; // scenario + challenge → stage reveal
   const showPreview =
-    currentStep === 3 && !!data.itEnvironment && !!data.businessPriority && !!data.challenge;
+    currentStep === 3 && showStageReveal;
 
-  // Keyboard navigation for Step 4 sub-sections
+  // Keyboard navigation for Step 4 sub-sections (2 sections: scenario, challenge)
   useEffect(() => {
     if (currentStep !== 3 || wizardState !== 'idle') return;
 
@@ -252,15 +242,17 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
       const num = parseInt(e.key);
       if (isNaN(num) || num < 1) return;
 
-      // Target = the latest revealed section without a selection
+      // Section 1: Scenario (sets itEnvironment + businessPriority)
       if (!data.itEnvironment) {
-        if (num <= envOptions.length) {
-          updateData({ itEnvironment: envOptions[num - 1].value, challenge: '' });
+        if (num <= scenarioOptions.length) {
+          const scenario = scenarioOptions[num - 1];
+          updateData({
+            itEnvironment: scenario.itEnvironment,
+            businessPriority: scenario.businessPriority,
+            challenge: '',
+          });
         }
-      } else if (!data.businessPriority) {
-        if (num <= priorityOptions.length) {
-          updateData({ businessPriority: priorityOptions[num - 1].value });
-        }
+      // Section 2: Challenge
       } else if (!data.challenge) {
         if (num <= challengeOptions.length) {
           updateData({ challenge: challengeOptions[num - 1].value });
@@ -274,10 +266,8 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
     currentStep,
     wizardState,
     data.itEnvironment,
-    data.businessPriority,
     data.challenge,
-    envOptions,
-    priorityOptions,
+    scenarioOptions,
     challengeOptions,
     updateData,
   ]);
@@ -358,23 +348,24 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
             />
           )}
 
-          {/* Step 4: Your Situation — Progressive Reveal */}
+          {/* Step 4: Your Situation — Scenario Cards → Challenge → Stage Reveal */}
           {currentStep === 3 && (
             <div className="space-y-5">
-              {/* IT Environment — always visible on Step 4 */}
+              {/* Scenario Cards — always visible on Step 4 */}
               <div>
-                <label className="amd-label">{getEnvLabel(personaType)}</label>
+                <label className="amd-label">{getScenarioLabel(personaType)}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {envOptions.map((opt) => (
+                  {scenarioOptions.map((scenario) => (
                     <SelectionCard
-                      key={opt.value}
-                      label={opt.label}
-                      description={opt.description}
-                      selected={data.itEnvironment === opt.value}
+                      key={scenario.itEnvironment}
+                      label={scenario.label}
+                      description={scenario.description}
+                      selected={data.itEnvironment === scenario.itEnvironment}
                       onClick={() =>
                         updateData({
-                          itEnvironment: opt.value,
-                          challenge: data.itEnvironment !== opt.value ? '' : data.challenge,
+                          itEnvironment: scenario.itEnvironment,
+                          businessPriority: scenario.businessPriority,
+                          challenge: data.itEnvironment !== scenario.itEnvironment ? '' : data.challenge,
                         })
                       }
                       disabled={isLoading}
@@ -384,47 +375,12 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                 </div>
                 {!data.itEnvironment && (
                   <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
-                    Press 1-{envOptions.length} to select
-                  </p>
-                )}
-                {data.itEnvironment && (
-                  <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
-                    {getSocialProof('itEnvironment', data.itEnvironment)}
+                    Press 1-{scenarioOptions.length} to select
                   </p>
                 )}
               </div>
 
-              {/* Business Priority — revealed after env selection */}
-              {showPriority && (
-                <div className="progressive-reveal">
-                  <label className="amd-label">{getAdaptivePriorityLabel(personaType)}</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {priorityOptions.map((opt) => (
-                      <SelectionCard
-                        key={opt.value}
-                        label={opt.label}
-                        description={opt.description}
-                        selected={data.businessPriority === opt.value}
-                        onClick={() => updateData({ businessPriority: opt.value })}
-                        disabled={isLoading}
-                        size="md"
-                      />
-                    ))}
-                  </div>
-                  {!data.businessPriority && (
-                    <p className="hidden sm:block text-[11px] text-white/25 mt-2 pl-1">
-                      Press 1-{priorityOptions.length} to select
-                    </p>
-                  )}
-                  {data.businessPriority && (
-                    <p className="social-proof-enter text-xs text-[#00c8aa]/70 mt-2 pl-1">
-                      {getSocialProof('businessPriority', data.businessPriority)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Challenge — revealed after priority selection */}
+              {/* Challenge — revealed after scenario selection */}
               {showChallenge && (
                 <div className="progressive-reveal">
                   <label className="amd-label">{getChallengeLabel(personaType)}</label>
@@ -457,7 +413,35 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                 </div>
               )}
 
-              {/* Assessment Preview — after all selections made */}
+              {/* Stage Reveal — animated card after scenario + challenge */}
+              {showStageReveal && STAGE_REVEAL_COPY[getStageLabel()] && (
+                <div className="stage-reveal rounded-xl border border-[#00c8aa]/30 bg-[#00c8aa]/[0.04] p-5">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-[#00c8aa]/20 flex items-center justify-center">
+                      <svg
+                        className="w-3.5 h-3.5 text-[#00c8aa]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-bold text-[#00c8aa]">
+                      {STAGE_REVEAL_COPY[getStageLabel()].title}
+                    </span>
+                  </div>
+                  <p className="text-white/70 text-sm leading-relaxed mb-3">
+                    {STAGE_REVEAL_COPY[getStageLabel()].description}
+                  </p>
+                  <p className="text-[11px] text-white/40 italic">
+                    {STAGE_REVEAL_COPY[getStageLabel()].stat}
+                  </p>
+                </div>
+              )}
+
+              {/* Assessment Preview — after stage reveal */}
               {showPreview && (
                 <div className="progressive-reveal assessment-preview rounded-xl border border-[#00c8aa]/20 p-4">
                   <div className="flex items-center gap-2 mb-2.5">
@@ -488,7 +472,7 @@ export default function EmailConsentForm({ onSubmit, isLoading = false }: EmailC
                       {getStageLabel()} Stage
                     </span>
                     <span className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] text-white/50">
-                      {getDisplayPriorityLabel()}
+                      {getSelectedScenarioLabel()}
                     </span>
                   </div>
                 </div>

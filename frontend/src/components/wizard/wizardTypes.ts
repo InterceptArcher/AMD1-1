@@ -155,6 +155,80 @@ export const BUSINESS_PRIORITY_OPTIONS: Record<PersonaType, CardOption[]> = {
 };
 
 // =============================================================================
+// STEP 4: SCENARIO CARDS (replaces separate env + priority selections)
+// =============================================================================
+
+// Each scenario maps to an itEnvironment + businessPriority pair
+export interface ScenarioOption {
+  itEnvironment: string;
+  businessPriority: string;
+  label: string;
+  description: string;
+}
+
+export const SCENARIO_OPTIONS: Record<PersonaType, ScenarioOption[]> = {
+  technical: [
+    {
+      itEnvironment: 'traditional',
+      businessPriority: 'reducing_cost',
+      label: 'Keeping the lights on',
+      description: 'Keeping legacy systems running while trying to free up budget',
+    },
+    {
+      itEnvironment: 'modernizing',
+      businessPriority: 'improving_performance',
+      label: 'Migrating and modernizing',
+      description: 'Migrating to cloud and eliminating bottlenecks',
+    },
+    {
+      itEnvironment: 'modern',
+      businessPriority: 'preparing_ai',
+      label: 'Building for AI',
+      description: 'Cloud-native infrastructure, building the compute layer for AI',
+    },
+  ],
+  business: [
+    {
+      itEnvironment: 'traditional',
+      businessPriority: 'reducing_cost',
+      label: 'Maintaining and cutting costs',
+      description: 'Maintaining what we have and focused on cutting costs',
+    },
+    {
+      itEnvironment: 'modernizing',
+      businessPriority: 'improving_performance',
+      label: 'Investing in modernization',
+      description: 'Investing in modernization to speed up delivery',
+    },
+    {
+      itEnvironment: 'modern',
+      businessPriority: 'preparing_ai',
+      label: 'Ready for AI',
+      description: 'Ready for the next wave — unlocking AI-driven growth',
+    },
+  ],
+};
+
+// Stage reveal copy shown after scenario + challenge are selected
+export const STAGE_REVEAL_COPY: Record<string, { title: string; description: string; stat: string }> = {
+  Observer: {
+    title: "You're at the Observer stage",
+    description: "Focused on stability — we'll show proven paths to start modernizing.",
+    stat: '9% of Observers plan to modernize within the next two years.',
+  },
+  Challenger: {
+    title: "You're at the Challenger stage",
+    description: "Actively transforming — we'll help you accelerate and avoid common pitfalls.",
+    stat: '58% of Challengers are currently undertaking modernization initiatives.',
+  },
+  Leader: {
+    title: "You're at the Leader stage",
+    description: "Ahead of the curve — we'll focus on AI-readiness and competitive advantage.",
+    stat: '33% of Leaders have fully modernized in the past two years.',
+  },
+};
+
+// =============================================================================
 // STEP 4: INDUSTRY-SPECIFIC CHALLENGES
 // =============================================================================
 
@@ -478,6 +552,12 @@ export function getAdaptiveStepTitle(step: number, personaType?: PersonaType, co
 // =============================================================================
 // STEP 4 QUESTION LABELS (adapt based on persona type)
 // =============================================================================
+
+export function getScenarioLabel(personaType: PersonaType): string {
+  return personaType === 'technical'
+    ? 'Which best describes where you are?'
+    : 'Which best describes your situation?';
+}
 
 export function getEnvLabel(personaType: PersonaType): string {
   return personaType === 'technical'

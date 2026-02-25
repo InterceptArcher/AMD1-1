@@ -625,6 +625,25 @@ h1, h2, h3, h4, h5, h6 {
   animation: progressiveReveal 400ms ease-out;
 }
 
+/* Stage reveal animation — fade-in with scale + cyan border glow */
+@keyframes stageRevealIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+    box-shadow: 0 0 0 0 rgba(0, 200, 170, 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(0, 200, 170, 0.1), 0 0 0 1px rgba(0, 200, 170, 0.2);
+  }
+}
+
+.stage-reveal {
+  animation: stageRevealIn 500ms ease-out forwards;
+  box-shadow: 0 0 20px rgba(0, 200, 170, 0.1), 0 0 0 1px rgba(0, 200, 170, 0.2);
+}
+
 /* Company logo enter animation */
 @keyframes companyLogoEnter {
   from {
