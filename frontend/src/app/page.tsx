@@ -91,9 +91,9 @@ function HomeContent() {
       persona: inputs.persona,
     });
 
-    // Short minimum so the loading animation has time to initialize
-    // The animation is now elastic (never freezes), so no forced 22s delay needed
-    const minLoadingMs = 3000;
+    // Minimum 10s so users always see the personalized loading experience
+    // The animation is elastic (never freezes) and handles longer waits gracefully
+    const minLoadingMs = 10000;
     const minLoadingTime = new Promise(resolve => setTimeout(resolve, minLoadingMs));
 
     try {
