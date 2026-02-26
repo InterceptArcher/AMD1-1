@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 interface UserContext {
   firstName?: string;
@@ -93,10 +93,26 @@ const PERSONA_MESSAGES: Record<string, string> = {
   procurement: 'Including vendor evaluation criteria...',
 };
 
+// Overtime messages shown when primary steps are exhausted but API hasn't returned
+const OVERTIME_MESSAGES = [
+  'Cross-referencing industry benchmarks...',
+  'Fine-tuning your recommendations...',
+  'Applying latest AMD research data...',
+  'Validating insights against your profile...',
+  'Optimizing content for your role...',
+  'Running final quality checks...',
+  'Polishing your executive summary...',
+  'Double-checking personalization accuracy...',
+  'Reviewing case study alignment...',
+  'Assembling your complete assessment...',
+];
+
 export default function LoadingSpinner({ message, userContext }: LoadingSpinnerProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [displayMessage, setDisplayMessage] = useState(message || 'Personalizing your content...');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const startTimeRef = useRef(Date.now());
 
   // Generate personalized loading steps - memoized to prevent recreation
   const steps = useMemo(() => {
@@ -133,6 +149,15 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
     return result;
   }, [userContext?.firstName, userContext?.company, userContext?.industry, userContext?.persona]);
 
+  // Track elapsed time for smooth asymptotic progress
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    const timer = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 200);
+    return () => clearInterval(timer);
+  }, []);
+
   // Initialize on first render with userContext
   useEffect(() => {
     if (!userContext) {
@@ -148,30 +173,54 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
     }
   }, [userContext, steps, message, isInitialized]);
 
-  // Separate effect for the interval - only runs after initialization
+  // Step advancement with adaptive timing + overtime messages
+  // Uses setTimeout chain instead of fixed setInterval so pacing can slow down
   useEffect(() => {
-    if (!userContext || !isInitialized) {
-      return;
-    }
+    if (!userContext || !isInitialized) return;
 
-    // Cycle through personalized messages (pace to show most steps within loading time)
-    const interval = setInterval(() => {
-      setCurrentStep((prev) => {
-        const next = prev + 1;
-        // Stop at last step instead of looping
-        if (next >= steps.length) {
-          return prev;
-        }
-        setDisplayMessage(steps[next]);
-        return next;
-      });
-    }, 2000);
+    let stepIndex = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-    return () => clearInterval(interval);
+    const advance = () => {
+      stepIndex++;
+
+      if (stepIndex < steps.length) {
+        // Primary steps
+        setDisplayMessage(steps[stepIndex]);
+      } else {
+        // Overtime: cycle through additional messages seamlessly
+        const overtimeIdx = (stepIndex - steps.length) % OVERTIME_MESSAGES.length;
+        setDisplayMessage(OVERTIME_MESSAGES[overtimeIdx]);
+      }
+      setCurrentStep(stepIndex);
+
+      // Adaptive timing: slow down as we progress
+      let interval: number;
+      if (stepIndex < steps.length - 2) {
+        interval = 2000;  // Primary steps: 2s each
+      } else if (stepIndex < steps.length) {
+        interval = 2500;  // Last primary steps: 2.5s
+      } else if (stepIndex < steps.length + 3) {
+        interval = 3500;  // Early overtime: 3.5s
+      } else {
+        interval = 5000;  // Late overtime: 5s
+      }
+
+      timeoutId = setTimeout(advance, interval);
+    };
+
+    timeoutId = setTimeout(advance, 2000);
+    return () => clearTimeout(timeoutId);
   }, [userContext, isInitialized, steps]);
 
-  // Calculate progress percentage - start at 8% minimum so bar is visible
-  const progress = Math.max(8, Math.min(((currentStep + 1) / steps.length) * 100, 95));
+  // Time-based asymptotic progress: fast early, slows down, never reaches 93%
+  // t=5s→28%, t=10s→44%, t=20s→64%, t=30s→76%, t=45s→85%, t=60s→89%
+  const elapsedSeconds = elapsedMs / 1000;
+  const progress = Math.min(92, 8 + 84 * (1 - Math.exp(-elapsedSeconds / 18)));
+
+  // Display helpers for overtime state
+  const isOvertime = currentStep >= steps.length;
+  const displayStepNum = Math.min(currentStep + 1, steps.length);
 
   return (
     <div
@@ -223,13 +272,21 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
           {/* Current step indicator */}
           <div className="flex items-center gap-4">
             <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#00c8aa]/15 flex items-center justify-center">
-              <span className="text-[#00c8aa] font-bold text-sm">{currentStep + 1}</span>
+              {isOvertime ? (
+                <svg className="w-5 h-5 text-[#00c8aa] animate-spin [animation-duration:2s]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                <span className="text-[#00c8aa] font-bold text-sm">{displayStepNum}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-white transition-all duration-500 truncate">
                 {displayMessage}
               </p>
-              <p className="text-sm text-white/60 mt-1">Processing your personalization...</p>
+              <p className="text-sm text-white/60 mt-1">
+                {isOvertime ? 'Taking a bit longer — almost there...' : 'Processing your personalization...'}
+              </p>
             </div>
           </div>
 
@@ -246,7 +303,7 @@ export default function LoadingSpinner({ message, userContext }: LoadingSpinnerP
 
           {/* Step counter */}
           <div className="flex items-center justify-between text-sm text-white/50">
-            <span>Step {currentStep + 1} of {steps.length}</span>
+            <span>{isOvertime ? 'Refining your results...' : `Step ${displayStepNum} of ${steps.length}`}</span>
             <span className="font-medium">{Math.round(progress)}% complete</span>
           </div>
 

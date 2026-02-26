@@ -91,11 +91,9 @@ function HomeContent() {
       persona: inputs.persona,
     });
 
-    // Minimum loading time to show personalized loading experience
-    // Can be disabled via env var for testing (NEXT_PUBLIC_SKIP_LOADING_DELAY=true)
-    // 22 seconds at 2s per step = ~11 steps shown
-    const skipDelay = process.env.NEXT_PUBLIC_SKIP_LOADING_DELAY === 'true';
-    const minLoadingMs = skipDelay ? 0 : 22000;
+    // Short minimum so the loading animation has time to initialize
+    // The animation is now elastic (never freezes), so no forced 22s delay needed
+    const minLoadingMs = 3000;
     const minLoadingTime = new Promise(resolve => setTimeout(resolve, minLoadingMs));
 
     try {
