@@ -107,12 +107,15 @@ jobs:
         run: echo "staging_url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
 
   # ====================================================
-  # JOBS 3a-3e: TEST AGENTS (PARALLEL)
+  # JOBS 3a-3f: TEST AGENTS (PARALLEL)
+  #
+  # All agents use continue-on-error on the test step so
+  # the pipeline always completes. Results are uploaded as
+  # JSON artifacts for the QC report job to analyze.
   #
   # Reporter note: DO NOT pass --reporter on the CLI.
-  # playwright.config.ts auto-detects CI and uses both
-  # "list" (visible output) + "html" (artifact report).
-  # Overriding with --reporter=html hides all log output.
+  # playwright.config.ts auto-detects CI and uses list +
+  # html + json reporters.
   # ====================================================
 
   test-wizard:
@@ -132,6 +135,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Run wizard + enrichment tests
+        continue-on-error: true
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
           BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
@@ -152,6 +156,13 @@ jobs:
           name: report-wizard
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-wizard
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   test-executive-review:
     name: "Agent 1b: Executive Review"
@@ -170,6 +181,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Run executive review tests
+        continue-on-error: true
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
           BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
@@ -188,6 +200,13 @@ jobs:
           name: report-executive-review
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-exec-review
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   test-security:
     name: "Agent 2: Security"
@@ -206,6 +225,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Run security tests
+        continue-on-error: true
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
           BASE_URL: ${{ needs.resolve-staging.outputs.staging_url }}
@@ -223,6 +243,13 @@ jobs:
           name: report-security
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-security
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   test-chaos:
     name: "Agent 3: Chaos"
@@ -259,6 +286,13 @@ jobs:
           name: report-chaos
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-chaos
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   test-accessibility:
     name: "Agent 4: Accessibility"
@@ -295,6 +329,13 @@ jobs:
           name: report-accessibility
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-a11y
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   test-performance:
     name: "Agent 5: Performance"
@@ -331,58 +372,158 @@ jobs:
           name: report-performance
           path: playwright-report/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-perf
+          path: test-results.json
+          if-no-files-found: warn
+          retention-days: 7
 
   # ====================================================
-  # JOB 4: PROMOTION GATE
-  # Only Functional + Security block promotion.
-  # Chaos, Accessibility, Performance are advisory.
+  # JOB 4: QC REPORT
+  # Replaces the old gate + handle-failure + success jobs.
+  # Reads all JSON results, creates per-test issues, and
+  # generates a summary dashboard. Pipeline stays green.
   # ====================================================
-  gate:
-    name: Promotion Gate
+  qc-report:
+    name: QC Report
     needs: [test-wizard, test-executive-review, test-security, test-chaos, test-accessibility, test-performance]
     if: always()
     runs-on: ubuntu-latest
+    outputs:
+      gate_passed: ${{ steps.qc.outputs.gate_passed }}
     steps:
-      - name: Evaluate agent results
+      - uses: actions/checkout@v4
+        with:
+          ref: beta
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── Ensure QC labels exist (idempotent) ──
+      - name: Create QC labels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo ""
-          echo "╔══════════════════════════════════════════════╗"
-          echo "║          ARCHER TEST AGENT SUMMARY           ║"
-          echo "╠══════════════════════════════════════════════╣"
-          echo "║  Agent 1a (Wizard):        ${{ needs.test-wizard.result }}"
-          echo "║  Agent 1b (Exec Review):   ${{ needs.test-executive-review.result }}"
-          echo "║  Agent 2 (Security):       ${{ needs.test-security.result }}"
-          echo "║  Agent 3 (Chaos):          ${{ needs.test-chaos.result }}"
-          echo "║  Agent 4 (Accessibility):  ${{ needs.test-accessibility.result }}"
-          echo "║  Agent 5 (Performance):    ${{ needs.test-performance.result }}"
-          echo "╠══════════════════════════════════════════════╣"
-          echo "║  Critical: Wizard + ExecReview + Security    ║"
-          echo "║  Advisory: Chaos + Accessibility + Perf      ║"
-          echo "╚══════════════════════════════════════════════╝"
-          echo ""
+          gh label create "archer"         --color "7B2D8B" --description "Archer CI/CD pipeline" --force 2>/dev/null || true
+          gh label create "qc:blocker"     --color "D73A4A" --description "Critical test failure — blocks promotion" --force 2>/dev/null || true
+          gh label create "qc:advisory"    --color "FBCA04" --description "Advisory test failure — does not block" --force 2>/dev/null || true
+          gh label create "qc:report"      --color "0075CA" --description "QC summary report" --force 2>/dev/null || true
+          gh label create "agent:wizard"   --color "C2C2C2" --description "Wizard + Enrichment agent" --force 2>/dev/null || true
+          gh label create "agent:exec-review" --color "C2C2C2" --description "Executive Review agent" --force 2>/dev/null || true
+          gh label create "agent:security" --color "C2C2C2" --description "Security agent" --force 2>/dev/null || true
+          gh label create "agent:chaos"    --color "C2C2C2" --description "Chaos agent" --force 2>/dev/null || true
+          gh label create "agent:a11y"     --color "C2C2C2" --description "Accessibility agent" --force 2>/dev/null || true
+          gh label create "agent:perf"     --color "C2C2C2" --description "Performance agent" --force 2>/dev/null || true
+          gh label create "qc:timeout"    --color "FFA500" --description "Timeout failure — likely infrastructure, not blocking" --force 2>/dev/null || true
 
-          WIZ="${{ needs.test-wizard.result }}"
-          EXEC="${{ needs.test-executive-review.result }}"
-          SEC="${{ needs.test-security.result }}"
+      # ── Download all JSON artifacts ──
+      - name: Download wizard results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-wizard
+          path: qc-results/wizard/
 
-          if [ "$WIZ" != "success" ] || [ "$EXEC" != "success" ] || [ "$SEC" != "success" ]; then
-            echo "BLOCKED: Critical agent failure."
-            echo "  Wizard:          $WIZ"
-            echo "  Executive Review: $EXEC"
-            echo "  Security:         $SEC"
-            exit 1
+      - name: Download exec-review results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-exec-review
+          path: qc-results/exec-review/
+
+      - name: Download security results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-security
+          path: qc-results/security/
+
+      - name: Download chaos results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-chaos
+          path: qc-results/chaos/
+
+      - name: Download a11y results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-a11y
+          path: qc-results/a11y/
+
+      - name: Download perf results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-perf
+          path: qc-results/perf/
+
+      # ── Rename files to expected names ──
+      - name: Prepare result files
+        run: |
+          for agent in wizard exec-review security chaos a11y perf; do
+            SRC="qc-results/${agent}/test-results.json"
+            DEST="qc-results/test-results-${agent}.json"
+            if [ -f "$SRC" ]; then
+              mv "$SRC" "$DEST"
+              echo "✓ $DEST"
+            else
+              echo "⚠ No results for ${agent}"
+            fi
+          done
+          # Clean up empty dirs
+          rm -rf qc-results/wizard qc-results/exec-review qc-results/security qc-results/chaos qc-results/a11y qc-results/perf 2>/dev/null || true
+
+      # ── Run QC report script ──
+      - name: Generate QC report
+        id: qc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          QC_RESULTS_DIR: qc-results
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/archer-qc-report.mjs
+
+      # ── Create summary issue ──
+      - name: Create summary issue
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f qc-summary.md ]; then
+            echo "No summary generated. Skipping."
+            exit 0
           fi
 
-          echo "All critical agents passed. Promotion allowed."
+          GATE="${{ steps.qc.outputs.gate_passed }}"
+          if [ "$GATE" = "true" ]; then
+            TITLE="QC Report — Run #${{ github.run_number }} — ✅ Gate Passed"
+          else
+            TITLE="QC Report — Run #${{ github.run_number }} — ❌ Gate Blocked"
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --body-file qc-summary.md \
+            --label "archer,qc:report" \
+            --assignee "${{ github.repository_owner }}" 2>/dev/null || \
+          gh issue create \
+            --title "$TITLE" \
+            --body-file qc-summary.md \
+            --label "archer,qc:report" 2>/dev/null || true
 
   # ====================================================
   # JOB 5: PROMOTE TO PRODUCTION
   # Merges beta → main, deploys if secrets configured.
+  # Only runs when QC gate passes.
   # ====================================================
   promote-to-prod:
     name: Promote to Production
-    needs: [gate, resolve-staging]
-    if: success()
+    needs: [qc-report, resolve-staging]
+    if: needs.qc-report.outputs.gate_passed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -417,11 +558,11 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID_BETA: ${{ secrets.VERCEL_PROJECT_ID_BETA }}
+          VERCEL_PROJECT_ID_PROD: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
         run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID_BETA" ]; then
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID_PROD" ]; then
             echo "Vercel secrets not configured. Skipping production frontend deploy."
-            echo "To enable: add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID to repo secrets."
+            echo "To enable: add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_PROD to repo secrets."
             exit 0
           fi
 
@@ -431,7 +572,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"name\": \"amd1-1\",
-              \"project\": \"$VERCEL_PROJECT_ID_BETA\",
+              \"project\": \"$VERCEL_PROJECT_ID_PROD\",
               \"target\": \"production\",
               \"gitSource\": {
                 \"type\": \"github\",
@@ -448,151 +589,51 @@ jobs:
             echo "Production deployment triggered: $URL"
           fi
 
-      # ── Deploy backend to Render (if hook available) ──
-      - name: Deploy to Render
+      # ── Deploy backend to production Render (if hook available) ──
+      - name: Deploy to Render production
         env:
-          RENDER_DEPLOY_HOOK_BETA: ${{ secrets.RENDER_DEPLOY_HOOK_BETA }}
+          RENDER_DEPLOY_HOOK_PROD: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_BETA" ]; then
-            echo "Render deploy hook not configured. Skipping backend deploy."
+          if [ -z "$RENDER_DEPLOY_HOOK_PROD" ]; then
+            echo "Render production deploy hook not configured. Skipping backend deploy."
+            echo "To enable: add RENDER_DEPLOY_HOOK_PROD to repo secrets."
             exit 0
           fi
-          echo "Triggering Render backend deployment..."
-          curl -s "$RENDER_DEPLOY_HOOK_BETA" || echo "Render hook failed (non-critical)"
+          echo "Triggering Render production backend deployment..."
+          curl -s "$RENDER_DEPLOY_HOOK_PROD" || echo "Render hook failed (non-critical)"
 
-      # ── Auto-close failure issues ──
-      - name: Auto-close failure issues
+      # ── Create promotion success issue ──
+      - name: Create promotion issue
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ISSUES=$(gh issue list --search "Pipeline FAILED" --state open --json number --jq '.[].number' 2>/dev/null || echo "")
-          for NUM in $ISSUES; do
-            gh issue close "$NUM" --comment "Resolved: All agents passed in run #${{ github.run_number }}. Beta promoted to main." 2>/dev/null || true
-          done
-
-      # ── Create success report ──
-      - name: Create success issue
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cat > /tmp/success.md << 'EOF'
-          ## Archer Pipeline — All Agents Passed
-
-          | Field | Value |
-          |-------|-------|
-          | **Date** | PIPELINE_DATE |
-          | **Tested URL** | PIPELINE_URL |
-          | **Action** | beta merged → main |
-          | **Run** | [View logs](PIPELINE_RUN_URL) |
-
-          ---
-
-          ### Agent Results
-
-          | # | Agent | Role | Tests | Status |
-          |---|-------|------|-------|--------|
-          | 1a | Wizard + Enrichment | Critical | 16 | PASS |
-          | 1b | Executive Review | Critical | 7 | PASS |
-          | 2 | Security | Critical | 11 | PASS |
-          | 3 | Chaos | Advisory | 12 | PASS |
-          | 4 | Accessibility | Advisory | 11 | PASS |
-          | 5 | Performance | Advisory | 10 | PASS |
-
-          **67 tests** across 6 agents. No XSS, no secrets exposure, graceful failure handling, within performance budgets.
-
-          ---
-          *Auto-created by Archer CI/CD Pipeline*
-          EOF
-
-          sed -i "s|PIPELINE_DATE|$(date +'%b %d %Y %H:%M UTC')|g" /tmp/success.md
-          sed -i "s|PIPELINE_URL|${{ needs.resolve-staging.outputs.staging_url }}|g" /tmp/success.md
-          sed -i "s|PIPELINE_RUN_URL|https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|g" /tmp/success.md
-
           gh issue create \
-            --title "Pipeline PASSED — $(date +'%b %d %Y') — 67 tests, promoted to main" \
-            --body-file /tmp/success.md \
-            --label "documentation" \
+            --title "Production Promoted — Run #${{ github.run_number }} — $(date +'%b %d %H:%M') UTC" \
+            --body "$(cat <<'EOF'
+          ## Production Promotion Complete
+
+          **Pipeline run:** #${{ github.run_number }}
+          **Promoted:** `beta` → `main`
+
+          ### Environment URLs
+
+          | Environment | Frontend | Backend |
+          |-------------|----------|---------|
+          | **Beta** (testing) | https://amd1-1-beta.vercel.app | https://amd1-1-backend.onrender.com |
+          | **Production** (stable) | https://amd1-1-alpha.vercel.app | https://amd1-1-backend-beta.onrender.com |
+
+          ### Verification Checklist
+          - [ ] Production frontend loads
+          - [ ] `/api/rad/status` returns OK on production
+          - [ ] Wizard submits successfully on production
+
+          [View pipeline run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
+          )" \
+            --label "archer" \
             --assignee "${{ github.repository_owner }}" 2>/dev/null || \
           gh issue create \
-            --title "Pipeline PASSED — $(date +'%b %d %Y')" \
-            --body-file /tmp/success.md 2>/dev/null || true
-
-  # ====================================================
-  # JOB 6: FAILURE REPORT
-  # ====================================================
-  handle-failure:
-    name: Report Failure
-    needs: [gate, resolve-staging, test-wizard, test-executive-review, test-security, test-chaos, test-accessibility, test-performance]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create failure issue
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cat > /tmp/failure.md << 'EOF'
-          ## Archer Pipeline — Validation Failed
-
-          | Field | Value |
-          |-------|-------|
-          | **Date** | PIPELINE_DATE |
-          | **Tested URL** | PIPELINE_URL |
-          | **Run** | [View logs](PIPELINE_RUN_URL) |
-
-          ---
-
-          ### Agent Results
-
-          | # | Agent | Role | Result |
-          |---|-------|------|--------|
-          | 1a | Wizard + Enrichment | Critical | AGENT_WIZ |
-          | 1b | Executive Review | Critical | AGENT_EXEC |
-          | 2 | Security | Critical | AGENT_SEC |
-          | 3 | Chaos | Advisory | AGENT_CHAOS |
-          | 4 | Accessibility | Advisory | AGENT_A11Y |
-          | 5 | Performance | Advisory | AGENT_PERF |
-
-          ### What Each Agent Tests
-
-          | Agent | Tests | Coverage |
-          |-------|-------|----------|
-          | **Wizard + Enrichment** | 16 | Wizard flow, form validation, enrichment pre-fill, navigation, reset |
-          | **Executive Review** | 7 | Executive review API + rendering, stage styling, input pills, error handling, reset |
-          | **Security** | 11 | XSS injection, secrets in DOM/JS, security headers, consent, email injection, localStorage, API field whitelist |
-          | **Chaos** | 12 | Slow APIs, timeouts, malformed JSON, empty responses, HTML errors, back/forward, rapid input, race conditions |
-          | **Accessibility** | 11 | WCAG 2.1 AA, form labels, Tab nav, keyboard Enter, heading hierarchy, focus indicators, ARIA, duplicate IDs |
-          | **Performance** | 10 | Load time, bundle size, request count, DOM nodes, CLS, step transitions, console errors, exceptions |
-
-          ### How to Investigate
-          1. Click **View logs** — each agent shows full test output with pass/fail per test
-          2. Download `report-*` artifacts for HTML reports with screenshots and traces
-          3. Fix failures and push to `beta` — runs nightly at 6pm EST or manually via workflow_dispatch
-
-          ### Promotion Policy
-          - **Functional + Security** failure = promotion **blocked**
-          - **Chaos + Accessibility + Performance** failure = advisory only
-
-          ---
-          *Auto-created by Archer CI/CD Pipeline*
-          EOF
-
-          sed -i "s|PIPELINE_DATE|$(date +'%b %d %Y %H:%M UTC')|g" /tmp/failure.md
-          sed -i "s|PIPELINE_URL|${{ needs.resolve-staging.outputs.staging_url }}|g" /tmp/failure.md
-          sed -i "s|PIPELINE_RUN_URL|https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|g" /tmp/failure.md
-          sed -i "s|AGENT_WIZ|${{ needs.test-wizard.result }}|g" /tmp/failure.md
-          sed -i "s|AGENT_EXEC|${{ needs.test-executive-review.result }}|g" /tmp/failure.md
-          sed -i "s|AGENT_SEC|${{ needs.test-security.result }}|g" /tmp/failure.md
-          sed -i "s|AGENT_CHAOS|${{ needs.test-chaos.result }}|g" /tmp/failure.md
-          sed -i "s|AGENT_A11Y|${{ needs.test-accessibility.result }}|g" /tmp/failure.md
-          sed -i "s|AGENT_PERF|${{ needs.test-performance.result }}|g" /tmp/failure.md
-
-          gh issue create \
-            --title "Pipeline FAILED — $(date +'%b %d %Y %H:%M') UTC" \
-            --body-file /tmp/failure.md \
-            --label "bug" \
-            --assignee "${{ github.repository_owner }}" 2>/dev/null || \
-          gh issue create \
-            --title "Pipeline FAILED — $(date +'%b %d %Y %H:%M') UTC" \
-            --body-file /tmp/failure.md 2>/dev/null || true
+            --title "Production Promoted — Run #${{ github.run_number }}" \
+            --body "beta merged to main. Check https://amd1-1-alpha.vercel.app" \
+            --label "archer" 2>/dev/null || true

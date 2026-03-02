@@ -313,10 +313,23 @@ FOR EVERY FEATURE AND CODE GENERATED, edit README.md file in root directory to i
 Personalized AMD ebook generator for enterprise AI readiness. Users fill out a form, we enrich their data via APIs, generate personalized content with LLM, and deliver a branded PDF.
 
 ## Architecture
-- **Frontend**: Next.js 14 on Vercel (https://amd1-1-beta.vercel.app)
-- **Backend**: FastAPI on Render (https://amd1-1-backend-beta.onrender.com)
-- **Database**: Supabase (stores enrichment data + PDFs)
+- **Frontend**: Next.js 14 on Vercel
+- **Backend**: FastAPI on Render
+- **Database**: Supabase (stores enrichment data + PDFs, shared across environments)
 - **PDF**: WeasyPrint (HTML → PDF)
+
+### Environments
+| | Beta (testing) | Production (stable) |
+|---|---|---|
+| **Frontend** | https://amd1-1-beta.vercel.app | https://amd1-1-alpha.vercel.app |
+| **Backend** | https://amd1-1-backend.onrender.com | https://amd1-1-backend-beta.onrender.com |
+| **Branch** | `beta` | `main` |
+| **Deploys** | On push / manual | Automated after CI gate passes |
+
+### Promotion Flow
+```
+beta branch → Nightly CI (67 tests) → Gate passes? → Merge to main → Deploy prod
+```
 
 ## API Integrations (Configured on Render)
 | API | Purpose | Status |

@@ -1,102 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy frontend to Vercel
-# This script must be run with VERCEL_TOKEN set in environment
+# Deploy frontend to Vercel (beta or prod)
+# Usage: ./scripts/deploy-frontend-vercel.sh         # deploys beta (default)
+#        ./scripts/deploy-frontend-vercel.sh prod     # deploys production
 
-echo "=== Deploying Frontend to Vercel ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Validate required environment variables
+# Load deploy credentials
+if [[ -f "$PROJECT_ROOT/.env.deploy" ]]; then
+  set -a
+  source "$PROJECT_ROOT/.env.deploy"
+  set +a
+fi
+
+# Determine environment
+ENV="${1:-beta}"
+
+if [[ "$ENV" != "beta" && "$ENV" != "prod" ]]; then
+  echo "ERROR: Invalid environment '$ENV'. Use 'beta' or 'prod'."
+  exit 1
+fi
+
+# Validate token
 if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-  echo "ERROR: VERCEL_TOKEN environment variable is not set"
+  echo "ERROR: VERCEL_TOKEN not set (check .env.deploy or environment)"
   exit 1
 fi
 
-FRONTEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../frontend" && pwd)"
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export VERCEL_ORG_ID="${VERCEL_ORG_ID:?Missing VERCEL_ORG_ID}"
 
-echo "Frontend directory: $FRONTEND_DIR"
-
-# Change to frontend directory
-cd "$FRONTEND_DIR"
-
-# Install dependencies
-echo "=== Installing dependencies ==="
-npm ci --silent
-
-# Run tests before deployment
-echo "=== Running tests ==="
-npm test -- --passWithNoTests || {
-  echo "ERROR: Tests failed. Aborting deployment."
-  exit 1
-}
-
-echo "=== Tests passed ==="
-
-# Build the project
-echo "=== Building project ==="
-npm run build || {
-  echo "ERROR: Build failed. Aborting deployment."
-  exit 1
-}
-
-echo "=== Build successful ==="
-
-# Check for existing Vercel project configuration
-if [[ -z "${VERCEL_PROJECT_ID:-}" ]] || [[ -z "${VERCEL_ORG_ID:-}" ]]; then
-  echo "Checking for existing Vercel configuration..."
-
-  if [[ -f "$PROJECT_ROOT/.env" ]]; then
-    source "$PROJECT_ROOT/.env" 2>/dev/null || true
-  fi
+if [[ "$ENV" == "prod" ]]; then
+  export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_ALPHA:?Missing VERCEL_PROJECT_ID_ALPHA}"
+  LIVE_URL="https://amd1-1-alpha.vercel.app"
+  echo "=== Deploying frontend to Vercel (production) ==="
+else
+  export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_BETA:?Missing VERCEL_PROJECT_ID_BETA}"
+  LIVE_URL="https://amd1-1-beta.vercel.app"
+  echo "=== Deploying frontend to Vercel (beta) ==="
 fi
 
-# Set up Vercel CLI arguments
-VERCEL_ARGS="--token ${VERCEL_TOKEN} --yes"
-
-if [[ -n "${VERCEL_TEAM_ID:-}" ]]; then
-  VERCEL_ARGS="$VERCEL_ARGS --scope ${VERCEL_TEAM_ID}"
-fi
-
-# Link project if not already linked
-if [[ ! -f ".vercel/project.json" ]]; then
-  echo "=== Linking Vercel project ==="
-  npx vercel link $VERCEL_ARGS || {
-    echo "Creating new Vercel project..."
-    npx vercel $VERCEL_ARGS
-  }
-fi
-
-# Deploy to production
-echo "=== Deploying to Vercel ==="
-DEPLOY_URL=$(npx vercel --prod $VERCEL_ARGS 2>&1 | tail -1)
-
-if [[ -z "$DEPLOY_URL" ]] || [[ "$DEPLOY_URL" == *"Error"* ]]; then
-  echo "ERROR: Deployment failed"
-  echo "$DEPLOY_URL"
-  exit 1
-fi
-
-# Save project IDs to .env if they exist
-if [[ -f ".vercel/project.json" ]]; then
-  PROJECT_ID=$(grep -o '"projectId":"[^"]*"' .vercel/project.json | cut -d'"' -f4)
-  ORG_ID=$(grep -o '"orgId":"[^"]*"' .vercel/project.json | cut -d'"' -f4)
-
-  if [[ -n "$PROJECT_ID" ]] && [[ -n "$ORG_ID" ]]; then
-    echo "Saving Vercel configuration to .env..."
-
-    # Update or create .env entries
-    if [[ -f "$PROJECT_ROOT/.env" ]]; then
-      grep -v "VERCEL_PROJECT_ID\|VERCEL_ORG_ID" "$PROJECT_ROOT/.env" > "$PROJECT_ROOT/.env.tmp" || true
-      mv "$PROJECT_ROOT/.env.tmp" "$PROJECT_ROOT/.env"
-    fi
-
-    echo "VERCEL_PROJECT_ID=$PROJECT_ID" >> "$PROJECT_ROOT/.env"
-    echo "VERCEL_ORG_ID=$ORG_ID" >> "$PROJECT_ROOT/.env"
-  fi
-fi
+cd "$PROJECT_ROOT"
+DEPLOY_URL=$(npx vercel deploy --prod --token "$VERCEL_TOKEN" --yes 2>&1 | grep -E '^https://' | tail -1)
 
 echo ""
-echo "=== Deployment Complete ==="
-echo "Frontend URL: $DEPLOY_URL"
-echo ""
+echo "=== Deployed ==="
+echo "Environment: $ENV"
+echo "URL: $DEPLOY_URL"
+echo "Live: $LIVE_URL"

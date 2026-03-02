@@ -2,29 +2,53 @@ name: Smoke Test (Quick ~1min)
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - prod
 
 permissions:
   issues: write
 
 jobs:
   smoke-test:
-    name: Quick Smoke Test
+    name: Quick Smoke Test (${{ inputs.environment || 'beta' }})
     runs-on: ubuntu-latest
     timeout-minutes: 5
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-jammy
 
+    env:
+      TARGET_ENV: ${{ inputs.environment || 'beta' }}
+
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
 
+      - name: Set target URL
+        id: target
+        run: |
+          if [ "$TARGET_ENV" = "prod" ]; then
+            echo "url=https://amd1-1-alpha.vercel.app" >> $GITHUB_OUTPUT
+            echo "label=Production" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
+            echo "label=Beta" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run 3 fast tests
         env:
-          PLAYWRIGHT_TEST_BASE_URL: https://amd1-1-beta.vercel.app
-          BASE_URL: https://amd1-1-beta.vercel.app
+          PLAYWRIGHT_TEST_BASE_URL: ${{ steps.target.outputs.url }}
+          BASE_URL: ${{ steps.target.outputs.url }}
           HOME: /root
           NEXT_PUBLIC_SKIP_LOADING_DELAY: 'true'
         run: |
+          echo "Target: $PLAYWRIGHT_TEST_BASE_URL (${{ steps.target.outputs.label }})"
           npx playwright test -g "landing page loads|no API keys|DOM node count" --reporter=list
 
       - name: Create result issue
@@ -33,19 +57,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           STATUS=${{ job.status }}
+          ENV_LABEL="${{ steps.target.outputs.label }}"
           if [ "$STATUS" = "success" ]; then
-            TITLE="Smoke Test PASSED — $(date +'%b %d %H:%M') UTC"
+            TITLE="Smoke Test PASSED ($ENV_LABEL) — $(date +'%b %d %H:%M') UTC"
             LABEL="documentation"
           else
-            TITLE="Smoke Test FAILED — $(date +'%b %d %H:%M') UTC"
+            TITLE="Smoke Test FAILED ($ENV_LABEL) — $(date +'%b %d %H:%M') UTC"
             LABEL="bug"
           fi
 
           gh issue create \
             --title "$TITLE" \
-            --body "Quick smoke test (3 tests): landing page, security, performance. Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --body "Quick smoke test (3 tests) against **$ENV_LABEL** (${{ steps.target.outputs.url }}): landing page, security, performance. Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
             --label "$LABEL" \
             --assignee "${{ github.repository_owner }}" 2>/dev/null || \
           gh issue create \
             --title "$TITLE" \
-            --body "Quick smoke test (3 tests). Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+            --body "Quick smoke test (3 tests) against $ENV_LABEL. Status: **$STATUS**. [View run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true

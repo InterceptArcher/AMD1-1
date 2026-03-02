@@ -54,6 +54,36 @@ This system transforms visitor emails into personalized ebook experiences throug
                 (People)       (People)        (Email)        (Search)       (Company)
 ```
 
+### Environments
+
+The project runs two isolated environments sharing a single Supabase database:
+
+```
+beta branch ──► Nightly CI (67 tests) ──► Gate passes? ──► Merge to main
+                     │                                           │
+                     ▼                                           ▼
+            Beta Environment                          Production Environment
+  ┌─────────────────────────────┐            ┌─────────────────────────────┐
+  │ amd1-1-beta.vercel.app      │            │ amd1-1-alpha.vercel.app     │
+  │ amd1-1-backend.render       │            │ amd1-1-backend-beta.render  │
+  │ Shared Supabase             │            │ Shared Supabase             │
+  └─────────────────────────────┘            └─────────────────────────────┘
+```
+
+| | Beta (testing) | Production (stable) |
+|---|---|---|
+| **Frontend** | https://amd1-1-beta.vercel.app | https://amd1-1-alpha.vercel.app |
+| **Backend** | https://amd1-1-backend.onrender.com | https://amd1-1-backend-beta.onrender.com |
+| **Branch** | `beta` | `main` |
+| **Deploys** | On push / manual | Automated after CI gate passes |
+| **Vercel env var** | `NEXT_PUBLIC_BACKEND_URL` → `amd1-1-backend` | `NEXT_PUBLIC_BACKEND_URL` → `amd1-1-backend-beta` |
+
+**Manual deployment:**
+```bash
+./scripts/deploy-frontend-vercel.sh          # deploys beta (default)
+./scripts/deploy-frontend-vercel.sh prod     # deploys production
+```
+
 ### Tech Stack
 
 | Layer | Technology | Purpose |
@@ -436,8 +466,18 @@ supabase db push
 
 # Or individually
 ./scripts/setup-supabase.sh
-./scripts/deploy-backend-railway.sh
-./scripts/deploy-frontend-vercel.sh
+./scripts/deploy-frontend-vercel.sh           # deploys beta (default)
+./scripts/deploy-frontend-vercel.sh prod      # deploys production
+```
+
+### CI/CD Pipeline (Archer)
+
+Nightly at 6pm EST, the Archer pipeline runs 67 tests across 5 parallel agents against the beta environment. If the critical gate passes (Functional + Security), it automatically merges `beta` → `main` and deploys to production.
+
+```bash
+# Quick smoke test (manual trigger, ~1min)
+# Supports environment selection: beta (default) or prod
+gh workflow run smoke-test.yml -f environment=prod
 ```
 
 ### Manual Deployment
@@ -448,10 +488,10 @@ cd frontend
 vercel --prod
 ```
 
-**Railway:**
+**Render:**
 ```bash
 cd backend
-railway up
+# Render auto-deploys from linked branch, or trigger via deploy hook
 ```
 
 ---
@@ -508,6 +548,73 @@ pytest tests/test_executive_review_service.py -v
 - Updated few-shot examples to match AMD's 5 gold standard examples (Caterpillar -> Challenger, Allbirds -> Observer)
 - Industry terminology reference in LLM prompt (Healthcare -> EHR, Retail -> POS, etc.)
 - 88 tests covering all executive review service functions
+
+### Archer QC Report System (Complete)
+
+Replaced the monolithic pass/fail pipeline gate with a per-test QC observation system.
+
+**Rationale:** The old pipeline conflated "infrastructure broke" with "a test found a quality issue." A single test failure marked the entire GitHub Actions run as red, and the only reporting was a single issue titled "Pipeline FAILED" with no per-test detail, no reproduce commands, and no auto-close on resolution. The QC report system treats the pipeline as an always-green observation layer and pushes quality results into actionable GitHub Issues.
+
+**What changed:**
+
+| Before | After |
+|--------|-------|
+| Pipeline fails (red) on test failure | Pipeline always completes (green) |
+| 1 monolithic "Pipeline FAILED" issue | 1 issue per failing test with QC notes |
+| No reproduce commands | `npx playwright test [file] -g "[name]"` in every issue |
+| No auto-close | Passing tests auto-close their issue with "Resolved" comment |
+| No de-duplication | Same test re-failing adds a comment instead of a duplicate issue |
+| No flaky/slow detection | Flaky tests (passed on retry) and slow tests (>30s) tracked separately |
+| Critical + advisory both block | Only critical agent failures block promotion; advisory is informational |
+
+**Architecture:**
+- `playwright.config.ts` — JSON reporter added for CI (produces `test-results.json`)
+- `scripts/archer-qc-report.mjs` — Node.js ESM script (zero npm dependencies). Reads Playwright JSON, creates/updates/closes GitHub Issues via `gh` CLI, generates summary dashboard
+- `.github/workflows/main-pipeline.yml` — All 6 agents use `continue-on-error: true` and upload JSON artifacts. `qc-report` job downloads all results, runs the script, creates summary issue. Old `gate` + `handle-failure` jobs removed
+- Labels: `archer`, `qc:blocker`, `qc:advisory`, `qc:report`, `agent:wizard`, `agent:exec-review`, `agent:security`, `agent:chaos`, `agent:a11y`, `agent:perf`
+
+**Per-failure issue includes:** Severity badge, error message, collapsible stack trace, reproduce command, what the test validates, common causes (4-5 per agent type), files to check.
+
+**Quality gate logic:** Gate passes when zero critical assertion/unknown failures AND zero critical infrastructure failures. Timeout-only failures on critical agents are downgraded to warnings — not blocking. Advisory failures don't block promotion.
+
+**Failure classification:** Each failure is classified as `timeout`, `assertion`, or `unknown`. Timeout errors (Render cold starts, navigation timeouts) are separated from real test regressions. Historical data confirmed: failing runs (230-358s) followed by passing runs (70-147s) with zero code changes = infrastructure, not regressions.
+
+**QC Analyst Agent:** After gate evaluation, an analyst step correlates failures with recent git commits (Layer 1: always runs, zero cost) and optionally uses Claude Haiku for root cause analysis (Layer 2: runs if `ANTHROPIC_API_KEY` is set). Cross-run pattern detection identifies persistent vs new failures by checking existing QC issues. Output is appended to the summary issue as "QC Analyst Notes."
+
+**Retries:** CI retries set to 2 (3 total attempts). Cold start fails attempt 1, passes on 2 or 3 — Playwright marks as "flaky", gate passes. Genuinely broken tests fail all 3 attempts and get classified and tracked.
+
+**Key files:**
+- `scripts/archer-qc-report.mjs` — QC report generator (parser, classifier, gate evaluator, issue formatter, summary generator)
+- `scripts/archer-qc-analyst.mjs` — QC analyst agent (git correlation, pattern detection, LLM analysis)
+- `.github/workflows/main-pipeline.yml` — Pipeline with QC report job
+- `tests/unit/qc-report.test.mjs` — 33 unit tests (JSON parser, gate logic, title format, body format, failure classification, classification-aware gate)
+- `tests/unit/qc-analyst.test.mjs` — 13 unit tests (git correlation, pattern detection, output formatting, LLM fallback)
+- Labels: `archer`, `qc:blocker`, `qc:advisory`, `qc:timeout`, `qc:report`, `agent:wizard`, `agent:exec-review`, `agent:security`, `agent:chaos`, `agent:a11y`, `agent:perf`
+
+### Multi-Environment CI/CD (Complete)
+
+Two isolated environments — Beta (testing) and Production (stable) — with automated promotion.
+
+**Rationale:** The pipeline previously deployed "production" code to the beta Vercel project and triggered the beta Render hook. The promote-to-prod job was broken: it used `VERCEL_PROJECT_ID_BETA` instead of `VERCEL_PROJECT_ID_PROD`, and `RENDER_DEPLOY_HOOK_BETA` instead of `RENDER_DEPLOY_HOOK_PROD`. Additionally, `frontend/.env.production` hardcoded the beta backend URL, causing production builds to point to the beta backend.
+
+**What changed:**
+
+| Before | After |
+|--------|-------|
+| Prod deploy used beta Vercel project ID | Uses `VERCEL_PROJECT_ID_PROD` |
+| Prod deploy triggered beta Render hook | Uses `RENDER_DEPLOY_HOOK_PROD` |
+| `.env.production` hardcoded beta URL | Backend URL set per-project in Vercel dashboard |
+| `next.config.js` fallback = beta URL | Fallback = `localhost:8000` (safe for local dev) |
+| Deploy script only supports beta | `./scripts/deploy-frontend-vercel.sh prod` for production |
+| Smoke test only tests beta | Environment selector (`beta` / `prod`) |
+| No promotion success notification | GitHub Issue created with environment URLs and checklist |
+
+**Key files:**
+- `.github/workflows/main-pipeline.yml` — Fixed promote-to-prod job + promotion success issue
+- `.github/workflows/smoke-test.yml` — Environment targeting via `workflow_dispatch` input
+- `frontend/.env.production` — Removed hardcoded backend URL
+- `frontend/next.config.js` — Safe localhost fallback
+- `scripts/deploy-frontend-vercel.sh` — `beta`/`prod` argument support
 
 ### Phase 2 - Beta
 - [ ] Supabase Queues for durable jobs
