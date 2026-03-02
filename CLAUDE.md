@@ -321,7 +321,7 @@ Personalized AMD ebook generator for enterprise AI readiness. Users fill out a f
 ### Environments
 | | Beta (testing) | Production (stable) |
 |---|---|---|
-| **Frontend** | https://amd1-1-beta.vercel.app | https://amd1-1-alpha.vercel.app |
+| **Frontend** | https://amd1-1-testing.vercel.app | https://amd1-1.vercel.app |
 | **Backend** | https://amd1-1-backend.onrender.com | https://amd1-1-backend-beta.onrender.com |
 | **Branch** | `beta` | `main` |
 | **Deploys** | On push / manual | Automated after CI gate passes |

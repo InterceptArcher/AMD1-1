@@ -34,10 +34,10 @@ jobs:
         id: target
         run: |
           if [ "$TARGET_ENV" = "prod" ]; then
-            echo "url=https://amd1-1-alpha.vercel.app" >> $GITHUB_OUTPUT
+            echo "url=https://amd1-1.vercel.app" >> $GITHUB_OUTPUT
             echo "label=Production" >> $GITHUB_OUTPUT
           else
-            echo "url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
+            echo "url=https://amd1-1-testing.vercel.app" >> $GITHUB_OUTPUT
             echo "label=Beta" >> $GITHUB_OUTPUT
           fi
 

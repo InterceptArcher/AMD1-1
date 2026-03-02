@@ -64,7 +64,7 @@ beta branch ──► Nightly CI (67 tests) ──► Gate passes? ──► Mer
                      ▼                                           ▼
             Beta Environment                          Production Environment
   ┌─────────────────────────────┐            ┌─────────────────────────────┐
-  │ amd1-1-beta.vercel.app      │            │ amd1-1-alpha.vercel.app     │
+  │ amd1-1-testing.vercel.app      │            │ amd1-1.vercel.app     │
   │ amd1-1-backend.render       │            │ amd1-1-backend-beta.render  │
   │ Shared Supabase             │            │ Shared Supabase             │
   └─────────────────────────────┘            └─────────────────────────────┘
@@ -72,7 +72,7 @@ beta branch ──► Nightly CI (67 tests) ──► Gate passes? ──► Mer
 
 | | Beta (testing) | Production (stable) |
 |---|---|---|
-| **Frontend** | https://amd1-1-beta.vercel.app | https://amd1-1-alpha.vercel.app |
+| **Frontend** | https://amd1-1-testing.vercel.app | https://amd1-1.vercel.app |
 | **Backend** | https://amd1-1-backend.onrender.com | https://amd1-1-backend-beta.onrender.com |
 | **Branch** | `beta` | `main` |
 | **Deploys** | On push / manual | Automated after CI gate passes |

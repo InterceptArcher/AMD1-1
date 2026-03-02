@@ -33,11 +33,11 @@ export VERCEL_ORG_ID="${VERCEL_ORG_ID:?Missing VERCEL_ORG_ID}"
 
 if [[ "$ENV" == "prod" ]]; then
   export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_ALPHA:?Missing VERCEL_PROJECT_ID_ALPHA}"
-  LIVE_URL="https://amd1-1-alpha.vercel.app"
+  LIVE_URL="https://amd1-1.vercel.app"
   echo "=== Deploying frontend to Vercel (production) ==="
 else
   export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_BETA:?Missing VERCEL_PROJECT_ID_BETA}"
-  LIVE_URL="https://amd1-1-beta.vercel.app"
+  LIVE_URL="https://amd1-1-testing.vercel.app"
   echo "=== Deploying frontend to Vercel (beta) ==="
 fi
 

@@ -104,7 +104,7 @@ jobs:
           echo "deployed=false" >> $GITHUB_OUTPUT
 
       - id: set-url
-        run: echo "staging_url=https://amd1-1-beta.vercel.app" >> $GITHUB_OUTPUT
+        run: echo "staging_url=https://amd1-1-testing.vercel.app" >> $GITHUB_OUTPUT
 
   # ====================================================
   # JOBS 3a-3f: TEST AGENTS (PARALLEL)
@@ -620,8 +620,8 @@ jobs:
 
           | Environment | Frontend | Backend |
           |-------------|----------|---------|
-          | **Beta** (testing) | https://amd1-1-beta.vercel.app | https://amd1-1-backend.onrender.com |
-          | **Production** (stable) | https://amd1-1-alpha.vercel.app | https://amd1-1-backend-beta.onrender.com |
+          | **Beta** (testing) | https://amd1-1-testing.vercel.app | https://amd1-1-backend.onrender.com |
+          | **Production** (stable) | https://amd1-1.vercel.app | https://amd1-1-backend-beta.onrender.com |
 
           ### Verification Checklist
           - [ ] Production frontend loads
@@ -635,5 +635,5 @@ jobs:
             --assignee "${{ github.repository_owner }}" 2>/dev/null || \
           gh issue create \
             --title "Production Promoted — Run #${{ github.run_number }}" \
-            --body "beta merged to main. Check https://amd1-1-alpha.vercel.app" \
+            --body "beta merged to main. Check https://amd1-1.vercel.app" \
             --label "archer" 2>/dev/null || true

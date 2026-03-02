@@ -84,7 +84,7 @@ curl -X POST http://localhost:8000/rad/extract-pdf-json \
 
 ### Option 2: Test on Beta Deployment
 
-The beta deployment is at: `https://amd1-1-beta.vercel.app` (frontend)
+The beta deployment is at: `https://amd1-1-testing.vercel.app` (frontend)
 Backend is at: `https://amd1-1-backend-beta.onrender.com`
 
 #### Check if New Endpoints Are Deployed
@@ -280,7 +280,7 @@ cd /workspaces/AMD1-1_Alpha
 # In backend/app/main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://amd1-1-beta.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://amd1-1-testing.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
