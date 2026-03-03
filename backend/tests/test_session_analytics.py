@@ -1,5 +1,6 @@
 """Tests for anonymized session analytics storage."""
 import pytest
+from fastapi import status
 from app.services.supabase_client import SupabaseClient
 
 
@@ -54,3 +55,38 @@ class TestSessionAnalytics:
         mock_supabase.store_session_analytics(industry="healthcare", company_size="enterprise")
         mock_supabase.store_session_analytics(industry="technology", company_size="smb")
         assert len(mock_supabase._mock_analytics) == 2
+
+
+class TestRoutesNoPiiWrites:
+    """Verify enrichment routes do NOT write PII to Supabase."""
+
+    def test_enrich_route_no_finalize_write(self, test_client, mock_supabase):
+        """POST /rad/enrich must NOT write to finalize_data (PII table)."""
+        response = test_client.post("/rad/enrich", json={"email": "test@example.com"})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(mock_supabase._mock_finalize) == 0
+
+    def test_enrich_route_writes_analytics(self, test_client, mock_supabase):
+        """POST /rad/enrich should write anonymized analytics instead of PII."""
+        response = test_client.post("/rad/enrich", json={
+            "email": "test@example.com",
+            "industry": "healthcare",
+            "companySize": "enterprise",
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert len(mock_supabase._mock_analytics) >= 1
+        analytics = mock_supabase._mock_analytics[0]
+        assert "email" not in analytics
+        assert "name" not in analytics
+
+    def test_pdf_route_no_delivery_record(self, test_client, mock_supabase):
+        """POST /rad/pdf/{email} must NOT write pdf_deliveries (contains job_id linked to PII)."""
+        # Pre-seed finalize_data (enrich no longer writes PII)
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={"first_name": "John", "company_name": "Acme"},
+        )
+        # Generate PDF
+        response = test_client.post("/rad/pdf/john@acme.com")
+        assert response.status_code == status.HTTP_200_OK
+        assert len(mock_supabase._mock_pdfs) == 0

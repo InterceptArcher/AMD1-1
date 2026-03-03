@@ -294,19 +294,19 @@ async def enrich_profile(
         finalized["ebook_personalization"] = ebook_personalization
         finalized["user_context"] = user_context
 
-        # Update finalize_data with personalization (non-fatal - log error but continue)
+        # Store anonymized analytics only — no PII persisted
         try:
-            supabase.upsert_finalize_data(
-                email=email,
-                normalized_data=finalized,
-                intro=intro_hook,
-                cta=cta,
-                data_sources=orchestrator.data_sources
+            supabase.store_session_analytics(
+                industry=finalized.get("industry", request.industry or "unknown"),
+                company_size=request.companySize or finalized.get("company_size", "unknown"),
+                stage=finalized.get("user_context", {}).get("inferred_context", {}).get("stage"),
+                persona=finalized.get("user_context", {}).get("inferred_context", {}).get("persona"),
+                challenge=request.challenge,
+                enrichment_sources=orchestrator.data_sources,
+                llm_source="llm",
             )
-        except Exception as db_err:
-            import traceback
-            logger.error(f"[{job_id}] Failed to store finalize_data: {db_err}")
-            logger.error(f"[{job_id}] DB error traceback: {traceback.format_exc()}")
+        except Exception:
+            pass  # Analytics failure is non-fatal
         
         logger.info(f"[{job_id}] Enrichment completed for {email}")
         
@@ -646,17 +646,6 @@ async def generate_pdf(
                 cta=finalized_record.get("personalization_cta", "")
             )
 
-        # Store PDF delivery record
-        try:
-            supabase.create_pdf_delivery(
-                job_id=job_id,
-                pdf_url=result.get("pdf_url"),
-                storage_path=result.get("storage_path"),
-                file_size_bytes=result.get("file_size_bytes")
-            )
-        except Exception as e:
-            logger.warning(f"Failed to store PDF delivery record: {e}")
-
         logger.info(f"PDF generated for {email}: {result.get('file_size_bytes')} bytes")
 
         return {
@@ -770,17 +759,6 @@ async def deliver_ebook(
                 intro_hook=intro_hook,
                 cta=cta
             )
-
-        # Store delivery record
-        try:
-            supabase.create_pdf_delivery(
-                job_id=job_id,
-                pdf_url=pdf_result.get("pdf_url"),
-                storage_path=pdf_result.get("storage_path"),
-                file_size_bytes=pdf_result.get("file_size_bytes")
-            )
-        except Exception as e:
-            logger.warning(f"Failed to store PDF delivery record: {e}")
 
         response = {
             "email": email,

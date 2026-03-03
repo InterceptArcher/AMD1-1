@@ -82,9 +82,10 @@ class TestEnrichmentEndpoint:
         data = response.json()
         assert data["email"] == "john@acme.com"
 
-    def test_enrich_stores_finalize_data(self, test_client, mock_supabase):
+    def test_enrich_does_not_store_finalize_data(self, test_client, mock_supabase):
         """
-        POST /rad/enrich: Should write to finalize_data via Supabase.
+        POST /rad/enrich: Must NOT write PII to finalize_data.
+        Analytics are stored instead (verified in test_session_analytics.py).
         """
         response = test_client.post(
             "/rad/enrich",
@@ -93,46 +94,53 @@ class TestEnrichmentEndpoint:
 
         assert response.status_code == status.HTTP_200_OK
 
-        # Verify data was written to mock storage
+        # Verify NO data was written to finalize_data (PII table)
         finalized = mock_supabase.get_finalize_data("john@acme.com")
-        assert finalized is not None
+        assert finalized is None
+        assert len(mock_supabase._mock_finalize) == 0
 
 
 class TestProfileEndpoint:
-    """Tests for GET /rad/profile/{email} endpoint."""
+    """Tests for GET /rad/profile/{email} endpoint.
 
-    def test_get_profile_found(self, test_client, mock_supabase):
+    NOTE: Since PII is no longer persisted to finalize_data during enrichment,
+    the profile endpoint will return 404 unless data is pre-seeded directly
+    into the mock store. Tests below verify both the 404 behavior (no PII
+    persisted) and the happy path when data is pre-seeded.
+    """
+
+    def test_get_profile_returns_404_after_enrich(self, test_client, mock_supabase):
         """
-        Happy path: GET /rad/profile/{email} with existing profile.
-        Should return 200 with normalized profile and personalization.
+        GET /rad/profile/{email}: Enrichment no longer writes PII to finalize_data.
+        Profile lookup should return 404 since no PII is persisted.
         """
-        # First enrich the profile
+        # Enrich the profile (no longer writes to finalize_data)
         test_client.post("/rad/enrich", json={"email": "john@acme.com"})
 
-        # Then fetch it
+        # Profile should NOT be found — PII is not persisted
         response = test_client.get("/rad/profile/john@acme.com")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_get_profile_found_when_preseeded(self, test_client, mock_supabase):
+        """
+        GET /rad/profile/{email}: Returns 200 when finalize_data is pre-seeded.
+        This path exists for legacy/admin use only.
+        """
+        # Pre-seed finalize_data directly (simulates legacy data)
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={"first_name": "John", "company_name": "Acme"},
+            intro="Hello John",
+            cta="Get started",
+            data_sources=["pdl"],
+        )
+
+        response = test_client.get("/rad/profile/john@acme.com")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["email"] == "john@acme.com"
         assert "normalized_profile" in data
         assert "personalization" in data
-
-    def test_get_profile_with_personalization(self, test_client, mock_supabase):
-        """
-        GET /rad/profile/{email}: Response includes intro_hook and cta.
-        """
-        # Enrich first
-        test_client.post("/rad/enrich", json={"email": "john@acme.com"})
-
-        response = test_client.get("/rad/profile/john@acme.com")
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        personalization = data.get("personalization")
-        assert personalization is not None
-        assert "intro_hook" in personalization
-        assert "cta" in personalization
 
     def test_get_profile_not_found(self, test_client, mock_supabase):
         """
@@ -149,34 +157,27 @@ class TestProfileEndpoint:
         """
         GET /rad/profile/{email}: email should be lowercased.
         """
-        # Enrich with lowercase
-        test_client.post("/rad/enrich", json={"email": "john@acme.com"})
+        # Pre-seed with lowercase
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={"first_name": "John"},
+        )
 
         # Fetch with uppercase
         response = test_client.get("/rad/profile/JOHN@ACME.COM")
-
-        assert response.status_code == status.HTTP_200_OK
-
-    def test_get_profile_reads_from_supabase(self, test_client, mock_supabase):
-        """
-        GET /rad/profile/{email}: Should read from finalize_data table.
-        """
-        # Enrich first
-        test_client.post("/rad/enrich", json={"email": "john@acme.com"})
-
-        response = test_client.get("/rad/profile/john@acme.com")
-
         assert response.status_code == status.HTTP_200_OK
 
     def test_get_profile_includes_last_updated(self, test_client, mock_supabase):
         """
         GET /rad/profile/{email}: Response includes last_updated timestamp.
         """
-        # Enrich first
-        test_client.post("/rad/enrich", json={"email": "john@acme.com"})
+        # Pre-seed data
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={"first_name": "John"},
+        )
 
         response = test_client.get("/rad/profile/john@acme.com")
-
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "last_updated" in data
@@ -214,9 +215,21 @@ class TestPDFEndpoint:
     def test_generate_pdf_success(self, test_client, mock_supabase):
         """
         POST /rad/pdf/{email}: Should generate PDF for existing profile.
+        Requires pre-seeded finalize_data since enrich no longer persists PII.
         """
-        # First enrich
-        test_client.post("/rad/enrich", json={"email": "john@acme.com"})
+        # Pre-seed finalize_data directly (enrich no longer writes PII)
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={
+                "first_name": "John",
+                "last_name": "Smith",
+                "company_name": "Acme Corp",
+                "industry": "technology",
+            },
+            intro="Hello John",
+            cta="Get started with AMD",
+            data_sources=["pdl"],
+        )
 
         # Then generate PDF
         response = test_client.post("/rad/pdf/john@acme.com")
@@ -234,3 +247,17 @@ class TestPDFEndpoint:
         response = test_client.post("/rad/pdf/unknown@example.com")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_generate_pdf_no_delivery_record_stored(self, test_client, mock_supabase):
+        """
+        POST /rad/pdf/{email}: Must NOT store pdf_deliveries record (PII-adjacent).
+        """
+        mock_supabase.write_finalize_data(
+            email="john@acme.com",
+            normalized_data={"first_name": "John", "company_name": "Acme"},
+        )
+
+        response = test_client.post("/rad/pdf/john@acme.com")
+        assert response.status_code == status.HTTP_200_OK
+        # No PDF delivery records should be stored
+        assert len(mock_supabase._mock_pdfs) == 0
