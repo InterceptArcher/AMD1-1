@@ -14,6 +14,7 @@ import httpx
 from abc import ABC, abstractmethod
 
 from app.config import settings
+from app.utils.log_sanitizer import sanitize_log
 
 logger = logging.getLogger(__name__)
 
@@ -173,15 +174,15 @@ class ApolloAPI(BaseEnrichmentAPI):
                 }
 
         except httpx.TimeoutException:
-            logger.error(f"Apollo API timeout for {email}")
+            logger.error(f"Apollo API timeout for {sanitize_log(email)}")
             raise EnrichmentAPIError(self.source_name, "Request timeout")
         except httpx.RequestError as e:
-            logger.error(f"Apollo API request error for {email}: {e}")
+            logger.error(f"Apollo API request error for {sanitize_log(email)}: {e}")
             raise EnrichmentAPIError(self.source_name, str(e))
 
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
-        logger.info(f"Apollo: Using mock data for {email} (no API key)")
+        logger.info(f"Apollo: Using mock data for {sanitize_log(email)} (no API key)")
         username = email.split("@")[0]
         domain = domain or email.split("@")[1]
         return {
@@ -275,15 +276,15 @@ class PDLAPI(BaseEnrichmentAPI):
                 }
 
         except httpx.TimeoutException:
-            logger.error(f"PDL API timeout for {email}")
+            logger.error(f"PDL API timeout for {sanitize_log(email)}")
             raise EnrichmentAPIError(self.source_name, "Request timeout")
         except httpx.RequestError as e:
-            logger.error(f"PDL API request error for {email}: {e}")
+            logger.error(f"PDL API request error for {sanitize_log(email)}: {e}")
             raise EnrichmentAPIError(self.source_name, str(e))
 
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
-        logger.info(f"PDL: Using mock data for {email} (no API key)")
+        logger.info(f"PDL: Using mock data for {sanitize_log(email)} (no API key)")
         return {
             "email": email,
             "location_country": "United States",
@@ -444,15 +445,15 @@ class HunterAPI(BaseEnrichmentAPI):
                 }
 
         except httpx.TimeoutException:
-            logger.error(f"Hunter API timeout for {email}")
+            logger.error(f"Hunter API timeout for {sanitize_log(email)}")
             raise EnrichmentAPIError(self.source_name, "Request timeout")
         except httpx.RequestError as e:
-            logger.error(f"Hunter API request error for {email}: {e}")
+            logger.error(f"Hunter API request error for {sanitize_log(email)}: {e}")
             raise EnrichmentAPIError(self.source_name, str(e))
 
     def _mock_response(self, email: str, domain: Optional[str]) -> Dict[str, Any]:
         """Return mock data when API key not configured."""
-        logger.info(f"Hunter: Using mock data for {email} (no API key)")
+        logger.info(f"Hunter: Using mock data for {sanitize_log(email)} (no API key)")
         return {
             "email": email,
             "status": "valid",
