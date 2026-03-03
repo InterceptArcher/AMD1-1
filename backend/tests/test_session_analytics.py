@@ -1,7 +1,8 @@
-"""Tests for anonymized session analytics storage."""
+"""Tests for anonymized session analytics storage and PDF streaming."""
 import pytest
 from fastapi import status
 from app.services.supabase_client import SupabaseClient
+from app.services.pdf_service import PDFService
 
 
 class TestSessionAnalytics:
@@ -90,3 +91,78 @@ class TestRoutesNoPiiWrites:
         response = test_client.post("/rad/pdf/john@acme.com")
         assert response.status_code == status.HTTP_200_OK
         assert len(mock_supabase._mock_pdfs) == 0
+
+
+class TestPdfNoStorage:
+    """Verify PDFs are generated in-memory, not stored."""
+
+    @pytest.mark.asyncio
+    async def test_generate_pdf_returns_bytes(self):
+        """generate_pdf must return pdf_bytes in its result dict."""
+        service = PDFService()
+        result = await service.generate_pdf(
+            job_id=0,
+            profile={"company_name": "Test Corp", "industry": "technology"},
+            intro_hook="Welcome to AI readiness",
+            cta="Learn more about AMD solutions",
+        )
+        assert "pdf_bytes" in result
+        assert isinstance(result["pdf_bytes"], bytes)
+        assert len(result["pdf_bytes"]) > 0
+        assert result["file_size_bytes"] == len(result["pdf_bytes"])
+
+    @pytest.mark.asyncio
+    async def test_generate_amd_ebook_returns_bytes(self):
+        """generate_amd_ebook must return pdf_bytes in its result dict."""
+        service = PDFService()
+        result = await service.generate_amd_ebook(
+            job_id=0,
+            profile={"company_name": "Acme", "industry": "healthcare"},
+            personalization={
+                "personalized_hook": "Opening hook",
+                "case_study_framing": "Case study frame",
+                "personalized_cta": "Call to action",
+            },
+        )
+        assert "pdf_bytes" in result
+        assert isinstance(result["pdf_bytes"], bytes)
+        assert len(result["pdf_bytes"]) > 0
+        assert "case_study_used" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_executive_review_pdf_returns_dict(self):
+        """generate_executive_review_pdf must return a dict with pdf_bytes."""
+        service = PDFService()
+        result = await service.generate_executive_review_pdf(
+            executive_review={
+                "company_name": "Test Corp",
+                "stage": "Challenger",
+                "stage_sidebar": "62% of mid-market firms are Challengers",
+                "advantages": [{"headline": "Adv1", "description": "Desc1"}],
+                "risks": [{"headline": "Risk1", "description": "Desc1"}],
+                "recommendations": [{"title": "Rec1", "description": "Desc1"}],
+                "case_study": "KT Cloud",
+                "case_study_description": "KT Cloud case study",
+            },
+            embed_json=False,
+        )
+        assert isinstance(result, dict)
+        assert "pdf_bytes" in result
+        assert isinstance(result["pdf_bytes"], bytes)
+        assert len(result["pdf_bytes"]) > 0
+        assert result["file_size_bytes"] == len(result["pdf_bytes"])
+
+    @pytest.mark.asyncio
+    async def test_generate_pdf_no_supabase_upload(self):
+        """PDF generation must NOT attempt Supabase storage upload."""
+        service = PDFService()  # No supabase_client passed
+        result = await service.generate_pdf(
+            job_id=0,
+            profile={"company_name": "No Storage Inc"},
+            intro_hook="Hook",
+            cta="CTA",
+        )
+        # No pdf_url or storage_path in result — bytes only
+        assert "pdf_url" not in result
+        assert "storage_path" not in result
+        assert "pdf_bytes" in result

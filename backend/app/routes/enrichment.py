@@ -93,7 +93,7 @@ async def quick_enrich(request: QuickEnrichRequest):
         pdl_data = results[1] if not isinstance(results[1], Exception) else {}
 
         if isinstance(results[0], Exception):
-            logger.warning(f"Quick-enrich Apollo failed for {email}: {results[0]}")
+            logger.warning(f"Quick-enrich Apollo failed for domain {domain}: {results[0]}")
         if isinstance(results[1], Exception):
             logger.warning(f"Quick-enrich PDL Company failed for {domain}: {results[1]}")
 
@@ -130,7 +130,7 @@ async def quick_enrich(request: QuickEnrichRequest):
         }
 
     except Exception as e:
-        logger.error(f"Quick-enrich failed for {email}: {e}")
+        logger.error(f"Quick-enrich failed for domain {domain}: {e}")
         return {"found": False}
 
 
@@ -174,7 +174,7 @@ async def enrich_profile(
         # Check for existing enrichment data (cache)
         existing_record = supabase.get_finalize_data(email)
         if existing_record and not request.force_refresh:
-            logger.info(f"[{job_id}] Using cached data for {email} (use force_refresh=true to re-enrich)")
+            logger.info(f"[{job_id}] Using cached data (use force_refresh=true to re-enrich)")
             # Return cached data with cache indicator
             return {
                 "job_id": job_id,
@@ -213,7 +213,7 @@ async def enrich_profile(
 
         if news_analysis["crisis"]["is_crisis"]:
             logger.warning(
-                f"[{job_id}] Crisis detected for {email}: "
+                f"[{job_id}] Crisis detected: "
                 f"{news_analysis['crisis']['type']} - {news_analysis['crisis']['details']}"
             )
             finalized["tone_guidance"] = "empathetic"
@@ -308,7 +308,7 @@ async def enrich_profile(
         except Exception:
             pass  # Analytics failure is non-fatal
         
-        logger.info(f"[{job_id}] Enrichment completed for {email}")
+        logger.info(f"[{job_id}] Enrichment completed")
         
         # Build response with data source info
         response = EnrichmentResponse(
@@ -386,13 +386,13 @@ async def get_profile(
     """
     try:
         email = email.lower().strip()
-        logger.info(f"Profile lookup for {email}")
-        
+        logger.info("Profile lookup requested")
+
         # Fetch from finalize_data table
         finalized_record = supabase.get_finalize_data(email)
-        
+
         if not finalized_record:
-            logger.warning(f"Profile not found for {email}")
+            logger.warning("Profile not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No profile found for {email}. Run POST /rad/enrich first."
@@ -423,7 +423,7 @@ async def get_profile(
                 cta=finalized_record.get("personalization_cta", "")
             )
         
-        logger.info(f"Retrieved profile for {email}")
+        logger.info("Profile retrieved successfully")
         
         return ProfileResponse(
             email=email,
@@ -435,7 +435,7 @@ async def get_profile(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to retrieve profile for {email}: {e}")
+        logger.error(f"Failed to retrieve profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve profile"
@@ -607,7 +607,7 @@ async def generate_pdf(
     """
     try:
         email = email.lower().strip()
-        logger.info(f"PDF generation requested for {email}")
+        logger.info("PDF generation requested")
 
         # Fetch profile
         finalized_record = supabase.get_finalize_data(email)
@@ -646,21 +646,24 @@ async def generate_pdf(
                 cta=finalized_record.get("personalization_cta", "")
             )
 
-        logger.info(f"PDF generated for {email}: {result.get('file_size_bytes')} bytes")
+        pdf_bytes = result["pdf_bytes"]
+        logger.info(f"[{job_id}] PDF generated: {result.get('file_size_bytes')} bytes")
 
-        return {
-            "email": email,
-            "pdf_url": result.get("pdf_url"),
-            "storage_path": result.get("storage_path"),
-            "file_size_bytes": result.get("file_size_bytes"),
-            "expires_at": result.get("expires_at"),
-            "generated_at": result.get("generated_at")
-        }
+        # Stream PDF bytes directly — no Supabase Storage upload
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'attachment; filename="personalized-ebook.pdf"',
+                "Content-Length": str(len(pdf_bytes)),
+            },
+        )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"PDF generation failed for {email}: {e}")
+        _jid = locals().get("job_id", "unknown")
+        logger.error(f"[{_jid}] PDF generation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PDF generation failed"
@@ -696,7 +699,7 @@ async def deliver_ebook(
     """
     try:
         email = email.lower().strip()
-        logger.info(f"Ebook delivery requested for {email}")
+        logger.info("Ebook delivery requested")
 
         # Fetch profile
         finalized_record = supabase.get_finalize_data(email)
@@ -735,7 +738,7 @@ async def deliver_ebook(
         if not pdf_bytes:
             raise ValueError("PDF generation returned empty content")
 
-        # Try to send email
+        # Try to send email with the already-generated pdf_bytes
         email_result = await email_service.send_ebook(
             to_email=email,
             pdf_bytes=pdf_bytes,
@@ -744,44 +747,28 @@ async def deliver_ebook(
             cta=ebook_personalization.get("personalized_cta", cta)
         )
 
-        # Also store PDF for fallback download
-        if ebook_personalization:
-            pdf_result = await pdf_service.generate_amd_ebook(
-                job_id=job_id,
-                profile=profile,
-                personalization=ebook_personalization,
-                user_context=user_context
-            )
-        else:
-            pdf_result = await pdf_service.generate_pdf(
-                job_id=job_id,
-                profile=profile,
-                intro_hook=intro_hook,
-                cta=cta
-            )
-
+        # No Supabase Storage upload — PDF was streamed via email attachment
         response = {
-            "email": email,
             "email_sent": email_result.get("success", False),
             "email_provider": email_result.get("provider"),
             "message_id": email_result.get("message_id"),
-            "pdf_url": pdf_result.get("pdf_url"),  # Fallback download URL
-            "file_size_bytes": pdf_result.get("file_size_bytes"),
-            "delivered_at": datetime.utcnow().isoformat()
+            "file_size_bytes": len(pdf_bytes),
+            "delivered_at": datetime.utcnow().isoformat(),
         }
 
         if not email_result.get("success"):
             response["email_error"] = email_result.get("error", "Unknown error")
-            logger.warning(f"Email delivery failed for {email}, fallback URL provided")
+            logger.warning(f"[{job_id}] Email delivery failed, no fallback URL")
         else:
-            logger.info(f"Ebook delivered to {email} via {email_result.get('provider')}")
+            logger.info(f"[{job_id}] Ebook delivered via {email_result.get('provider')}")
 
         return response
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ebook delivery failed for {email}: {e}")
+        _jid = locals().get("job_id", "unknown")
+        logger.error(f"[{_jid}] Ebook delivery failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ebook delivery failed"
@@ -886,7 +873,7 @@ async def generate_executive_review(
     try:
         email = request.email.lower().strip()
         domain = request.domain or email.split("@")[1]
-        logger.info(f"Executive review generation for {email}")
+        logger.info("Executive review generation requested")
 
         # Step 1: Enrich from email via APIs
         orchestrator = RADOrchestrator(supabase)
@@ -1060,12 +1047,13 @@ async def generate_executive_review_pdf(
             challenge=challenge,
         )
 
-        # Generate PDF from JSON
+        # Generate PDF from JSON — returns dict with pdf_bytes
         pdf_service = PDFService()
-        pdf_bytes = await pdf_service.generate_executive_review_pdf(
+        pdf_result = await pdf_service.generate_executive_review_pdf(
             executive_review=executive_review,
             embed_json=embed_json
         )
+        pdf_bytes = pdf_result["pdf_bytes"]
 
         # Generate filename
         company_slug = company_name.lower().replace(" ", "_")[:30]
@@ -1206,7 +1194,7 @@ async def download_pdf(
     """
     try:
         email = email.lower().strip()
-        logger.info(f"PDF download requested for {email}")
+        logger.info("PDF download requested")
 
         # Fetch profile
         finalized_record = supabase.get_finalize_data(email)
@@ -1250,7 +1238,7 @@ async def download_pdf(
         safe_name = "".join(c for c in first_name if c.isalnum()).lower()
         filename = f"personalized-ebook-{safe_name}.pdf"
 
-        logger.info(f"Serving PDF download for {email}: {len(pdf_bytes)} bytes")
+        logger.info(f"Serving PDF download: {len(pdf_bytes)} bytes")
 
         return Response(
             content=pdf_bytes,
@@ -1264,7 +1252,7 @@ async def download_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"PDF download failed for {email}: {e}")
+        logger.error(f"PDF download failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PDF download failed"

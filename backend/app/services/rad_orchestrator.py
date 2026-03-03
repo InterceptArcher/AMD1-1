@@ -156,7 +156,7 @@ class RADOrchestrator:
             Normalized profile dict with metadata
         """
         try:
-            logger.info(f"Starting enrichment for {email}")
+            logger.info(f"Starting enrichment for domain {email.split('@')[1] if '@' in email else 'unknown'}")
             self.data_sources = []
 
             # Extract domain from email if not provided
@@ -182,11 +182,11 @@ class RADOrchestrator:
             normalized["data_quality_score"] = self._calculate_quality_score(raw_data)
             normalized["completeness_report"] = self._build_completeness_report(normalized)
 
-            logger.info(f"Enrichment complete for {email}: {len(self.data_sources)} sources")
+            logger.info(f"Enrichment complete: {len(self.data_sources)} sources")
             return normalized
 
         except Exception as e:
-            logger.error(f"Enrichment failed for {email}: {e}")
+            logger.error(f"Enrichment failed: {e}")
             raise
 
     async def _fetch_all_sources(
@@ -845,7 +845,7 @@ class RADOrchestrator:
                 try:
                     return await self.enrich(email)
                 except Exception as e:
-                    logger.error(f"Batch enrichment failed for {email}: {e}")
+                    logger.error(f"Batch enrichment failed: {e}")
                     return {"email": email, "_error": str(e)}
 
         return await asyncio.gather(*[

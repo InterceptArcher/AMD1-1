@@ -1,7 +1,7 @@
 """
 PDF Service: Generates personalized ebook PDFs.
 Uses HTML templates with personalization slots.
-Stores PDFs in Supabase Storage, returns signed URLs.
+Returns PDF bytes in-memory for streaming — no Supabase Storage upload.
 """
 
 import logging
@@ -69,8 +69,8 @@ class PDFService:
     """
     Generates personalized PDF ebooks.
     - Uses HTML templates with personalization
-    - Stores in Supabase Storage
-    - Returns signed URLs for download
+    - Returns PDF bytes in-memory (no storage upload)
+    - Callers stream bytes directly to the client
     """
 
     def __init__(self, supabase_client=None):
@@ -94,6 +94,9 @@ class PDFService:
         """
         Generate personalized PDF for a job.
 
+        Returns PDF bytes directly — no Supabase Storage upload.
+        Callers can stream the bytes to the client.
+
         Args:
             job_id: Job ID for tracking
             profile: Normalized profile data
@@ -101,7 +104,7 @@ class PDFService:
             cta: Personalized CTA
 
         Returns:
-            Dict with pdf_url, storage_path, file_size
+            Dict with pdf_bytes, file_size_bytes, generated_at
         """
         try:
             # Generate HTML content
@@ -113,27 +116,10 @@ class PDFService:
             if not pdf_bytes:
                 raise ValueError("PDF generation returned empty content")
 
-            # Generate unique filename
-            email = profile.get("email", "unknown")
-            filename = self._generate_filename(email, job_id)
-
-            # Store in Supabase Storage (if available)
-            if self.supabase:
-                storage_path, pdf_url = await self._store_pdf(
-                    pdf_bytes, filename
-                )
-            else:
-                # Return base64 for testing
-                import base64
-                storage_path = f"local/{filename}"
-                pdf_url = f"data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode()}"
-
             result = {
-                "pdf_url": pdf_url,
-                "storage_path": storage_path,
+                "pdf_bytes": pdf_bytes,
                 "file_size_bytes": len(pdf_bytes),
                 "generated_at": datetime.utcnow().isoformat(),
-                "expires_at": (datetime.utcnow() + timedelta(hours=PDF_EXPIRY_HOURS)).isoformat()
             }
 
             logger.info(f"Generated PDF for job {job_id}: {len(pdf_bytes)} bytes")
@@ -153,6 +139,9 @@ class PDFService:
         """
         Generate personalized AMD ebook with 3 personalization points.
 
+        Returns PDF bytes directly — no Supabase Storage upload.
+        Callers can stream the bytes to the client.
+
         Args:
             job_id: Job ID for tracking
             profile: Normalized profile data
@@ -160,7 +149,7 @@ class PDFService:
             user_context: User-provided context (goal, persona, industry)
 
         Returns:
-            Dict with pdf_url, storage_path, file_size
+            Dict with pdf_bytes, file_size_bytes, generated_at, case_study_used
         """
         try:
             user_context = user_context or {}
@@ -185,25 +174,11 @@ class PDFService:
             if not pdf_bytes:
                 raise ValueError("PDF generation returned empty content")
 
-            # Generate unique filename
-            email = profile.get("email", "unknown")
-            filename = self._generate_filename(email, job_id)
-
-            # Store in Supabase Storage (if available)
-            if self.supabase:
-                storage_path, pdf_url = await self._store_pdf(pdf_bytes, filename)
-            else:
-                import base64
-                storage_path = f"local/{filename}"
-                pdf_url = f"data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode()}"
-
             result = {
-                "pdf_url": pdf_url,
-                "storage_path": storage_path,
+                "pdf_bytes": pdf_bytes,
                 "file_size_bytes": len(pdf_bytes),
                 "generated_at": datetime.utcnow().isoformat(),
-                "expires_at": (datetime.utcnow() + timedelta(hours=PDF_EXPIRY_HOURS)).isoformat(),
-                "case_study_used": case_study["title"]
+                "case_study_used": case_study["title"],
             }
 
             logger.info(f"Generated AMD ebook for job {job_id}: {len(pdf_bytes)} bytes, case study: {case_study['title']}")
@@ -1945,10 +1920,12 @@ startxref
         self,
         executive_review: Dict[str, Any],
         embed_json: bool = True
-    ) -> bytes:
+    ) -> Dict[str, Any]:
         """
         Generate PDF for AMD Executive Review (2-page assessment).
         Renders the JSON-structured content and optionally embeds JSON as PDF metadata.
+
+        Returns PDF bytes directly — no Supabase Storage upload.
 
         Args:
             executive_review: Dict with keys:
@@ -1963,7 +1940,7 @@ startxref
             embed_json: Whether to embed the JSON data as PDF metadata
 
         Returns:
-            PDF bytes
+            Dict with pdf_bytes, file_size_bytes, generated_at
         """
         try:
             # Generate HTML from executive review JSON
@@ -1980,7 +1957,11 @@ startxref
                 pdf_bytes = self._embed_json_metadata(pdf_bytes, executive_review)
 
             logger.info(f"Generated executive review PDF for {executive_review.get('company_name')}: {len(pdf_bytes)} bytes")
-            return pdf_bytes
+            return {
+                "pdf_bytes": pdf_bytes,
+                "file_size_bytes": len(pdf_bytes),
+                "generated_at": datetime.utcnow().isoformat(),
+            }
 
         except Exception as e:
             logger.error(f"Executive review PDF generation failed: {e}")

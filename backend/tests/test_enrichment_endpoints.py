@@ -231,13 +231,14 @@ class TestPDFEndpoint:
             data_sources=["pdl"],
         )
 
-        # Then generate PDF
+        # Then generate PDF — route now returns streamed PDF bytes
         response = test_client.post("/rad/pdf/john@acme.com")
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["email"] == "john@acme.com"
-        assert "pdf_url" in data or "storage_path" in data
+        assert response.headers["content-type"] == "application/pdf"
+        assert int(response.headers["content-length"]) > 0
+        # Response body is raw PDF bytes, not JSON
+        assert response.content[:5] == b"%PDF-"
 
     def test_generate_pdf_not_found(self, test_client, mock_supabase):
         """
