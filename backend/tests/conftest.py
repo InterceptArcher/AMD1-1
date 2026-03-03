@@ -36,6 +36,7 @@ def mock_supabase():
     client._mock_jobs = []
     client._mock_outputs = []
     client._mock_pdfs = []
+    client._mock_analytics = []
 
     return client
 

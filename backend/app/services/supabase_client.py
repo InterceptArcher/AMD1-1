@@ -47,6 +47,7 @@ class SupabaseClient:
             self._mock_jobs: List[Dict[str, Any]] = []
             self._mock_outputs: List[Dict[str, Any]] = []
             self._mock_pdfs: List[Dict[str, Any]] = []
+            self._mock_analytics: List[Dict[str, Any]] = []
             self.client = None
         else:
             from supabase import create_client, Client
@@ -748,6 +749,58 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error updating PDF delivery {delivery_id}: {e}")
             raise
+
+    # ========================================================================
+    # SESSION_ANALYTICS TABLE (Anonymized telemetry only — NO PII)
+    # ========================================================================
+
+    def store_session_analytics(
+        self,
+        industry: str,
+        company_size: str,
+        stage: Optional[str] = None,
+        persona: Optional[str] = None,
+        challenge: Optional[str] = None,
+        enrichment_sources: Optional[List[str]] = None,
+        llm_source: Optional[str] = None,
+        llm_latency_ms: Optional[int] = None,
+        enrichment_latency_ms: Optional[int] = None,
+        total_latency_ms: Optional[int] = None,
+        pdf_generated: bool = False,
+        email_delivered: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Store anonymized session analytics. NO PII — no email, name, company, or domain.
+        Only categorical data for aggregate reporting.
+        """
+        record = {
+            "id": str(uuid.uuid4()),
+            "session_id": str(uuid.uuid4()),
+            "industry": industry,
+            "company_size": company_size,
+            "stage": stage,
+            "persona": persona,
+            "challenge": challenge,
+            "enrichment_sources": enrichment_sources or [],
+            "llm_source": llm_source,
+            "llm_latency_ms": llm_latency_ms,
+            "enrichment_latency_ms": enrichment_latency_ms,
+            "total_latency_ms": total_latency_ms,
+            "pdf_generated": pdf_generated,
+            "email_delivered": email_delivered,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+
+        if self.mock_mode:
+            self._mock_analytics.append(record)
+            return record
+
+        try:
+            result = self.client.table("session_analytics").insert(record).execute()
+            return result.data[0] if result.data else record
+        except Exception as e:
+            logger.warning(f"Failed to store session analytics: {e}")
+            return record
 
     # ========================================================================
     # HEALTH CHECK
