@@ -8,6 +8,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.rad_orchestrator import RADOrchestrator, SOURCE_PRIORITY
+from app.services.supabase_client import SupabaseClient
 
 
 @pytest.mark.asyncio
@@ -248,15 +249,15 @@ class TestRADDataFlow:
         return RADOrchestrator(mock_supabase)
 
     @pytest.mark.asyncio
-    async def test_enrich_stores_raw_data(self, orchestrator, mock_supabase):
+    async def test_enrich_does_not_store_raw_data(self, orchestrator, mock_supabase):
         """
-        enrich: Should store raw data for successful sources.
+        enrich: Should NOT persist raw data to Supabase (PII protection).
         """
         await orchestrator.enrich("john@acme.com", "acme.com")
 
-        # Check that raw data was stored in mock storage
+        # Raw data must NOT be written to Supabase
         raw_records = mock_supabase.get_raw_data_for_email("john@acme.com")
-        assert len(raw_records) > 0
+        assert len(raw_records) == 0
 
     @pytest.mark.asyncio
     async def test_enrich_data_sources_populated(self, orchestrator):
@@ -418,3 +419,37 @@ class TestEmployeeCountEstimation:
         # Should use actual count, not estimate
         assert result.get("employee_count") == 4500
         assert result.get("employee_count_estimated") is None
+
+
+class TestNoPiiWrites:
+    """Verify orchestrator does NOT write PII to Supabase."""
+
+    @pytest.fixture
+    def mock_supabase(self):
+        """Fresh SupabaseClient in mock mode."""
+        client = SupabaseClient()
+        client._mock_raw_data = []
+        client._mock_staging = []
+        client._mock_finalize = []
+        client._mock_jobs = []
+        client._mock_outputs = []
+        client._mock_pdfs = []
+        return client
+
+    @pytest.mark.asyncio
+    async def test_enrich_does_not_store_raw_data(self, mock_supabase):
+        """enrich() must NOT persist raw API data to Supabase."""
+        orchestrator = RADOrchestrator(mock_supabase)
+        await orchestrator.enrich("test@example.com")
+        assert len(mock_supabase._mock_raw_data) == 0
+
+    @pytest.mark.asyncio
+    async def test_enrich_does_not_cache_news(self, mock_supabase):
+        """enrich() must NOT write gnews_cache entries to Supabase."""
+        orchestrator = RADOrchestrator(mock_supabase)
+        await orchestrator.enrich("test@example.com")
+        gnews_entries = [
+            r for r in mock_supabase._mock_raw_data
+            if r.get("source") == "gnews_cache"
+        ]
+        assert len(gnews_entries) == 0

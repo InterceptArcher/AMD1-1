@@ -91,13 +91,13 @@ class TestNewsCacheStorage:
         assert cached is None
 
 
-class TestOrchestratorCacheIntegration:
-    """Test that RADOrchestrator uses cache to avoid redundant GNews calls."""
+class TestOrchestratorNoCacheWrites:
+    """Verify orchestrator does NOT write or read news cache from Supabase."""
 
     @pytest.mark.asyncio
-    async def test_cache_hit_skips_gnews_api(self, mock_supabase):
-        """When fresh cache exists, GNews API should NOT be called."""
-        # Pre-populate cache
+    async def test_gnews_always_calls_api(self, mock_supabase):
+        """GNews API should always be called — no cache shortcut."""
+        # Pre-populate cache (should be ignored by orchestrator)
         cached_payload = {
             "domain": "datadoghq.com",
             "company_name": "Datadog",
@@ -112,23 +112,25 @@ class TestOrchestratorCacheIntegration:
 
         orchestrator = RADOrchestrator(mock_supabase)
 
-        # Mock the GNews API to track if it's called
         mock_gnews = AsyncMock()
-        mock_gnews.enrich_with_name = AsyncMock(return_value={"should_not": "be_called"})
+        mock_gnews.enrich_with_name = AsyncMock(return_value={
+            "answer": "Fresh from API",
+            "results": [{"title": "New article"}],
+            "result_count": 1,
+        })
         orchestrator.apis["gnews"] = mock_gnews
 
         result = await orchestrator._fetch_gnews_with_name(
             "test@datadoghq.com", "datadoghq.com", "Datadog"
         )
 
-        # GNews API should NOT have been called
-        mock_gnews.enrich_with_name.assert_not_called()
-        # Should return cached data
-        assert result["answer"] == "Cached news summary"
+        # API should ALWAYS be called (no cache bypass)
+        mock_gnews.enrich_with_name.assert_called_once()
+        assert result["answer"] == "Fresh from API"
 
     @pytest.mark.asyncio
-    async def test_cache_miss_calls_gnews_and_stores(self, mock_supabase):
-        """When no cache exists, GNews API should be called and result cached."""
+    async def test_gnews_result_not_cached(self, mock_supabase):
+        """GNews results should NOT be written to Supabase cache."""
         orchestrator = RADOrchestrator(mock_supabase)
 
         api_response = {
@@ -148,6 +150,9 @@ class TestOrchestratorCacheIntegration:
         mock_gnews.enrich_with_name = AsyncMock(return_value=api_response)
         orchestrator.apis["gnews"] = mock_gnews
 
+        # Clear any pre-existing mock data
+        mock_supabase._mock_raw_data = []
+
         result = await orchestrator._fetch_gnews_with_name(
             "test@newco.com", "newco.com", "NewCo"
         )
@@ -156,6 +161,6 @@ class TestOrchestratorCacheIntegration:
         mock_gnews.enrich_with_name.assert_called_once()
         assert result["answer"] == "Fresh from API"
 
-        # Should now be cached
+        # Should NOT be cached in Supabase
         cached = mock_supabase.get_cached_news("newco.com")
-        assert cached is not None
+        assert cached is None

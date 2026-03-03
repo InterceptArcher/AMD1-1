@@ -2,7 +2,7 @@
 RAD Orchestrator: Coordinates enrichment workflow.
 - Fetches data from external APIs (Apollo, PDL, Hunter, GNews, ZoomInfo)
 - Applies resolution logic (source priority + merge rules)
-- Writes normalized output to Supabase
+- Returns normalized output in-memory (no PII persisted to Supabase)
 """
 
 import logging
@@ -142,7 +142,7 @@ class RADOrchestrator:
 
         Flow:
           1. Fetch raw data from external APIs (parallel)
-          2. Store raw data in Supabase
+          2. Track successful data sources (in-memory only)
           3. Apply resolution logic (merge with priority)
           4. Return normalized profile (personalization added by LLM service)
 
@@ -166,13 +166,9 @@ class RADOrchestrator:
             # Step 1: Fetch raw data from all APIs in parallel
             raw_data = await self._fetch_all_sources(email, domain, user_company=user_company)
 
-            # Step 2: Store raw data in Supabase (non-fatal - continue even if storage fails)
+            # Track which sources returned data (for analytics, not storage)
             for source, data in raw_data.items():
                 if data and not data.get("_error"):
-                    try:
-                        self.supabase.store_raw_data(email, source, data)
-                    except Exception as storage_err:
-                        logger.warning(f"Failed to store raw data for {source}: {storage_err} - continuing anyway")
                     self.data_sources.append(source)
 
             # Step 3: Apply resolution logic
@@ -318,18 +314,12 @@ class RADOrchestrator:
     ) -> Dict[str, Any]:
         """
         Fetch company news with multi-layer strategy:
-        1. Check domain-level cache (avoids redundant calls)
-        2. Try GNews API
-        3. Fall back to Google News RSS (free, no API key) if GNews fails
-        Cache results from any source.
+        1. Try GNews API
+        2. Fall back to Google News RSS (free, no API key) if GNews fails
+        Results stay in memory only — no Supabase persistence.
         """
-        # Layer 1: Check cache
-        cached = self.supabase.get_cached_news(domain)
-        if cached and cached.get("payload"):
-            logger.info(f"News cache HIT for {domain} — skipping API calls")
-            return cached["payload"]
-
-        # Layer 2: Try GNews API
+        # Fetch fresh news every time (no Supabase cache)
+        # Layer 1: Try GNews API
         result = None
         gnews_api = self.apis.get("gnews")
         if gnews_api:
@@ -371,13 +361,7 @@ class RADOrchestrator:
             except Exception as rss_err:
                 logger.warning(f"RSS fallback failed for {company_name}: {rss_err}")
 
-        # Cache the result (even empty results avoid re-querying)
-        if result and not result.get("_error"):
-            try:
-                self.supabase.store_news_cache(domain, result)
-                logger.info(f"News result cached for {domain}")
-            except Exception as cache_err:
-                logger.warning(f"Failed to cache news result for {domain}: {cache_err}")
+        # News results stay in memory — not cached to Supabase
 
         return result or {"_error": "All news sources failed"}
 
