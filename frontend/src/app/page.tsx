@@ -6,6 +6,7 @@ import EmailConsentForm, { UserInputs } from '@/components/EmailConsentForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import PersonalizedContent from '@/components/PersonalizedContent';
 import ExecutiveReviewDisplay from '@/components/ExecutiveReviewDisplay';
+import { useCountUp } from '@/hooks/useCountUp';
 
 interface PersonalizationData {
   intro_hook: string;
@@ -68,6 +69,10 @@ function HomeContent() {
   const [personalizationData, setPersonalizationData] = useState<PersonalizationData | null>(null);
   const [executiveReview, setExecutiveReview] = useState<ExecutiveReviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const statLeaders = useCountUp(33, 1500, 400);
+  const statChallengers = useCountUp(58, 1500, 600);
+  const statObservers = useCountUp(9, 1500, 800);
 
   const handleReset = () => {
     setPersonalizationData(null);
@@ -150,11 +155,11 @@ function HomeContent() {
       {/* Enhanced Background Effects */}
       <div className="absolute inset-0 pointer-events-none">
         {/* Primary glow - top right */}
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#00c8aa]/[0.07] rounded-full blur-[150px] translate-x-1/3 -translate-y-1/3" />
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#00c8aa]/[0.07] rounded-full blur-[150px] ambient-glow-1" />
         {/* Secondary glow - bottom left */}
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#00c8aa]/[0.04] rounded-full blur-[120px] -translate-x-1/3 translate-y-1/3" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#00c8aa]/[0.04] rounded-full blur-[120px] ambient-glow-2" />
         {/* Accent glow - center */}
-        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-blue-500/[0.03] rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-blue-500/[0.03] rounded-full blur-[100px] ambient-glow-3" />
         {/* Subtle grid overlay */}
         <div className="absolute inset-0 amd-grid-pattern opacity-30" />
       </div>
@@ -195,49 +200,49 @@ function HomeContent() {
                   </p>
 
                   {/* Main Headline */}
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] mb-6 text-white animate-fade-in-up stagger-2">
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.08] tracking-[-0.03em] mb-6 text-white animate-fade-in-up stagger-2">
                     An Enterprise<br />
                     <span className="amd-text-gradient-animated">AI Readiness</span><br />
                     Framework
                   </h1>
 
                   {/* Subheadline */}
-                  <p className="text-lg sm:text-xl text-white/70 leading-relaxed mb-10 max-w-lg animate-fade-in-up stagger-3">
+                  <p className="text-lg sm:text-xl text-white/65 leading-relaxed mb-10 max-w-lg animate-fade-in-up stagger-3">
                     Discover where your organization stands on the modernization curve and get a personalized roadmap to AI leadership.
                   </p>
 
                   {/* Stats with enhanced styling */}
                   <div className="grid grid-cols-3 gap-6 sm:gap-8 animate-fade-in-up stagger-4">
                     <div className="amd-stat group cursor-default">
-                      <div className="text-3xl sm:text-4xl font-bold text-[#00c8aa] transition-transform group-hover:scale-105">33%</div>
+                      <div className="text-3xl sm:text-4xl font-bold text-[#00c8aa] transition-all duration-300 group-hover:scale-108 group-hover:[text-shadow:0_0_20px_rgba(0,200,170,0.4)]">{statLeaders}%</div>
                       <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Leaders</div>
                     </div>
                     <div className="amd-stat group cursor-default">
-                      <div className="text-3xl sm:text-4xl font-bold text-white transition-transform group-hover:scale-105">58%</div>
+                      <div className="text-3xl sm:text-4xl font-bold text-white transition-all duration-300 group-hover:scale-108 group-hover:[text-shadow:0_0_20px_rgba(0,200,170,0.3)]">{statChallengers}%</div>
                       <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Challengers</div>
                     </div>
                     <div className="amd-stat group cursor-default">
-                      <div className="text-3xl sm:text-4xl font-bold text-white/60 transition-transform group-hover:scale-105">9%</div>
+                      <div className="text-3xl sm:text-4xl font-bold text-white/60 transition-all duration-300 group-hover:scale-108 group-hover:[text-shadow:0_0_20px_rgba(0,200,170,0.2)]">{statObservers}%</div>
                       <div className="text-sm text-white/50 mt-2 font-medium tracking-wide">Observers</div>
                     </div>
                   </div>
 
                   {/* Trust indicators */}
-                  <div className="mt-10 pt-8 border-t border-white/10 animate-fade-in-up stagger-5">
+                  <div className="mt-10 pt-8 border-t border-white/10">
                     <div className="flex flex-wrap items-center gap-6 text-sm text-white/40">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 animate-fade-in-up stagger-5">
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                         <span>Personalized to your role</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 animate-fade-in-up stagger-6">
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                         <span>Industry-specific insights</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 animate-fade-in-up stagger-7">
                         <svg className="w-4 h-4 text-[#00c8aa]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
@@ -249,7 +254,7 @@ function HomeContent() {
 
                 {/* Right Side - Form Card */}
                 <div className="animate-fade-in-right stagger-2">
-                  <div className="amd-card-premium p-8 lg:p-10 amd-glow-intense">
+                  <div className="amd-card-premium p-8 lg:p-10 amd-glow-intense transition-transform duration-500 ease-out hover:-translate-y-1">
                     {/* Form Header */}
                     <div className="mb-8">
                       <div className="flex items-center gap-3 mb-4">
